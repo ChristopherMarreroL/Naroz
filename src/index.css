@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  color: #1f2937;
+  background:
+    radial-gradient(circle at top left, rgba(148, 163, 184, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(14, 116, 144, 0.12), transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Manrope', sans-serif;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-3xl border border-white/70 bg-white/80 shadow-[0_24px_70px_-35px_rgba(15,23,42,0.45)] backdrop-blur;
+  }
+
+  .soft-border {
+    @apply border border-slate-200/80;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600;
+  }
+}
