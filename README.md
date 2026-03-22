@@ -1,73 +1,83 @@
-# React + TypeScript + Vite
+# Naroz
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Naroz is a modular multimedia web app built with React, Vite, TypeScript, and Tailwind CSS.
 
-Currently, two official plugins are available:
+It runs directly in the browser and currently includes:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Video tools
+  - Merge multiple videos
+  - Reorder videos before merging
+  - Support for `MP4` and `MKV`
+  - Select output format: `MP4` or `MKV`
+- Image tools
+  - Convert images between `JPG`, `PNG`, `WebP`, `AVIF`, `GIF`, and `ICO`
 
-## React Compiler
+More tools will be added over time.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- React
+- Vite
+- TypeScript
+- Tailwind CSS
+- `ffmpeg.wasm` for in-browser video processing
+- `gifenc` for GIF image export
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Install Dependencies
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Run in Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+Then open the local URL shown in the terminal.
+
+## Build for Production
+
+```bash
+npm run build
+```
+
+## Preview the Production Build
+
+```bash
+npm run preview
+```
+
+## Lint the Project
+
+```bash
+npm run lint
+```
+
+## Project Structure
+
+```text
+src/
+  components/
+    layout/
+    shared/
+  features/
+    home/
+    image/
+    video/
+  lib/
+  types/
+```
+
+## Notes
+
+- Video merging works best when files share compatible codecs and resolution.
+- When possible, Naroz uses a faster merge path without unnecessary conversion.
+- Some image export formats such as `AVIF` or `WebP` may depend on browser/device support.
+- If a browser cannot generate the requested format correctly, Naroz shows an error instead of downloading a fake file.
+
+## Repository
+
+`https://github.com/ChristopherMarreroL/Naroz`

@@ -24,6 +24,14 @@ function getMimeType(format: ImageOutputFormat): string {
   return 'image/gif'
 }
 
+function getFormatLabel(format: ImageOutputFormat): string {
+  if (format === 'jpeg') {
+    return 'JPG'
+  }
+
+  return format.toUpperCase()
+}
+
 export function isSupportedImageType(file: File): boolean {
   return SUPPORTED_IMAGE_TYPES.has(file.type)
 }
@@ -95,11 +103,13 @@ async function canvasToBlob(canvas: HTMLCanvasElement, format: ImageOutputFormat
   })
 
   if (!blob) {
-    if (format === 'avif') {
-      throw new Error('Tu navegador no soporta conversion a AVIF en este momento.')
-    }
+    throw new Error(`Tu navegador no pudo generar la imagen en ${getFormatLabel(format)}.`)
+  }
 
-    throw new Error(`No se pudo generar la imagen convertida en ${format.toUpperCase()}.`)
+  if (blob.type !== mimeType) {
+    throw new Error(
+      `Tu navegador no exporta ${getFormatLabel(format)} de forma real en este dispositivo. Para evitar un archivo incorrecto, la conversion fue cancelada.`,
+    )
   }
 
   return blob

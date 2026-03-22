@@ -264,6 +264,16 @@ export function ImageConvertView() {
                     </div>
                   ) : null}
 
+                  {outputFormat === 'webp' ? (
+                    <div className="mt-4">
+                      <AlertBanner
+                        tone="info"
+                        title="WebP depende del dispositivo"
+                        message="En algunos moviles el navegador puede abrir WebP pero no exportarlo correctamente. Si pasa eso, la app cancelara la descarga y mostrara un error claro."
+                      />
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleConvert} disabled={isConverting}>
                       {isConverting ? 'Convirtiendo...' : 'Convertir imagen'}
