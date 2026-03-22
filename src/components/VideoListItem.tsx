@@ -59,7 +59,10 @@ export function VideoListItem({
             >
               Bajar
             </button>
-            <button type="button" className="btn-secondary" onClick={onRemove} disabled={disabled}>
+            <button type="button" className="btn-danger" onClick={onRemove} disabled={disabled}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+                <path d="M9 3.75A2.25 2.25 0 0 0 6.75 6H4.5a.75.75 0 0 0 0 1.5h.56l.83 10.37A2.25 2.25 0 0 0 8.13 20h7.74a2.25 2.25 0 0 0 2.24-2.13l.83-10.37h.56a.75.75 0 0 0 0-1.5h-2.25A2.25 2.25 0 0 0 15 3.75H9Zm6.75 2.25H8.25A.75.75 0 0 1 9 5.25h6a.75.75 0 0 1 .75.75ZM9.75 10.5a.75.75 0 0 0-1.5 0v5.25a.75.75 0 0 0 1.5 0V10.5Zm5.25-.75a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Zm-3.75.75a.75.75 0 0 0-1.5 0v5.25a.75.75 0 0 0 1.5 0V10.5Z" />
+              </svg>
               Eliminar
             </button>
           </div>

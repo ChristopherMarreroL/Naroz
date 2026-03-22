@@ -1,4 +1,4 @@
-import type { VideoItem } from '../types/video'
+import type { MergeStrategy, VideoItem } from '../types/video'
 
 const SUPPORTED_TYPES = new Set(['video/mp4', 'video/x-matroska'])
 const SUPPORTED_EXTENSIONS = ['.mp4', '.mkv']
@@ -94,12 +94,12 @@ export function getCompatibilityWarnings(videos: VideoItem[]): string[] {
   )
 
   if (resolutions.size > 1) {
-    warnings.add('Los videos tienen resoluciones distintas. La union directa puede fallar.')
+    warnings.add('Los videos tienen resoluciones distintas. La app intentara normalizarlos antes de unirlos.')
   }
 
   const extensions = new Set(videos.map((video) => video.extension))
   if (extensions.size > 1) {
-    warnings.add('Estas mezclando MP4 y MKV. Solo funcionara bien si los streams internos son compatibles.')
+    warnings.add('Estas mezclando MP4 y MKV. La app intentara convertirlos a un MP4 comun antes de unirlos.')
   }
 
   const filesWithoutMetadata = videos.filter((video) => !video.duration || !video.width || !video.height)
@@ -107,7 +107,29 @@ export function getCompatibilityWarnings(videos: VideoItem[]): string[] {
     warnings.add('No se pudo leer toda la metadata. Verifica que los videos sean compatibles entre si.')
   }
 
-  warnings.add('Para mejores resultados usa MP4 o MKV con los mismos codecs de video y audio, y la misma resolucion.')
+  warnings.add('La conversion puede tardar mas si los codecs, el audio o la resolucion son diferentes entre archivos.')
 
   return Array.from(warnings)
+}
+
+function allSameResolution(videos: VideoItem[]): boolean {
+  const resolutions = new Set(
+    videos
+      .filter((video) => video.width && video.height)
+      .map((video) => `${video.width}x${video.height}`),
+  )
+
+  return resolutions.size <= 1
+}
+
+export function canUseFastMode(videos: VideoItem[]): boolean {
+  if (videos.length === 0) {
+    return false
+  }
+
+  return videos.every((video) => video.extension === 'mp4') && allSameResolution(videos)
+}
+
+export function resolveMergeStrategy(videos: VideoItem[]): MergeStrategy {
+  return canUseFastMode(videos) ? 'fast' : 'compatible'
 }

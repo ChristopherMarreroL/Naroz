@@ -18,10 +18,13 @@ export interface MergeProgress {
   message: string
 }
 
+export type MergeStrategy = 'fast' | 'compatible'
+
 export interface MergeResult {
   blob: Blob
   url: string
   fileName: string
   size: number
   mimeType: string
+  strategy: MergeStrategy
 }

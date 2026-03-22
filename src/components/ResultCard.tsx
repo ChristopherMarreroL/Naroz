@@ -16,6 +16,9 @@ export function ResultCard({ result, onDownload }: ResultCardProps) {
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Archivo: {result.fileName} · Tamano aproximado: {formatBytes(result.size)}
           </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Salida: MP4 · Metodo usado: {result.strategy === 'fast' ? 'Modo rapido' : 'Modo compatible'}
+          </p>
         </div>
 
         <button type="button" className="btn-primary" onClick={onDownload}>
