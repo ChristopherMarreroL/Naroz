@@ -13,26 +13,17 @@ export function FilePicker({ onSelect, disabled = false }: FilePickerProps) {
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
           <span className="badge mb-4">Compatible con MP4 y MKV</span>
-          <h2 className="text-2xl font-extrabold text-slate-950 sm:text-3xl">
-            Selecciona, ordena y une tus videos sin salir del navegador
-          </h2>
+          <h2 className="text-2xl font-extrabold text-slate-950 sm:text-3xl">Selecciona, ordena y une tus videos</h2>
           <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-            La app procesa los archivos localmente con ffmpeg.wasm. Para mejores resultados usa videos MP4 o MKV con codecs compatibles entre si.
+            La herramienta procesa los archivos localmente con ffmpeg.wasm y elige automaticamente la estrategia mas estable para tu lista.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:min-w-72">
-          <button
-            type="button"
-            className="btn-primary w-full"
-            onClick={() => inputRef.current?.click()}
-            disabled={disabled}
-          >
+          <button type="button" className="btn-primary w-full" onClick={() => inputRef.current?.click()} disabled={disabled}>
             Seleccionar videos
           </button>
-          <p className="text-xs leading-5 text-slate-500">
-            Puedes elegir varios archivos a la vez desde tu computadora.
-          </p>
+          <p className="text-xs leading-5 text-slate-500">Puedes elegir varios archivos a la vez desde tu computadora.</p>
         </div>
       </div>
 

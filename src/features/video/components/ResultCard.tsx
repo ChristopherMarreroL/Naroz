@@ -1,5 +1,5 @@
-import { formatBytes } from '../lib/format'
-import type { MergeResult } from '../types/video'
+import { formatBytes } from '../../../lib/format'
+import type { MergeResult } from '../../../types/video'
 
 interface ResultCardProps {
   result: MergeResult
@@ -13,11 +13,9 @@ export function ResultCard({ result, onDownload }: ResultCardProps) {
         <div>
           <span className="badge mb-3 bg-emerald-100 text-emerald-700">Video listo</span>
           <h2 className="text-xl font-extrabold text-slate-950">Descarga tu archivo final</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Archivo: {result.fileName} · Tamano aproximado: {formatBytes(result.size)}
-          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Archivo: {result.fileName} · Tamano aproximado: {formatBytes(result.size)}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Salida: MP4 · Metodo usado: {result.strategy === 'fast' ? 'Modo rapido' : 'Modo compatible'}
+            Salida: MP4 · Metodo usado: {result.strategy === 'fast' ? 'Ruta rapida' : 'Ruta compatible'}
           </p>
         </div>
 

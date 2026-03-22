@@ -1,5 +1,5 @@
-import { formatBytes, formatDuration, formatResolution } from '../lib/format'
-import type { VideoItem } from '../types/video'
+import { formatBytes, formatDuration, formatResolution } from '../../../lib/format'
+import type { VideoItem } from '../../../types/video'
 
 interface VideoListItemProps {
   video: VideoItem
@@ -11,28 +11,12 @@ interface VideoListItemProps {
   onRemove: () => void
 }
 
-export function VideoListItem({
-  video,
-  index,
-  total,
-  disabled = false,
-  onMoveUp,
-  onMoveDown,
-  onRemove,
-}: VideoListItemProps) {
+export function VideoListItem({ video, index, total, disabled = false, onMoveUp, onMoveDown, onRemove }: VideoListItemProps) {
   return (
     <article className="soft-border grid gap-4 rounded-3xl bg-white p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
       <div className="relative overflow-hidden rounded-2xl bg-slate-100">
-        <video
-          src={video.previewUrl}
-          className="aspect-video h-full w-full object-cover"
-          muted
-          playsInline
-          preload="metadata"
-        />
-        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-2.5 py-1 text-xs font-semibold text-white">
-          #{index + 1}
-        </div>
+        <video src={video.previewUrl} className="aspect-video h-full w-full object-cover" muted playsInline preload="metadata" />
+        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-2.5 py-1 text-xs font-semibold text-white">#{index + 1}</div>
       </div>
 
       <div className="flex min-w-0 flex-col gap-4">
@@ -51,12 +35,7 @@ export function VideoListItem({
             <button type="button" className="btn-secondary" onClick={onMoveUp} disabled={disabled || index === 0}>
               Subir
             </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onMoveDown}
-              disabled={disabled || index === total - 1}
-            >
+            <button type="button" className="btn-secondary" onClick={onMoveDown} disabled={disabled || index === total - 1}>
               Bajar
             </button>
             <button type="button" className="btn-danger" onClick={onRemove} disabled={disabled}>
@@ -68,11 +47,7 @@ export function VideoListItem({
           </div>
         </div>
 
-        {video.warnings.length > 0 ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            {video.warnings.join(' ')}
-          </div>
-        ) : null}
+        {video.warnings.length > 0 ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{video.warnings.join(' ')}</div> : null}
       </div>
     </article>
   )

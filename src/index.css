@@ -64,4 +64,12 @@ select {
   .badge {
     @apply inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600;
   }
+
+  .tool-nav-item {
+    @apply flex items-start justify-between gap-3 rounded-2xl border border-transparent bg-white px-4 py-3 text-left transition hover:border-slate-200 hover:bg-slate-50;
+  }
+
+  .tool-nav-item-active {
+    @apply border-slate-900/10 bg-slate-50 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)];
+  }
 }

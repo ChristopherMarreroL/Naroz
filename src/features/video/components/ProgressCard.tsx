@@ -1,4 +1,4 @@
-import type { MergeProgress } from '../types/video'
+import type { MergeProgress } from '../../../types/video'
 
 interface ProgressCardProps {
   progress: MergeProgress
@@ -20,10 +20,7 @@ export function ProgressCard({ progress, isLoadingEngine, isProcessing }: Progre
       </div>
 
       <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-slate-950 transition-all duration-300"
-          style={{ width: `${progress.percent}%` }}
-        />
+        <div className="h-full rounded-full bg-slate-950 transition-all duration-300" style={{ width: `${progress.percent}%` }} />
       </div>
 
       <div className="mt-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
