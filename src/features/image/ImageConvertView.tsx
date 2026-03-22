@@ -19,6 +19,9 @@ const OUTPUT_OPTIONS: Array<{ value: ImageOutputFormat; label: string }> = [
   { value: 'jpeg', label: 'JPG / JPEG' },
   { value: 'png', label: 'PNG' },
   { value: 'webp', label: 'WebP' },
+  { value: 'avif', label: 'AVIF' },
+  { value: 'gif', label: 'GIF' },
+  { value: 'ico', label: 'ICO' },
 ]
 
 function loadImagePreview(file: File): Promise<ImageUploadState> {
@@ -84,7 +87,7 @@ export function ImageConvertView() {
       setNotice({
         tone: 'error',
         title: 'Formato no soportado',
-        message: 'Esta herramienta acepta imagenes JPG, PNG y WebP en esta primera etapa.',
+        message: 'Esta herramienta acepta imagenes JPG, PNG y WebP como entrada en esta etapa.',
       })
       return
     }
@@ -150,29 +153,29 @@ export function ImageConvertView() {
     <>
       <SectionHero
         badge="Imagen / Convertir formato"
-        title="Convierte imagenes entre JPG, PNG y WebP desde una vista simple y clara"
-        description="Sube una imagen, revisa su informacion, elige el formato de salida y descarga el resultado convertido desde la misma suite."
+        title="Convierte imagenes entre JPG, PNG, WebP, AVIF, GIF e ICO"
+        description="Sube una imagen, elige el formato de salida y descarga el archivo realmente convertido desde la misma suite."
         aside={
-          <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">Formatos iniciales</p>
+          <div className="rounded-[1.6rem] border border-slate-900/10 bg-slate-950 p-5 text-slate-50 shadow-[0_26px_60px_-34px_rgba(15,23,42,0.78)] sm:p-6">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">Formatos disponibles</p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
               <li>1. Entrada: JPG, PNG, WebP</li>
-              <li>2. Salida: JPG, PNG, WebP</li>
-              <li>3. Conversion estable con canvas</li>
+              <li>2. Salida: JPG, PNG, WebP, AVIF, GIF, ICO</li>
+              <li>3. Conversion real, no solo renombrado</li>
             </ul>
           </div>
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-5 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="panel p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-extrabold text-slate-950">Cargar imagen</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">Esta herramienta esta pensada para conversiones directas y realistas en frontend.</p>
             </div>
 
-            <label className="btn-primary cursor-pointer">
+            <label className="btn-primary w-full cursor-pointer justify-center sm:w-auto">
               Seleccionar imagen
               <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" className="hidden" onChange={handleFileChange} />
             </label>
@@ -181,32 +184,34 @@ export function ImageConvertView() {
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 
           {upload ? (
-            <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-100">
-                <img src={upload.previewUrl} alt={upload.file.name} className="h-full w-full object-contain" />
+            <div className="mt-6 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
+              <div className="panel-subtle overflow-hidden p-3">
+                <div className="overflow-hidden rounded-[1.2rem] bg-slate-100">
+                  <img src={upload.previewUrl} alt={upload.file.name} className="aspect-square h-full w-full object-contain sm:aspect-[4/3]" />
+                </div>
               </div>
 
               <div className="grid gap-5">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="soft-border rounded-2xl bg-white p-4">
+                  <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Nombre</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{upload.file.name}</p>
+                    <p className="mt-2 break-words text-sm font-semibold text-slate-900">{upload.file.name}</p>
                   </div>
-                  <div className="soft-border rounded-2xl bg-white p-4">
+                  <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Tamano</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(upload.file.size)}</p>
                   </div>
-                  <div className="soft-border rounded-2xl bg-white p-4">
+                  <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Formato</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">{sourceLabel}</p>
                   </div>
-                  <div className="soft-border rounded-2xl bg-white p-4">
+                  <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Resolucion</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">{upload.width}x{upload.height}</p>
                   </div>
                 </div>
 
-                <div className="soft-border rounded-3xl bg-white p-5">
+                <div className="panel-subtle p-5 sm:p-6">
                   <label className="text-sm font-semibold text-slate-900" htmlFor="output-format">Formato de salida</label>
                   <select
                     id="output-format"
@@ -229,12 +234,42 @@ export function ImageConvertView() {
                     </div>
                   ) : null}
 
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <button type="button" className="btn-primary" onClick={handleConvert} disabled={isConverting}>
+                  {outputFormat === 'gif' ? (
+                    <div className="mt-4">
+                      <AlertBanner
+                        tone="info"
+                        title="GIF estatico"
+                        message="Esta conversion genera un GIF de una sola imagen. No crea animaciones a partir de imagenes fijas."
+                      />
+                    </div>
+                  ) : null}
+
+                  {outputFormat === 'ico' ? (
+                    <div className="mt-4">
+                      <AlertBanner
+                        tone="info"
+                        title="ICO para iconos"
+                        message="La imagen se convierte realmente a ICO y se adapta a un lienzo cuadrado para funcionar mejor como icono."
+                      />
+                    </div>
+                  ) : null}
+
+                  {outputFormat === 'avif' ? (
+                    <div className="mt-4">
+                      <AlertBanner
+                        tone="info"
+                        title="AVIF depende del navegador"
+                        message="Si tu navegador no soporta exportar AVIF, la app mostrara un error claro en lugar de darte un archivo incorrecto."
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                    <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleConvert} disabled={isConverting}>
                       {isConverting ? 'Convirtiendo...' : 'Convertir imagen'}
                     </button>
                     {result ? (
-                      <button type="button" className="btn-secondary" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
                         Descargar imagen convertida
                       </button>
                     ) : null}
@@ -243,7 +278,7 @@ export function ImageConvertView() {
               </div>
             </div>
           ) : (
-            <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+            <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center sm:px-6 sm:py-12">
               <h3 className="text-xl font-bold text-slate-950">Todavia no has cargado una imagen</h3>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-600">
                 Selecciona una imagen JPG, PNG o WebP para ver su vista previa, elegir un formato de salida y convertirla.
@@ -252,18 +287,18 @@ export function ImageConvertView() {
           )}
         </section>
 
-        <section className="panel p-6 sm:p-8">
+        <section className="panel p-4 sm:p-6 lg:p-8">
           <h2 className="text-2xl font-extrabold text-slate-950">Estado de conversion</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">La conversion de imagen usa APIs del navegador, por lo que es inmediata en casos sencillos.</p>
 
           <div className="mt-6 grid gap-4">
-            <div className="soft-border rounded-2xl bg-white p-4">
+            <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Salida final</p>
               <p className="mt-2 text-sm font-semibold text-slate-900">{outputFormat.toUpperCase()}</p>
             </div>
-            <div className="soft-border rounded-2xl bg-white p-4">
+            <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Compatibilidad</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Sin SVG en esta etapa para mantener una conversion tecnicamente correcta y estable.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">JPG, PNG, WebP, AVIF, GIF e ICO salen realmente en el formato elegido. SVG sigue fuera para mantener conversiones correctas.</p>
             </div>
             {result ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

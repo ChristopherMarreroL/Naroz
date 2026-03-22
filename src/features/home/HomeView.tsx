@@ -33,40 +33,36 @@ export function HomeView({ onNavigate }: HomeViewProps) {
   return (
     <>
       <SectionHero
-        badge="Suite multimedia"
-        title="Una base escalable para herramientas de video e imagen"
-        description="La app ahora funciona como una plataforma modular. Cada herramienta vive en su propio modulo y la interfaz esta preparada para crecer sin perder claridad."
+        badge="Naroz"
+        title="Video e imagen, en un solo lugar"
+        description="Elige una herramienta y empieza desde el navegador."
         aside={
-          <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">Disponible hoy</p>
-            <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
-              <li>1. Video / Unir videos</li>
-              <li>2. Imagen / Convertir formato</li>
-              <li>3. Base lista para sumar nuevas utilidades</li>
-            </ul>
+          <div className="w-full max-w-full rounded-[1.5rem] border border-slate-900/10 bg-slate-950 p-4 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)] sm:p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Disponible</p>
+            <div className="mt-3 grid gap-2 text-sm text-slate-200">
+              <div className="rounded-2xl bg-white/8 px-3 py-2.5 break-words">Unir videos</div>
+              <div className="rounded-2xl bg-white/8 px-3 py-2.5 break-words">Convertir imagen</div>
+            </div>
           </div>
         }
       />
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="panel p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-4">
+      <section className="grid min-w-0 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="panel p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-2xl font-extrabold text-slate-950">Herramientas disponibles</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Entra a cada modulo desde aqui o desde la navegacion lateral.
-              </p>
             </div>
             <span className="badge">2 activas</span>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2">
             {availableTools.map((tool) => (
-              <article key={tool.id} className="soft-border rounded-3xl bg-white p-5">
+              <article key={tool.id} className="panel-subtle min-w-0 p-5">
                 <span className="badge">{tool.category}</span>
                 <h3 className="mt-4 text-xl font-bold text-slate-950">{tool.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{tool.description}</p>
-                <button type="button" className="btn-primary mt-5" onClick={() => onNavigate(tool.id)}>
+                <p className="mt-2 break-words text-sm leading-6 text-slate-600">{tool.description}</p>
+                <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
                   Abrir herramienta
                 </button>
               </article>
@@ -74,20 +70,19 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           </div>
         </div>
 
-        <section className="panel p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-4">
+        <section className="panel p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-2xl font-extrabold text-slate-950">Proximamente</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">La arquitectura ya esta preparada para estas siguientes herramientas.</p>
             </div>
             <span className="badge bg-amber-100 text-amber-700">Roadmap</span>
           </div>
 
-          <div className="mt-6 grid gap-3">
+          <div className="mt-5 grid min-w-0 gap-3">
             {upcomingTools.map((tool) => (
-              <div key={`${tool.category}-${tool.title}`} className="soft-border flex items-center justify-between rounded-2xl bg-white px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{tool.title}</p>
+              <div key={`${tool.category}-${tool.title}`} className="panel-subtle min-w-0 flex flex-col items-start justify-between gap-3 px-4 py-3 sm:flex-row sm:items-center">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-slate-900">{tool.title}</p>
                   <p className="text-xs text-slate-500">{tool.category}</p>
                 </div>
                 <span className="badge bg-slate-100 text-slate-500">Proximamente</span>

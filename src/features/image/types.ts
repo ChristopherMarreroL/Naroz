@@ -1,4 +1,4 @@
-export type ImageOutputFormat = 'jpeg' | 'png' | 'webp'
+export type ImageOutputFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'gif' | 'ico'
 
 export interface ImageUploadState {
   file: File

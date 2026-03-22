@@ -15,7 +15,7 @@ export function ResultCard({ result, onDownload }: ResultCardProps) {
           <h2 className="text-xl font-extrabold text-slate-950">Descarga tu archivo final</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">Archivo: {result.fileName} · Tamano aproximado: {formatBytes(result.size)}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Salida: MP4 · Metodo usado: {result.strategy === 'fast' ? 'Ruta rapida' : 'Ruta compatible'}
+            Salida: {result.outputFormat.toUpperCase()} · Metodo usado: {result.strategy === 'fast' ? 'Ruta rapida' : 'Ruta compatible'}
           </p>
         </div>
 

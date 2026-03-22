@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
-import { getVideoExtension } from '../lib/media'
-import type { MergeProgress, MergeResult, MergeStrategy, VideoItem } from '../types/video'
+import type { MergeProgress, MergeResult, MergeStrategy, VideoItem, VideoOutputFormat } from '../types/video'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
@@ -11,9 +10,10 @@ const INITIAL_PROGRESS: MergeProgress = {
   stage: 'idle',
   percent: 0,
   message: 'Listo para unir tus videos.',
+  detail: 'Elige tus archivos y el formato de salida.',
 }
 
-function createOutputFileName(extension: 'mp4' | 'mkv'): string {
+function createOutputFileName(extension: VideoOutputFormat): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   return `video-unido-${timestamp}.${extension}`
 }
@@ -60,23 +60,6 @@ function getExpectedDuration(videos: VideoItem[]): number {
   return videos.reduce((sum, video) => sum + (video.duration ?? 0), 0)
 }
 
-function validateFastMode(videos: VideoItem[]) {
-  const nonMp4 = videos.some((video) => video.extension !== 'mp4')
-  if (nonMp4) {
-    throw new Error('FAST_MODE_REQUIRES_MP4')
-  }
-
-  const resolutions = new Set(
-    videos
-      .filter((video) => video.width && video.height)
-      .map((video) => `${video.width}x${video.height}`),
-  )
-
-  if (resolutions.size > 1) {
-    throw new Error('FAST_MODE_REQUIRES_SAME_RESOLUTION')
-  }
-}
-
 async function verifyOutputDuration(url: string, videos: VideoItem[]) {
   const expectedDuration = getExpectedDuration(videos)
   const outputDuration = await loadBlobDuration(url)
@@ -92,18 +75,39 @@ async function verifyOutputDuration(url: string, videos: VideoItem[]) {
   }
 }
 
-function getOutputSettings(): {
-  extension: 'mp4' | 'mkv'
-  mimeType: string
-  fileName: string
-} {
-  const extension = 'mp4'
-
+function getOutputSettings(outputFormat: VideoOutputFormat) {
   return {
-    extension,
-    mimeType: 'video/mp4',
-    fileName: createOutputFileName(extension),
+    extension: outputFormat,
+    mimeType: outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4',
+    fileName: createOutputFileName(outputFormat),
   }
+}
+
+function validateFastMode(videos: VideoItem[], outputFormat: VideoOutputFormat) {
+  const sameFormat = videos.every((video) => video.extension === outputFormat)
+  if (!sameFormat) {
+    throw new Error('FAST_MODE_REQUIRES_SAME_FORMAT')
+  }
+
+  const resolutions = new Set(
+    videos
+      .filter((video) => video.width && video.height)
+      .map((video) => `${video.width}x${video.height}`),
+  )
+
+  if (resolutions.size > 1) {
+    throw new Error('FAST_MODE_REQUIRES_SAME_RESOLUTION')
+  }
+}
+
+type ProgressStage = MergeProgress['stage']
+
+interface ProgressPhase {
+  stage: ProgressStage
+  start: number
+  end: number
+  message: string
+  detail?: string
 }
 
 export function useVideoMerger() {
@@ -114,6 +118,13 @@ export function useVideoMerger() {
   const [result, setResult] = useState<MergeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const lastLogRef = useRef('')
+  const progressPhaseRef = useRef<ProgressPhase>({
+    stage: 'idle',
+    start: 0,
+    end: 0,
+    message: INITIAL_PROGRESS.message,
+    detail: INITIAL_PROGRESS.detail,
+  })
 
   useEffect(() => {
     return () => {
@@ -123,23 +134,42 @@ export function useVideoMerger() {
     }
   }, [result])
 
+  const setProgressPhase = useCallback((phase: ProgressPhase) => {
+    progressPhaseRef.current = phase
+    setProgress({
+      stage: phase.stage,
+      percent: phase.start,
+      message: phase.message,
+      detail: phase.detail,
+    })
+  }, [])
+
   const ensureLoaded = useCallback(async () => {
     if (ffmpegRef.current) {
       return ffmpegRef.current
     }
 
     setIsLoadingEngine(true)
-    setProgress({ stage: 'loading', percent: 10, message: 'Cargando motor de video en el navegador...' })
+    setProgress({
+      stage: 'loading',
+      percent: 10,
+      message: 'Cargando motor de video en el navegador...',
+      detail: 'La primera carga puede tardar un poco.',
+    })
 
     const ffmpeg = new FFmpeg()
     ffmpeg.on('log', ({ message }) => {
       lastLogRef.current = message
     })
     ffmpeg.on('progress', ({ progress: ratio }) => {
+      const currentPhase = progressPhaseRef.current
+      const mappedPercent = Math.round(currentPhase.start + (currentPhase.end - currentPhase.start) * ratio)
+
       setProgress({
-        stage: 'processing',
-        percent: Math.min(99, Math.max(12, Math.round(ratio * 100))),
-        message: 'Uniendo videos. Este paso puede tardar unos minutos.',
+        stage: currentPhase.stage,
+        percent: Math.min(99, Math.max(currentPhase.start, mappedPercent)),
+        message: currentPhase.message,
+        detail: currentPhase.detail,
       })
     })
 
@@ -151,7 +181,12 @@ export function useVideoMerger() {
 
     ffmpegRef.current = ffmpeg
     setIsLoadingEngine(false)
-    setProgress({ stage: 'idle', percent: 0, message: 'Motor listo. Puedes iniciar la union.' })
+    setProgress({
+      stage: 'idle',
+      percent: 0,
+      message: 'Motor listo. Puedes iniciar la union.',
+      detail: 'La barra avanzara segun preparacion, conversion y union.',
+    })
     return ffmpeg
   }, [])
 
@@ -165,222 +200,292 @@ export function useVideoMerger() {
     })
   }, [])
 
-  const mergeVideos = useCallback(async (videos: VideoItem[], strategy: MergeStrategy) => {
-    if (videos.length === 0) {
-      setError('Selecciona al menos un video MP4 o MKV antes de unir.')
-      setProgress({ stage: 'error', percent: 0, message: 'No hay videos para procesar.' })
-      return null
-    }
-
-    setError(null)
-    resetResult()
-    setIsProcessing(true)
-
-    try {
-      const ffmpeg = await ensureLoaded()
-      const inputFileNames: string[] = []
-      const normalizedFileNames: string[] = []
-      const transportStreamFileNames: string[] = []
-      const outputSettings = getOutputSettings()
-      const outputFileName = `output.${outputSettings.extension}`
-
-      setProgress({ stage: 'processing', percent: 12, message: 'Preparando archivos...' })
-
-      for (let index = 0; index < videos.length; index += 1) {
-        const extension = getVideoExtension(videos[index].file)
-        const inputName = `input-${index}.${extension}`
-        inputFileNames.push(inputName)
-        await ffmpeg.writeFile(inputName, await fetchFile(videos[index].file))
+  const mergeVideos = useCallback(
+    async (videos: VideoItem[], strategy: MergeStrategy, outputFormat: VideoOutputFormat) => {
+      if (videos.length === 0) {
+        setError('Selecciona al menos un video MP4 o MKV antes de unir.')
+        setProgress({
+          stage: 'error',
+          percent: 0,
+          message: 'No hay videos para procesar.',
+          detail: 'Agrega al menos un archivo.',
+        })
+        return null
       }
 
-      if (strategy === 'fast') {
-        validateFastMode(videos)
-        for (let index = 0; index < inputFileNames.length; index += 1) {
-          const transportName = `fast-${index}.ts`
-          const normalizedAudioName = `fast-normalized-${index}.mp4`
-          normalizedFileNames.push(normalizedAudioName)
-          transportStreamFileNames.push(transportName)
+      setError(null)
+      resetResult()
+      setIsProcessing(true)
 
-          setProgress({
-            stage: 'processing',
-            percent: Math.min(60, 20 + Math.round((index / Math.max(inputFileNames.length, 1)) * 35)),
-            message: `Preparando video ${index + 1} de ${inputFileNames.length} para union automatica rapida...`,
-          })
+      try {
+        const ffmpeg = await ensureLoaded()
+        const inputFileNames: string[] = []
+        const normalizedFileNames: string[] = []
+        const transportStreamFileNames: string[] = []
+        const outputSettings = getOutputSettings(outputFormat)
+        const outputFileName = `output.${outputSettings.extension}`
 
-          await ffmpeg.exec([
-            '-i',
-            inputFileNames[index],
-            '-map',
-            '0:v:0',
-            '-map',
-            '0:a:0?',
-            '-c:v',
-            'copy',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '192k',
-            '-ar',
-            '48000',
-            '-ac',
-            '2',
-            '-movflags',
-            '+faststart',
-            normalizedAudioName,
-          ])
-
-          await ffmpeg.exec([
-            '-i',
-            normalizedAudioName,
-            '-c',
-            'copy',
-            '-bsf:v',
-            'h264_mp4toannexb',
-            '-f',
-            'mpegts',
-            transportName,
-          ])
-        }
-
-        setProgress({
-          stage: 'processing',
-          percent: 72,
-          message: 'Uniendo videos con la ruta rapida automatica...',
+        setProgressPhase({
+          stage: 'preparing',
+          start: 8,
+          end: 12,
+          message: 'Preparando archivos...',
+          detail: 'Leyendo los videos locales antes del procesamiento.',
         })
 
-        await ffmpeg.exec([
-          '-fflags',
-          '+genpts',
-          '-f',
-          'mpegts',
-          '-i',
-          `concat:${transportStreamFileNames.join('|')}`,
-          '-c',
-          'copy',
-          '-bsf:a',
-          'aac_adtstoasc',
-          '-movflags',
-          '+faststart',
-          outputFileName,
-        ])
-      } else {
-        const targetResolution = getTargetResolution(videos)
-
         for (let index = 0; index < videos.length; index += 1) {
-          const normalizedName = `normalized-${index}.mp4`
-          normalizedFileNames.push(normalizedName)
+          const inputName = `input-${index}.${videos[index].extension}`
+          inputFileNames.push(inputName)
+          await ffmpeg.writeFile(inputName, await fetchFile(videos[index].file))
+        }
 
-          setProgress({
-            stage: 'processing',
-            percent: Math.min(70, 15 + Math.round((index / Math.max(videos.length, 1)) * 50)),
-            message: `Convirtiendo video ${index + 1} de ${videos.length} a MP4 compatible...`,
+        if (strategy === 'fast') {
+          validateFastMode(videos, outputFormat)
+
+          if (outputFormat === 'mp4') {
+            for (let index = 0; index < inputFileNames.length; index += 1) {
+              const normalizedName = `fast-normalized-${index}.mp4`
+              const transportName = `fast-${index}.ts`
+
+              normalizedFileNames.push(normalizedName)
+              transportStreamFileNames.push(transportName)
+
+              setProgressPhase({
+                stage: 'preparing',
+                start: 12 + Math.round((index / inputFileNames.length) * 28),
+                end: 22 + Math.round(((index + 1) / inputFileNames.length) * 28),
+                message: `Preparando video ${index + 1} de ${inputFileNames.length}...`,
+                detail: 'Ajustando el audio para mantener compatibilidad en la salida MP4.',
+              })
+
+              await ffmpeg.exec([
+                '-i',
+                inputFileNames[index],
+                '-map',
+                '0:v:0',
+                '-map',
+                '0:a:0?',
+                '-c:v',
+                'copy',
+                '-c:a',
+                'aac',
+                '-b:a',
+                '192k',
+                '-ar',
+                '48000',
+                '-ac',
+                '2',
+                '-movflags',
+                '+faststart',
+                normalizedName,
+              ])
+
+              setProgressPhase({
+                stage: 'preparing',
+                start: 22 + Math.round((index / inputFileNames.length) * 22),
+                end: 32 + Math.round(((index + 1) / inputFileNames.length) * 22),
+                message: `Optimizando video ${index + 1} de ${inputFileNames.length}...`,
+                detail: 'Convirtiendo a flujo intermedio rapido antes de unir.',
+              })
+
+              await ffmpeg.exec([
+                '-i',
+                normalizedName,
+                '-c',
+                'copy',
+                '-bsf:v',
+                'h264_mp4toannexb',
+                '-f',
+                'mpegts',
+                transportName,
+              ])
+            }
+
+            setProgressPhase({
+              stage: 'merging',
+              start: 68,
+              end: 96,
+              message: 'Uniendo videos...',
+              detail: 'Empaquetando la salida final en MP4.',
+            })
+
+            await ffmpeg.exec([
+              '-fflags',
+              '+genpts',
+              '-f',
+              'mpegts',
+              '-i',
+              `concat:${transportStreamFileNames.join('|')}`,
+              '-c',
+              'copy',
+              '-bsf:a',
+              'aac_adtstoasc',
+              '-movflags',
+              '+faststart',
+              outputFileName,
+            ])
+          } else {
+            const concatList = inputFileNames.map((fileName) => `file '${fileName}'`).join('\n')
+            await ffmpeg.writeFile('inputs.txt', new TextEncoder().encode(concatList))
+
+            setProgressPhase({
+              stage: 'merging',
+              start: 16,
+              end: 96,
+              message: 'Uniendo videos...',
+              detail: 'Todos ya son MKV compatibles, asi que se uniran sin conversion pesada.',
+            })
+
+            await ffmpeg.exec([
+              '-f',
+              'concat',
+              '-safe',
+              '0',
+              '-i',
+              'inputs.txt',
+              '-c',
+              'copy',
+              outputFileName,
+            ])
+          }
+        } else {
+          const targetResolution = getTargetResolution(videos)
+
+          for (let index = 0; index < videos.length; index += 1) {
+            const normalizedName = `normalized-${index}.${outputFormat}`
+            normalizedFileNames.push(normalizedName)
+
+            setProgressPhase({
+              stage: 'converting',
+              start: 14 + Math.round((index / videos.length) * 54),
+              end: 22 + Math.round(((index + 1) / videos.length) * 54),
+              message: `Cambiando formato ${index + 1} de ${videos.length}...`,
+              detail: `Convirtiendo a ${outputFormat.toUpperCase()} compatible antes de la union final.`,
+            })
+
+            await ffmpeg.exec([
+              '-i',
+              inputFileNames[index],
+              '-map',
+              '0:v:0',
+              '-map',
+              '0:a:0?',
+              '-vf',
+              `scale=${targetResolution.width}:${targetResolution.height}:force_original_aspect_ratio=decrease,pad=${targetResolution.width}:${targetResolution.height}:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p`,
+              '-c:v',
+              'libx264',
+              '-preset',
+              'veryfast',
+              '-crf',
+              '23',
+              '-c:a',
+              'aac',
+              '-b:a',
+              '192k',
+              '-ar',
+              '48000',
+              '-ac',
+              '2',
+              ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+              normalizedName,
+            ])
+          }
+
+          const concatList = normalizedFileNames.map((fileName) => `file '${fileName}'`).join('\n')
+          await ffmpeg.writeFile('inputs.txt', new TextEncoder().encode(concatList))
+
+          setProgressPhase({
+            stage: 'merging',
+            start: 74,
+            end: 96,
+            message: 'Uniendo videos...',
+            detail: `Todos los videos convertidos se estan uniendo en ${outputFormat.toUpperCase()}.`,
           })
 
           await ffmpeg.exec([
+            '-f',
+            'concat',
+            '-safe',
+            '0',
             '-i',
-            inputFileNames[index],
-            '-map',
-            '0:v:0',
-            '-map',
-            '0:a:0?',
-            '-vf',
-            `scale=${targetResolution.width}:${targetResolution.height}:force_original_aspect_ratio=decrease,pad=${targetResolution.width}:${targetResolution.height}:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p`,
-            '-c:v',
-            'libx264',
-            '-preset',
-            'veryfast',
-            '-crf',
-            '23',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '192k',
-            '-ar',
-            '48000',
-            '-ac',
-            '2',
-            '-movflags',
-            '+faststart',
-            normalizedName,
+            'inputs.txt',
+            '-c',
+            'copy',
+            ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+            outputFileName,
           ])
         }
 
-        setProgress({ stage: 'processing', percent: 75, message: 'Uniendo los videos normalizados...' })
+        const outputData = await ffmpeg.readFile(outputFileName)
+        if (typeof outputData === 'string') {
+          throw new Error('INVALID_OUTPUT')
+        }
 
-        const concatList = normalizedFileNames.map((fileName) => `file '${fileName}'`).join('\n')
-        await ffmpeg.writeFile('inputs.txt', new TextEncoder().encode(concatList))
+        const buffer = outputData instanceof Uint8Array ? outputData : new Uint8Array(outputData)
+        const blobBuffer = new Uint8Array(buffer.byteLength)
+        blobBuffer.set(buffer)
+        const blob = new Blob([blobBuffer.buffer], { type: outputSettings.mimeType })
+        const url = URL.createObjectURL(blob)
+        await verifyOutputDuration(url, videos)
 
-        await ffmpeg.exec([
-          '-f',
-          'concat',
-          '-safe',
-          '0',
-          '-i',
-          'inputs.txt',
-          '-c',
-          'copy',
-          '-movflags',
-          '+faststart',
-          outputFileName,
+        const mergedResult: MergeResult = {
+          blob,
+          url,
+          fileName: outputSettings.fileName,
+          size: blob.size,
+          mimeType: outputSettings.mimeType,
+          strategy,
+          outputFormat,
+        }
+
+        setResult(mergedResult)
+        setProgress({
+          stage: 'finished',
+          percent: 100,
+          message: 'Video unido correctamente.',
+          detail: `La descarga final ya esta lista en ${outputFormat.toUpperCase()}.`,
+        })
+
+        await Promise.allSettled([
+          ffmpeg.deleteFile('inputs.txt'),
+          ffmpeg.deleteFile(outputFileName),
+          ...inputFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
+          ...normalizedFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
+          ...transportStreamFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
         ])
+
+        return mergedResult
+      } catch (mergeError) {
+        const hasMixedFormats = new Set(videos.map((video) => video.extension)).size > 1
+
+        const fallbackMessage =
+          mergeError instanceof Error && mergeError.message === 'INCOMPLETE_OUTPUT'
+            ? 'No se genero un archivo valido porque la union quedo incompleta. Revisa formatos, duraciones y codecs antes de intentarlo otra vez.'
+            : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_SAME_FORMAT'
+              ? 'La ruta rapida solo funciona cuando todos los videos ya estan en el formato de salida elegido.'
+              : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_SAME_RESOLUTION'
+                ? 'La ruta rapida requiere que todos los videos tengan la misma resolucion.'
+                : hasMixedFormats
+                  ? `No se pudieron convertir y unir correctamente los videos a ${outputFormat.toUpperCase()} porque los formatos o codecs son demasiado distintos.`
+                  : lastLogRef.current.includes('Impossible to open') || lastLogRef.current.includes('Invalid data')
+                    ? `No se pudieron unir los videos. La app intento normalizarlos a ${outputFormat.toUpperCase()}, pero siguen siendo incompatibles entre si.`
+                    : 'Fallo el procesamiento en el navegador. No se genero ninguna descarga para evitar un resultado incompleto.'
+
+        setError(fallbackMessage)
+        setProgress({
+          stage: 'error',
+          percent: 0,
+          message: fallbackMessage,
+          detail: 'Prueba otro formato final o usa archivos mas compatibles.',
+        })
+        console.error(mergeError)
+        return null
+      } finally {
+        setIsProcessing(false)
       }
-
-      const outputData = await ffmpeg.readFile(outputFileName)
-      if (typeof outputData === 'string') {
-        throw new Error('FFmpeg devolvio una salida invalida.')
-      }
-
-      const buffer = outputData instanceof Uint8Array ? outputData : new Uint8Array(outputData)
-      const blobBuffer = new Uint8Array(buffer.byteLength)
-      blobBuffer.set(buffer)
-      const blob = new Blob([blobBuffer.buffer], { type: outputSettings.mimeType })
-      const url = URL.createObjectURL(blob)
-      await verifyOutputDuration(url, videos)
-
-      const mergedResult: MergeResult = {
-        blob,
-        url,
-        fileName: outputSettings.fileName,
-        size: blob.size,
-        mimeType: outputSettings.mimeType,
-        strategy,
-      }
-
-      setResult(mergedResult)
-      setProgress({ stage: 'finished', percent: 100, message: 'Video unido correctamente.' })
-
-      await Promise.allSettled([
-        ffmpeg.deleteFile('inputs.txt'),
-        ffmpeg.deleteFile(outputFileName),
-        ...inputFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-        ...normalizedFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-        ...transportStreamFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-      ])
-
-      return mergedResult
-    } catch (mergeError) {
-      const hasMixedFormats = new Set(videos.map((video) => video.extension)).size > 1
-      const fallbackMessage =
-        mergeError instanceof Error && mergeError.message === 'INCOMPLETE_OUTPUT'
-          ? 'No se genero un archivo valido porque la union quedo incompleta. Revisa formatos, duraciones y codecs antes de intentarlo otra vez.'
-          : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_MP4'
-            ? 'El modo rapido solo funciona con videos MP4. Usa modo compatible para mezclar MKV o convertir archivos.'
-            : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_SAME_RESOLUTION'
-              ? 'El modo rapido requiere que todos los MP4 tengan la misma resolucion. Usa modo compatible para normalizarlos a MP4.'
-          : hasMixedFormats
-            ? 'No se pudieron convertir y unir correctamente los videos porque los formatos o codecs son demasiado distintos. No se genero ninguna descarga.'
-            : lastLogRef.current.includes('Impossible to open') || lastLogRef.current.includes('Invalid data')
-              ? 'No se pudieron unir los videos. La app intento normalizarlos a MP4, pero siguen siendo incompatibles entre si.'
-              : 'Fallo el procesamiento en el navegador. No se genero ninguna descarga para evitar un resultado incompleto.'
-
-      setError(fallbackMessage)
-      setProgress({ stage: 'error', percent: 0, message: fallbackMessage })
-      console.error(mergeError)
-      return null
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [ensureLoaded, resetResult])
+    },
+    [ensureLoaded, resetResult, setProgressPhase],
+  )
 
   return {
     progress,

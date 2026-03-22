@@ -1,12 +1,12 @@
 export function Footer() {
   return (
-    <footer className="panel flex flex-col gap-4 px-6 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+    <footer className="panel flex flex-col gap-4 overflow-hidden px-5 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
       <p>© 2026 - Todos los derechos reservados.</p>
       <a
         href="https://github.com/ChristopherMarreroL/Naroz"
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-2 font-semibold text-slate-900 transition hover:text-sky-700">
+        className="inline-flex max-w-full items-center gap-2 break-all font-semibold text-slate-900 transition hover:text-sky-700 sm:break-normal">
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"

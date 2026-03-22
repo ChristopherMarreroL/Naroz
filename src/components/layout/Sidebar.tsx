@@ -16,12 +16,12 @@ const sectionLabels: Record<AppSectionId, string> = {
 export function Sidebar({ items, activeTool, activeSection, onNavigate }: SidebarProps) {
   return (
     <aside className="panel hidden min-h-full flex-col overflow-hidden lg:flex">
-      <div className="border-b border-slate-100 px-6 py-7">
+      <div className="border-b border-slate-100/80 px-6 py-7">
         <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50">
           Naroz
         </div>
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">Naroz</h1>
-        <p className="mt-3 text-sm leading-7 text-slate-600">
+        <p className="mt-3 max-w-xs text-sm leading-7 text-slate-600">
           Una plataforma modular para editar y convertir contenido multimedia desde el navegador.
         </p>
       </div>
@@ -65,7 +65,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate }: Sideba
         })}
       </div>
 
-      <div className="border-t border-slate-100 px-6 py-5 text-sm text-slate-500">
+      <div className="border-t border-slate-100/80 bg-slate-50/70 px-6 py-5 text-sm text-slate-500">
         Base lista para sumar conversion, recorte, compresion y mas herramientas.
       </div>
     </aside>

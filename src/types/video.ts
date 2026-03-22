@@ -13,12 +13,14 @@ export interface VideoItem {
 }
 
 export interface MergeProgress {
-  stage: 'idle' | 'loading' | 'processing' | 'finished' | 'error'
+  stage: 'idle' | 'loading' | 'preparing' | 'converting' | 'merging' | 'finished' | 'error'
   percent: number
   message: string
+  detail?: string
 }
 
 export type MergeStrategy = 'fast' | 'compatible'
+export type VideoOutputFormat = 'mp4' | 'mkv'
 
 export interface MergeResult {
   blob: Blob
@@ -27,4 +29,5 @@ export interface MergeResult {
   size: number
   mimeType: string
   strategy: MergeStrategy
+  outputFormat: VideoOutputFormat
 }

@@ -1,4 +1,4 @@
-import type { MergeStrategy, VideoItem } from '../types/video'
+import type { MergeStrategy, VideoItem, VideoOutputFormat } from '../types/video'
 
 const SUPPORTED_TYPES = new Set(['video/mp4', 'video/x-matroska'])
 const SUPPORTED_EXTENSIONS = ['.mp4', '.mkv']
@@ -81,7 +81,7 @@ export async function createVideoItem(file: File): Promise<VideoItem> {
   }
 }
 
-export function getCompatibilityWarnings(videos: VideoItem[]): string[] {
+export function getCompatibilityWarnings(videos: VideoItem[], outputFormat: VideoOutputFormat = 'mp4'): string[] {
   if (videos.length < 2) {
     return []
   }
@@ -99,7 +99,7 @@ export function getCompatibilityWarnings(videos: VideoItem[]): string[] {
 
   const extensions = new Set(videos.map((video) => video.extension))
   if (extensions.size > 1) {
-    warnings.add('Estas mezclando MP4 y MKV. La app intentara convertirlos a un MP4 comun antes de unirlos.')
+    warnings.add(`Estas mezclando MP4 y MKV. La app intentara convertirlos a un ${outputFormat.toUpperCase()} comun antes de unirlos.`)
   }
 
   const filesWithoutMetadata = videos.filter((video) => !video.duration || !video.width || !video.height)
@@ -107,7 +107,7 @@ export function getCompatibilityWarnings(videos: VideoItem[]): string[] {
     warnings.add('No se pudo leer toda la metadata. Verifica que los videos sean compatibles entre si.')
   }
 
-  warnings.add('La conversion puede tardar mas si los codecs, el audio o la resolucion son diferentes entre archivos.')
+  warnings.add(`La conversion puede tardar mas si los codecs, el audio o la resolucion son diferentes entre archivos. La salida final sera ${outputFormat.toUpperCase()}.`)
 
   return Array.from(warnings)
 }
@@ -122,14 +122,18 @@ function allSameResolution(videos: VideoItem[]): boolean {
   return resolutions.size <= 1
 }
 
-export function canUseFastMode(videos: VideoItem[]): boolean {
+function allSameExtension(videos: VideoItem[]): boolean {
+  return new Set(videos.map((video) => video.extension)).size <= 1
+}
+
+export function canUseFastMode(videos: VideoItem[], outputFormat: VideoOutputFormat): boolean {
   if (videos.length === 0) {
     return false
   }
 
-  return videos.every((video) => video.extension === 'mp4') && allSameResolution(videos)
+  return allSameExtension(videos) && allSameResolution(videos) && videos[0].extension === outputFormat
 }
 
-export function resolveMergeStrategy(videos: VideoItem[]): MergeStrategy {
-  return canUseFastMode(videos) ? 'fast' : 'compatible'
+export function resolveMergeStrategy(videos: VideoItem[], outputFormat: VideoOutputFormat): MergeStrategy {
+  return canUseFastMode(videos, outputFormat) ? 'fast' : 'compatible'
 }

@@ -14,10 +14,25 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
-  min-width: 320px;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  background-attachment: fixed;
+  overflow-x: hidden;
 }
 
 button,
@@ -28,7 +43,17 @@ select {
 }
 
 #root {
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 @layer base {
@@ -42,7 +67,7 @@ select {
 
 @layer components {
   .panel {
-    @apply rounded-3xl border border-white/70 bg-white/80 shadow-[0_24px_70px_-35px_rgba(15,23,42,0.45)] backdrop-blur;
+    @apply rounded-[1.75rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-35px_rgba(15,23,42,0.32)] backdrop-blur;
   }
 
   .soft-border {
@@ -71,5 +96,28 @@ select {
 
   .tool-nav-item-active {
     @apply border-slate-900/10 bg-slate-50 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)];
+  }
+
+  .panel-subtle {
+    @apply rounded-[1.5rem] border border-slate-200/80 bg-white/90 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.28)];
+  }
+}
+
+@media (max-width: 640px) {
+  .panel {
+    border-radius: 1.4rem;
+  }
+
+  .panel-subtle {
+    border-radius: 1.2rem;
+  }
+}
+
+@media (max-width: 420px) {
+  html,
+  body,
+  #root {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }

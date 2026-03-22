@@ -15,6 +15,7 @@ export function ProgressCard({ progress, isLoadingEngine, isProcessing }: Progre
         <div>
           <h2 className="text-xl font-extrabold text-slate-950">Estado del procesamiento</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">{progress.message}</p>
+          {progress.detail ? <p className="mt-1 text-xs leading-5 text-slate-500">{progress.detail}</p> : null}
         </div>
         <span className="badge">{isBusy ? 'Procesando' : 'En espera'}</span>
       </div>
@@ -23,7 +24,7 @@ export function ProgressCard({ progress, isLoadingEngine, isProcessing }: Progre
         <div className="h-full rounded-full bg-slate-950 transition-all duration-300" style={{ width: `${progress.percent}%` }} />
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
+      <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-400">
         <span>{progress.stage}</span>
         <span>{progress.percent}%</span>
       </div>

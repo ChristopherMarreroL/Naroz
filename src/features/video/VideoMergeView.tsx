@@ -10,6 +10,7 @@ import { ResultCard } from './components/ResultCard'
 import { VideoList } from './components/VideoList'
 import { useVideoMerger } from './hooks/useVideoMerger'
 import { useVideoQueue } from './hooks/useVideoQueue'
+import type { VideoOutputFormat } from '../../types/video'
 
 interface Notice {
   tone: 'error' | 'warning' | 'success' | 'info'
@@ -20,15 +21,16 @@ interface Notice {
 export function VideoMergeView() {
   const { videos, addVideos, removeVideo, clearVideos, moveVideo, totalDuration } = useVideoQueue()
   const { progress, isLoadingEngine, isProcessing, result, error, ensureLoaded, mergeVideos } = useVideoMerger()
+  const [outputFormat, setOutputFormat] = useState<VideoOutputFormat>('mp4')
   const [notice, setNotice] = useState<Notice | null>({
     tone: 'info',
     title: 'Procesamiento local',
     message:
-      'La herramienta decide automaticamente la ruta mas rapida o mas compatible segun los archivos que subas.',
+      'La herramienta decide automaticamente la ruta mas rapida o mas compatible segun los archivos que subas y el formato final elegido.',
   })
 
-  const compatibilityWarnings = useMemo(() => getCompatibilityWarnings(videos), [videos])
-  const mergeStrategy = useMemo(() => resolveMergeStrategy(videos), [videos])
+  const compatibilityWarnings = useMemo(() => getCompatibilityWarnings(videos, outputFormat), [videos, outputFormat])
+  const mergeStrategy = useMemo(() => resolveMergeStrategy(videos, outputFormat), [videos, outputFormat])
 
   useEffect(() => {
     void ensureLoaded()
@@ -65,12 +67,12 @@ export function VideoMergeView() {
       return
     }
 
-    const merged = await mergeVideos(videos, mergeStrategy)
+    const merged = await mergeVideos(videos, mergeStrategy, outputFormat)
     if (merged) {
       setNotice({
         tone: 'success',
         title: 'Union completada',
-        message: `El archivo final MP4 esta listo. Se proceso con ${merged.strategy === 'fast' ? 'ruta rapida' : 'ruta compatible'}.`,
+        message: `El archivo final ${merged.outputFormat.toUpperCase()} esta listo. Se proceso con ${merged.strategy === 'fast' ? 'ruta rapida' : 'ruta compatible'}.`,
       })
     }
   }
@@ -87,7 +89,7 @@ export function VideoMergeView() {
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
               <li>1. MP4 compatibles - ruta rapida</li>
               <li>2. Formatos o resoluciones mixtas - ruta compatible</li>
-              <li>3. Salida final - MP4</li>
+              <li>3. Salida final - MP4 o MKV</li>
             </ul>
           </div>
         }
@@ -144,15 +146,30 @@ export function VideoMergeView() {
             <div className="grid gap-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="badge bg-slate-900 text-slate-50">Salida final: MP4</span>
+                  <span className="badge bg-slate-900 text-slate-50">Salida final: {outputFormat.toUpperCase()}</span>
                   <span className="badge">
                     {mergeStrategy === 'fast' ? 'Ruta automatica: rapida' : 'Ruta automatica: compatible'}
                   </span>
                 </div>
+                <div className="mt-4">
+                  <label htmlFor="video-output-format" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Formato final
+                  </label>
+                  <select
+                    id="video-output-format"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                    value={outputFormat}
+                    onChange={(event) => setOutputFormat(event.target.value as VideoOutputFormat)}
+                    disabled={isProcessing}
+                  >
+                    <option value="mp4">MP4</option>
+                    <option value="mkv">MKV</option>
+                  </select>
+                </div>
                 <p className="mt-4 text-xs leading-5 text-slate-500">
                   {mergeStrategy === 'fast'
-                    ? 'Todos los videos actuales permiten usar una union mas veloz con compatibilidad reforzada de audio.'
-                    : 'La herramienta detecto diferencias que requieren convertir y normalizar antes de unir.'}
+                    ? `Todos los videos actuales permiten usar una union mas veloz y dejar el resultado en ${outputFormat.toUpperCase()}.`
+                    : `La herramienta detecto diferencias y necesita convertir antes de unir en ${outputFormat.toUpperCase()}.`}
                 </p>
               </div>
 
@@ -164,7 +181,7 @@ export function VideoMergeView() {
                   : 'Unir videos'}
               </button>
               <p className="text-xs leading-5 text-slate-500">
-                El tiempo depende del peso de los archivos y la salida siempre se descargara en formato MP4.
+                Si todos los videos ya coinciden con el formato final elegido, la ruta rapida evita conversiones innecesarias.
               </p>
             </div>
           </div>

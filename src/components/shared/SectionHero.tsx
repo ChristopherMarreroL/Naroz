@@ -9,16 +9,19 @@ interface SectionHeroProps {
 
 export function SectionHero({ badge, title, description, aside }: SectionHeroProps) {
   return (
-    <section className="panel relative overflow-hidden px-6 py-8 sm:px-8 sm:py-10">
-      <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.1),transparent_70%)]" />
-      <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
-        <div>
+    <section className="panel relative z-0 min-w-0 overflow-hidden px-4 py-5 sm:px-7 sm:py-8 lg:px-8 lg:py-10">
+      <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.08),transparent_70%)] sm:h-28" />
+      <div className="absolute -right-20 top-10 h-44 w-44 rounded-full bg-sky-100/45 blur-3xl sm:h-56 sm:w-56" />
+      <div className="relative grid min-w-0 max-w-full gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end lg:gap-8">
+        <div className="min-w-0">
           <span className="badge mb-4 bg-slate-900 text-slate-50">{badge}</span>
-          <h1 className="max-w-3xl text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">{title}</h1>
-          <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">{description}</p>
+          <h1 className="max-w-[12ch] break-words text-[clamp(1.7rem,4.8vw,4.2rem)] font-extrabold leading-[1] tracking-[-0.05em] text-slate-950 sm:max-w-[12ch] lg:max-w-[10ch] xl:max-w-[12ch]">
+            {title}
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:mt-4 sm:text-base sm:leading-7 lg:text-lg lg:leading-8">{description}</p>
         </div>
 
-        {aside ? aside : null}
+        {aside ? <div className="min-w-0 lg:pb-2">{aside}</div> : null}
       </div>
     </section>
   )
