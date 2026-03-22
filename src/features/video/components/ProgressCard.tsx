@@ -8,6 +8,11 @@ interface ProgressCardProps {
 
 export function ProgressCard({ progress, isLoadingEngine, isProcessing }: ProgressCardProps) {
   const isBusy = isLoadingEngine || isProcessing
+  const stages = [
+    { key: 'preparing', label: 'Preparando' },
+    { key: 'converting', label: 'Convirtiendo' },
+    { key: 'merging', label: 'Uniendo' },
+  ] as const
 
   return (
     <section className="panel p-6 sm:p-8">
@@ -22,6 +27,28 @@ export function ProgressCard({ progress, isLoadingEngine, isProcessing }: Progre
 
       <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-slate-950 transition-all duration-300" style={{ width: `${progress.percent}%` }} />
+      </div>
+
+      <div className="mt-5 grid gap-2 sm:grid-cols-3">
+        {stages.map((stage) => {
+          const isActive = progress.stage === stage.key
+          const isDone = ['finished'].includes(progress.stage) || progress.percent >= (stage.key === 'preparing' ? 33 : stage.key === 'converting' ? 74 : 95)
+
+          return (
+            <div
+              key={stage.key}
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                isActive
+                  ? 'border-slate-900 bg-slate-900 text-white'
+                  : isDone
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              <p className="font-semibold">{stage.label}</p>
+            </div>
+          )
+        })}
       </div>
 
       <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-400">

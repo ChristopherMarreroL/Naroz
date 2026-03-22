@@ -1,7 +1,11 @@
+import { useLocale } from '../../i18n/LocaleProvider'
+
 export function Footer() {
+  const { locale } = useLocale()
+
   return (
     <footer className="panel flex flex-col gap-4 overflow-hidden px-5 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-      <p>© 2026 - Todos los derechos reservados.</p>
+      <p>{locale === 'es' ? '© 2026 - Todos los derechos reservados.' : '© 2026 - All rights reserved.'}</p>
       <a
         href="https://github.com/ChristopherMarreroL/Naroz"
         target="_blank"
