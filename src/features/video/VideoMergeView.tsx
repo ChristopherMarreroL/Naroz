@@ -45,8 +45,8 @@ export function VideoMergeView() {
     if (rejectedFiles.length > 0) {
       setNotice({
         tone: 'warning',
-        title: locale === 'es' ? 'Algunos archivos no fueron agregados' : 'Some files were not added',
-        message: locale === 'es' ? `Esta version acepta MP4 y MKV. Omitidos: ${rejectedFiles.join(', ')}.` : `This version accepts MP4 and MKV. Skipped: ${rejectedFiles.join(', ')}.`,
+        title: t('mergeSkippedTitle'),
+        message: `${t('mergeSkippedMessage')} ${rejectedFiles.join(', ')}.`,
       })
       return
     }
@@ -55,7 +55,7 @@ export function VideoMergeView() {
       setNotice({
         tone: 'success',
         title: t('videoAdded'),
-        message: locale === 'es' ? 'Ya puedes reordenarlos y luego presionar "Unir videos".' : 'You can now reorder them and then press "Merge videos".',
+        message: t('mergeReadyMessage'),
       })
     }
   }
@@ -64,8 +64,8 @@ export function VideoMergeView() {
     if (videos.length === 0) {
       setNotice({
         tone: 'error',
-        title: locale === 'es' ? 'Lista vacia' : 'Empty list',
-        message: locale === 'es' ? 'Selecciona al menos un video MP4 o MKV antes de intentar unirlos.' : 'Select at least one MP4 or MKV video before trying to merge.',
+        title: t('emptyListTitle'),
+        message: t('emptyListMessage'),
       })
       return
     }
@@ -75,7 +75,7 @@ export function VideoMergeView() {
       setNotice({
         tone: 'success',
         title: t('mergeComplete'),
-        message: locale === 'es' ? `El archivo final ${merged.outputFormat.toUpperCase()} esta listo. Se proceso con ${merged.strategy === 'fast' ? 'ruta rapida' : 'ruta compatible'}.` : `Your final ${merged.outputFormat.toUpperCase()} file is ready. It used the ${merged.strategy === 'fast' ? 'fast route' : 'compatible route'}.`,
+        message: `${t('mergeFinalReady')} ${merged.outputFormat.toUpperCase()} · ${merged.strategy === 'fast' ? t('fastRouteUsed') : t('compatibleRouteUsed')}.`,
       })
     }
   }
@@ -83,16 +83,16 @@ export function VideoMergeView() {
   return (
     <>
       <SectionHero
-        badge={locale === 'es' ? 'Video / Unir videos' : 'Video / Merge videos'}
+        badge={t('mergeHeroBadge')}
         title={t('mergeHeroTitle')}
         description={t('mergeHeroDesc')}
         aside={
           <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">{t('autoRoute')}</p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
-              <li>{locale === 'es' ? '1. MP4 compatibles - ruta rapida' : '1. Compatible MP4 files - fast route'}</li>
-              <li>{locale === 'es' ? '2. Formatos o resoluciones mixtas - ruta compatible' : '2. Mixed formats or resolutions - compatible route'}</li>
-              <li>{locale === 'es' ? '3. Salida final - MP4 o MKV' : '3. Final output - MP4 or MKV'}</li>
+               <li>{t('mergeRouteLine1')}</li>
+               <li>{t('mergeRouteLine2')}</li>
+               <li>{t('mergeRouteLine3')}</li>
             </ul>
           </div>
         }
@@ -145,7 +145,7 @@ export function VideoMergeView() {
 
           <div className="panel flex flex-col justify-between gap-4 p-6 sm:p-8">
             <div>
-              <h2 className="text-xl font-extrabold text-slate-950">Acciones</h2>
+              <h2 className="text-xl font-extrabold text-slate-950">{t('mergeActions')}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">{t('mergeActionsDesc')}</p>
             </div>
 
@@ -174,16 +174,22 @@ export function VideoMergeView() {
                 </div>
                 <p className="mt-4 text-xs leading-5 text-slate-500">
                   {mergeStrategy === 'fast'
-                    ? (locale === 'es' ? `Todos los videos actuales permiten usar una union mas veloz y dejar el resultado en ${outputFormat.toUpperCase()}.` : `The current videos can use a faster route and keep the result in ${outputFormat.toUpperCase()}.`)
-                    : (locale === 'es' ? `La herramienta detecto diferencias y necesita convertir antes de unir en ${outputFormat.toUpperCase()}.` : `The tool detected differences and needs conversion before merging into ${outputFormat.toUpperCase()}.`)}
+                    ? `${t('mergeFastSummary')} ${outputFormat.toUpperCase()}.`
+                    : `${t('mergeCompatibleSummary')} ${outputFormat.toUpperCase()}.`}
                 </p>
               </div>
 
               <button type="button" className="btn-primary w-full" onClick={handleMergeVideos} disabled={isProcessing}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                  <path d="M7 7h6" />
+                  <path d="M7 12h10" />
+                  <path d="M7 17h6" />
+                  <path d="m13 9 4 3-4 3" />
+                </svg>
                 {isProcessing
                   ? mergeStrategy === 'fast'
-                    ? (locale === 'es' ? 'Uniendo con ruta rapida...' : 'Merging with fast route...')
-                    : (locale === 'es' ? 'Convirtiendo y uniendo videos...' : 'Converting and merging videos...')
+                    ? t('mergingFastRoute')
+                    : t('convertingAndMerging')
                   : t('mergeVideosBtn')}
               </button>
               <p className="text-xs leading-5 text-slate-500">

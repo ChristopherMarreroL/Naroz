@@ -1,4 +1,5 @@
 export type AppSectionId = 'general' | 'video' | 'image' | 'document'
+export type ToolStatus = 'stable' | 'beta' | 'soon'
 
 export type AppToolId =
   | 'home'
@@ -16,5 +17,5 @@ export interface SidebarItem {
   label: string
   description: string
   section: AppSectionId
-  available?: boolean
+  status?: ToolStatus
 }

@@ -56,6 +56,27 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
               <div className="grid gap-2">
                 {sectionItems.map((item) => {
                   const isActive = item.id === activeTool
+                  const badgeClass =
+                    item.status === 'soon'
+                      ? 'bg-amber-100 text-amber-700'
+                      : item.status === 'beta'
+                        ? 'bg-sky-100 text-sky-700'
+                        : isActive
+                          ? 'bg-slate-900 text-slate-50'
+                          : activeSection === item.section
+                            ? 'bg-slate-100 text-slate-500'
+                            : 'bg-transparent text-transparent'
+
+                  const badgeLabel =
+                    item.status === 'soon'
+                      ? t('soon')
+                      : item.status === 'beta'
+                        ? t('betaBadge')
+                        : isActive
+                          ? t('active')
+                          : activeSection === item.section
+                            ? t('section')
+                            : '.'
 
                   return (
                     <button
@@ -76,16 +97,8 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
                           <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
                         </span>
                       </span>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                        item.available === false
-                          ? 'bg-amber-100 text-amber-700'
-                          : isActive
-                            ? 'bg-slate-900 text-slate-50'
-                            : activeSection === item.section
-                              ? 'bg-slate-100 text-slate-500'
-                              : 'bg-transparent text-transparent'
-                      }`}>
-                        {item.available === false ? t('soon') : isActive ? t('active') : activeSection === item.section ? t('section') : '.'}
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${badgeClass}`}>
+                        {badgeLabel}
                       </span>
                     </button>
                   )

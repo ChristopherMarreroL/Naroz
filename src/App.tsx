@@ -10,85 +10,98 @@ import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 const VideoMergeView = lazy(() => import('./features/video/VideoMergeView').then((module) => ({ default: module.VideoMergeView })))
 const VideoConvertView = lazy(() => import('./features/video/VideoConvertView').then((module) => ({ default: module.VideoConvertView })))
 const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').then((module) => ({ default: module.AudioExtractView })))
+const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
 
 function ToolLoadingFallback() {
-  return <div className="panel p-6 text-sm text-slate-500 sm:p-8">Cargando herramienta...</div>
+  const { t } = useLocale()
+  return <div className="panel p-6 text-sm text-slate-500 sm:p-8">{t('loadingTool')}</div>
+}
+
+function getToolViewClassName(isActive: boolean) {
+  return `${isActive ? 'flex' : 'hidden'} min-w-0 flex-col gap-5 sm:gap-6 lg:gap-8`
 }
 
 function App() {
-  const { locale } = useLocale()
+  const { t } = useLocale()
   const sidebarItems: SidebarItem[] = useMemo(
     () => [
       {
         id: 'home',
-        label: locale === 'es' ? 'Inicio' : 'Home',
-        description: locale === 'es' ? 'Resumen de herramientas' : 'Tools overview',
+        label: t('home'),
+        description: t('homeOverview'),
         section: 'general',
+        status: 'stable',
       },
       {
         id: 'video-merge',
-        label: locale === 'es' ? 'Unir videos' : 'Merge videos',
-        description: locale === 'es' ? 'Combina varios videos' : 'Combine multiple videos',
+        label: t('mergeVideos'),
+        description: t('combineVideosDesc'),
         section: 'video',
-        available: true,
+        status: 'stable',
       },
       {
         id: 'video-convert',
-        label: locale === 'es' ? 'Convertir formato' : 'Convert format',
-        description: locale === 'es' ? 'Cambia el formato del video' : 'Change the video container',
+        label: t('convertVideo'),
+        description: t('changeVideoContainerDesc'),
         section: 'video',
-        available: true,
+        status: 'stable',
       },
       {
         id: 'video-trim',
-        label: locale === 'es' ? 'Recortar video' : 'Trim video',
-        description: locale === 'es' ? 'Selecciona solo un fragmento' : 'Keep only one segment',
+        label: t('trimVideo'),
+        description: t('keepOneSegmentDesc'),
         section: 'video',
-        available: false,
+        status: 'beta',
       },
       {
         id: 'video-extract-audio',
-        label: locale === 'es' ? 'Extraer audio' : 'Extract audio',
-        description: locale === 'es' ? 'Convierte video a audio' : 'Turn video into audio',
+        label: t('extractAudio'),
+        description: t('turnVideoIntoAudioDesc'),
         section: 'video',
-        available: true,
+        status: 'stable',
       },
       {
         id: 'video-resize',
-        label: locale === 'es' ? 'Cambiar resolucion' : 'Resize video',
-        description: locale === 'es' ? 'Ajusta el tamano del video' : 'Adjust video dimensions',
+        label: t('resizeVideo'),
+        description: t('resizeVideoDesc'),
         section: 'video',
-        available: false,
+        status: 'soon',
       },
       {
         id: 'image-convert',
-        label: locale === 'es' ? 'Convertir formato' : 'Convert image',
-        description: locale === 'es' ? 'Convierte imagenes' : 'Convert images',
+        label: t('convertImage'),
+        description: t('convertImagesDesc'),
         section: 'image',
-        available: true,
+        status: 'stable',
       },
       {
         id: 'document-merge-pdf',
-        label: locale === 'es' ? 'Unir PDF' : 'Merge PDF',
-        description: locale === 'es' ? 'Combina varios PDF' : 'Combine multiple PDFs',
+        label: t('mergePdf'),
+        description: t('combinePdfDesc'),
         section: 'document',
-        available: true,
+        status: 'stable',
       },
       {
         id: 'document-merge-docx',
-        label: locale === 'es' ? 'Unir Word' : 'Merge Word',
-        description: locale === 'es' ? 'Combina varios DOCX' : 'Combine multiple DOCX files',
+        label: t('mergeWord'),
+        description: t('combineDocxDesc'),
         section: 'document',
-        available: true,
+        status: 'beta',
       },
     ],
-    [locale],
+    [t],
   )
 
   const [activeTool, setActiveTool] = useState<AppToolId>('home')
+  const [mountedTools, setMountedTools] = useState<AppToolId[]>(['home'])
+
+  const handleNavigate = (tool: AppToolId) => {
+    setMountedTools((current) => (current.includes(tool) ? current : [...current, tool]))
+    setActiveTool(tool)
+  }
 
   const activeItem = sidebarItems.find((item) => item.id === activeTool) ?? sidebarItems[0]
 
@@ -97,33 +110,16 @@ function App() {
   return (
     <>
       <SeoHead />
-      <AppLayout
-        items={sidebarItems}
-        activeTool={activeTool}
-        activeSection={activeSection}
-        onNavigate={setActiveTool}
-      >
-        {activeTool === 'home' ? <HomeView onNavigate={setActiveTool} /> : null}
-        {activeTool === 'video-merge' ? <Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense> : null}
-        {activeTool === 'video-convert' ? <Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense> : null}
-        {activeTool === 'video-trim' ? (
-          <ToolPlaceholderView
-            badge={locale === 'es' ? 'Video / Recortar' : 'Video / Trim'}
-            title={locale === 'es' ? 'Recorta tus videos por tiempo' : 'Trim your videos by time'}
-            description={locale === 'es' ? 'La base ya esta preparada para agregar seleccion de inicio y fin, con vista previa y exportacion final.' : 'The suite is already prepared for start/end selection, preview, and final export.'}
-          />
-        ) : null}
-        {activeTool === 'video-extract-audio' ? <Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense> : null}
-        {activeTool === 'video-resize' ? (
-          <ToolPlaceholderView
-            badge={locale === 'es' ? 'Video / Cambiar resolucion' : 'Video / Resize'}
-            title={locale === 'es' ? 'Ajusta el tamano y la resolucion de tus videos' : 'Resize and adapt your videos'}
-            description={locale === 'es' ? 'Naroz tambien quedara preparado para crear versiones ligeras, verticales o adaptadas a redes sociales.' : 'Naroz will also support lighter, vertical, or social-media-ready versions.'}
-          />
-        ) : null}
-        {activeTool === 'image-convert' ? <Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense> : null}
-        {activeTool === 'document-merge-pdf' ? <Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense> : null}
-        {activeTool === 'document-merge-docx' ? <Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense> : null}
+      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate}>
+        {mountedTools.includes('home') ? <div className={getToolViewClassName(activeTool === 'home')}><HomeView onNavigate={handleNavigate} /></div> : null}
+        {mountedTools.includes('video-merge') ? <div className={getToolViewClassName(activeTool === 'video-merge')}><Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense></div> : null}
+        {mountedTools.includes('video-convert') ? <div className={getToolViewClassName(activeTool === 'video-convert')}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}
+        {mountedTools.includes('video-trim') ? <div className={getToolViewClassName(activeTool === 'video-trim')}><Suspense fallback={<ToolLoadingFallback />}><VideoTrimView /></Suspense></div> : null}
+        {mountedTools.includes('video-extract-audio') ? <div className={getToolViewClassName(activeTool === 'video-extract-audio')}><Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense></div> : null}
+        {mountedTools.includes('video-resize') ? <div className={getToolViewClassName(activeTool === 'video-resize')}><ToolPlaceholderView badge={t('resizeVideo')} title={t('resizeVideo')} description={t('resizeVideoDesc')} /></div> : null}
+        {mountedTools.includes('image-convert') ? <div className={getToolViewClassName(activeTool === 'image-convert')}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
+        {mountedTools.includes('document-merge-pdf') ? <div className={getToolViewClassName(activeTool === 'document-merge-pdf')}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
+        {mountedTools.includes('document-merge-docx') ? <div className={getToolViewClassName(activeTool === 'document-merge-docx')}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
       </AppLayout>
     </>
   )

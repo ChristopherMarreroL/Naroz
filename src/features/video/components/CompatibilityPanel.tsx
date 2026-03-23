@@ -12,7 +12,7 @@ function getUniqueCount(values: string[]) {
 }
 
 export function CompatibilityPanel({ videos, outputFormat, strategy }: CompatibilityPanelProps) {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const formats = videos.map((video) => video.extension.toUpperCase())
   const resolutions = videos
     .filter((video) => video.width && video.height)
@@ -24,31 +24,28 @@ export function CompatibilityPanel({ videos, outputFormat, strategy }: Compatibi
 
   const checks = [
     {
-      label: 'Formato',
-      value: sameFormat ? formats[0] ?? (locale === 'es' ? 'Sin detectar' : 'Unknown') : locale === 'es' ? 'Mixto' : 'Mixed',
+      label: t('format'),
+      value: sameFormat ? formats[0] ?? t('unknown') : t('mixed'),
       ok: sameFormat,
-      detail: sameFormat ? (locale === 'es' ? 'Todos comparten el mismo contenedor.' : 'All files share the same container.') : (locale === 'es' ? 'La lista mezcla contenedores distintos.' : 'The list mixes different containers.'),
+      detail: sameFormat ? t('allSameContainer') : t('mixedContainers'),
     },
     {
-      label: locale === 'es' ? 'Resolucion' : 'Resolution',
-      value: sameResolution ? resolutions[0] ?? (locale === 'es' ? 'Sin detectar' : 'Unknown') : locale === 'es' ? 'Mixta' : 'Mixed',
+      label: t('resolution'),
+      value: sameResolution ? resolutions[0] ?? t('unknown') : t('mixed'),
       ok: sameResolution,
-      detail: sameResolution ? (locale === 'es' ? 'Todos comparten el mismo tamano.' : 'All files share the same size.') : (locale === 'es' ? 'La lista tiene resoluciones distintas.' : 'The list contains different resolutions.'),
+      detail: sameResolution ? t('allSameSize') : t('mixedResolutions'),
     },
     {
-      label: locale === 'es' ? 'Salida final' : 'Final output',
+      label: t('finalOutput'),
       value: outputFormat.toUpperCase(),
       ok: true,
       detail: locale === 'es' ? 'Este sera el formato descargable al finalizar.' : 'This will be the downloadable format at the end.',
     },
     {
-      label: locale === 'es' ? 'Ruta probable' : 'Likely route',
-      value: strategy === 'fast' ? (locale === 'es' ? 'Rapida' : 'Fast') : locale === 'es' ? 'Compatible' : 'Compatible',
+      label: t('likelyRoute'),
+      value: strategy === 'fast' ? t('fast') : 'Compatible',
       ok: strategy === 'fast',
-      detail:
-        strategy === 'fast'
-          ? locale === 'es' ? 'Puede unir sin conversion pesada.' : 'It can merge without heavy conversion.'
-          : locale === 'es' ? 'Necesitara conversion o normalizacion antes de unir.' : 'It will need conversion or normalization before merging.',
+      detail: strategy === 'fast' ? t('canMergeWithoutHeavyConversion') : t('needsConversionBeforeMerging'),
     },
   ]
 
@@ -56,11 +53,11 @@ export function CompatibilityPanel({ videos, outputFormat, strategy }: Compatibi
     <section className="panel p-6 sm:p-8">
       <div className="flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-950">{locale === 'es' ? 'Analisis tecnico' : 'Technical analysis'}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{locale === 'es' ? 'Antes de unir, Naroz revisa si tu lista puede ir por la ruta mas rapida o si necesita conversion.' : 'Before merging, Naroz checks whether your list can use the fastest route or needs conversion.'}</p>
+          <h2 className="text-2xl font-extrabold text-slate-950">{t('technicalAnalysisTitle')}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{t('technicalAnalysisDesc')}</p>
         </div>
         <span className={`badge ${strategy === 'fast' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-          {strategy === 'fast' ? (locale === 'es' ? 'Ruta rapida posible' : 'Fast route possible') : locale === 'es' ? 'Conversion probable' : 'Conversion likely'}
+          {strategy === 'fast' ? t('fastRoutePossible') : t('conversionLikely')}
         </span>
       </div>
 
@@ -79,7 +76,7 @@ export function CompatibilityPanel({ videos, outputFormat, strategy }: Compatibi
 
       {missingMetadata ? (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          {locale === 'es' ? 'Falta metadata en uno o mas archivos. La recomendacion tecnica puede ser menos precisa.' : 'Metadata is missing in one or more files. The technical recommendation may be less precise.'}
+          {t('missingMetadataWarning')}
         </div>
       ) : null}
     </section>

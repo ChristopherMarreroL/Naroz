@@ -12,7 +12,7 @@ interface PdfMergeResult {
 }
 
 export function usePdfMerger() {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const [progress, setProgress] = useState<MergeProgress>({
     stage: 'idle',
     percent: 0,
@@ -63,7 +63,7 @@ export function usePdfMerger() {
       setProgress({
         stage: 'preparing',
         percent: 10,
-        message: locale === 'es' ? 'Preparando documentos...' : 'Preparing documents...',
+        message: t('stagePreparing'),
         detail: locale === 'es' ? 'Leyendo los PDFs seleccionados.' : 'Reading the selected PDFs.',
       })
 
@@ -100,8 +100,8 @@ export function usePdfMerger() {
       setProgress({
         stage: 'finished',
         percent: 100,
-        message: locale === 'es' ? 'PDF unido correctamente.' : 'PDF merged successfully.',
-        detail: locale === 'es' ? 'Tu PDF final ya esta listo para descargar.' : 'Your merged PDF is ready to download.',
+        message: t('pdfMergeCompleted'),
+        detail: t('pdfReadyToDownload'),
       })
 
       return mergeResult
@@ -110,7 +110,7 @@ export function usePdfMerger() {
       setProgress({
         stage: 'error',
         percent: 0,
-        message: locale === 'es' ? 'La union fallo.' : 'Merge failed.',
+        message: t('pdfMergeError'),
         detail: locale === 'es' ? 'Verifica que todos los archivos sean PDFs validos.' : 'Make sure all files are valid PDFs.',
       })
       console.error(mergeError)
@@ -118,7 +118,7 @@ export function usePdfMerger() {
     } finally {
       setIsProcessing(false)
     }
-  }, [locale, resetResult])
+  }, [locale, resetResult, t])
 
   return { progress, isProcessing, result, error, mergePdfFiles }
 }

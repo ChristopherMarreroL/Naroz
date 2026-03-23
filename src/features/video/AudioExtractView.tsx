@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
+import { FileDropzone } from '../../components/shared/FileDropzone'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
@@ -10,13 +11,13 @@ import { createVideoItem, isSupportedVideo } from './lib/media'
 import { type AudioOutputFormat, useAudioExtractor } from './hooks/useAudioExtractor'
 
 export function AudioExtractView() {
-  const { locale, t } = useLocale()
+  const { t } = useLocale()
   const [video, setVideo] = useState<Awaited<ReturnType<typeof createVideoItem>> | null>(null)
   const [outputFormat, setOutputFormat] = useState<AudioOutputFormat>('mp3')
   const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('audioLocalProcessing'),
-    message: locale === 'es' ? 'Selecciona un archivo MP4 o MKV y Naroz extraera su audio en MP3 o WAV.' : 'Choose one MP4 or MKV file and Naroz will extract its audio as MP3 or WAV.',
+    message: t('extractAudioCardDesc'),
   })
   const { progress, isProcessing, result, error, ensureLoaded, extractAudio } = useAudioExtractor()
 
@@ -41,7 +42,7 @@ export function AudioExtractView() {
     }
 
     if (!isSupportedVideo(file)) {
-      setNotice({ tone: 'error', title: t('unsupportedFile'), message: locale === 'es' ? 'Esta herramienta actualmente acepta solo MP4 y MKV.' : 'This tool currently accepts MP4 and MKV only.' })
+      setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('videoOnlyAccepted') })
       return
     }
 
@@ -53,33 +54,33 @@ export function AudioExtractView() {
 
       return item
     })
-    setNotice({ tone: 'success', title: t('videoLoaded'), message: locale === 'es' ? 'Ya puedes elegir el formato de audio y comenzar la extraccion.' : 'You can now choose the audio format and start extracting.' })
+    setNotice({ tone: 'success', title: t('videoLoaded'), message: t('audioReadyToChoose') })
   }
 
   const handleExtract = async () => {
     if (!video) {
-      setNotice({ tone: 'error', title: t('missingVideo'), message: locale === 'es' ? 'Selecciona un video antes de extraer audio.' : 'Select a video before extracting audio.' })
+      setNotice({ tone: 'error', title: t('missingVideo'), message: t('selectVideoBeforeExtract') })
       return
     }
 
     const extracted = await extractAudio(video.file, outputFormat)
     if (extracted) {
-      setNotice({ tone: 'success', title: t('audioExtractionCompleted'), message: locale === 'es' ? `Tu archivo ${extracted.outputFormat.toUpperCase()} ya esta listo para descargar.` : `Your ${extracted.outputFormat.toUpperCase()} file is ready to download.` })
+      setNotice({ tone: 'success', title: t('audioExtractionCompleted'), message: `${t('audioReadyToDownload')} ${extracted.outputFormat.toUpperCase()}.` })
     }
   }
 
   return (
     <>
       <SectionHero
-        badge={locale === 'es' ? 'Video / Extraer audio' : 'Video / Extract audio'}
+        badge={`${t('video')} / ${t('extractAudio')}`}
         title={t('extractAudioTitle')}
         description={t('extractAudioDesc')}
         aside={
           <div className="rounded-[1.5rem] border border-slate-900/10 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">{t('currentScope')}</p>
             <div className="mt-4 space-y-2 text-sm text-slate-200">
-              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 {locale === 'es' ? 'o' : 'or'} MKV</div>
-              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('audioOutput')}: MP3 {locale === 'es' ? 'o' : 'or'} WAV</div>
+              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 {t('orWord')} MKV</div>
+              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('audioOutput')}: MP3 {t('orWord')} WAV</div>
             </div>
           </div>
         }
@@ -87,22 +88,15 @@ export function AudioExtractView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('extractAudioCardTitle')}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('extractAudioCardDesc')}</p>
-            </div>
-
-            <label className="btn-primary w-full cursor-pointer justify-center sm:w-auto">
-              {t('selectVideo')}
-              <input
-                type="file"
-                accept="video/mp4,.mp4,video/x-matroska,.mkv"
-                className="hidden"
-                onChange={(event) => void handleSelectFile(event.target.files)}
-              />
-            </label>
-          </div>
+          <FileDropzone
+            title={t('extractAudioCardTitle')}
+            description={t('extractAudioCardDesc')}
+            buttonLabel={t('selectVideo')}
+            accept="video/mp4,.mp4,video/x-matroska,.mkv"
+            disabled={isProcessing}
+            aside={<span className="badge">MP4 / MKV</span>}
+            onSelect={(files) => void handleSelectFile(files)}
+          />
 
           {error ? <div className="mt-6"><AlertBanner tone="error" title={t('audioExtractionError')} message={error} /></div> : null}
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
@@ -150,10 +144,20 @@ export function AudioExtractView() {
 
                   <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:flex xl:flex-wrap">
                     <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleExtract} disabled={isProcessing}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                        <path d="M12 4v10" />
+                        <path d="m8 10 4 4 4-4" />
+                        <path d="M7 20h10" />
+                      </svg>
                       {isProcessing ? t('extractingAudio') : t('extractAudioBtn')}
                     </button>
                     {result ? (
-                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="M12 4v10" />
+                          <path d="m8 10 4 4 4-4" />
+                          <path d="M5 19h14" />
+                        </svg>
                         {t('downloadExtractedAudio')}
                       </button>
                     ) : null}
@@ -163,11 +167,7 @@ export function AudioExtractView() {
             </div>
           ) : (
             <div className="mt-6">
-              <EmptyState
-                badge={t('noVideoSelected')}
-                title={t('emptyExtractAudioTitle')}
-                description={locale === 'es' ? 'Naroz puede extraer audio desde un solo video MP4 o MKV a la vez, con salida MP3 o WAV.' : 'Naroz can extract audio from one MP4 or MKV video at a time, with MP3 or WAV output.'}
-              />
+              <EmptyState badge={t('noVideoSelected')} title={t('emptyExtractAudioTitle')} description={t('emptyExtractAudioDesc')} />
             </div>
           )}
         </section>
