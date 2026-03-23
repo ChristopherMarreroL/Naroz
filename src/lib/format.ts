@@ -12,7 +12,7 @@ export function formatBytes(bytes: number): string {
 
 export function formatDuration(seconds: number | null): string {
   if (!seconds || Number.isNaN(seconds)) {
-    return 'No disponible'
+    return '--'
   }
 
   const totalSeconds = Math.round(seconds)
@@ -31,7 +31,7 @@ export function formatDuration(seconds: number | null): string {
 
 export function formatResolution(width: number | null, height: number | null): string {
   if (!width || !height) {
-    return 'Resolucion no detectada'
+    return '--'
   }
 
   return `${width}x${height}`

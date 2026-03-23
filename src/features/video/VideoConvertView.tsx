@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { downloadFromUrl } from '../../lib/download'
@@ -11,13 +12,13 @@ import { useVideoConverter } from './hooks/useVideoConverter'
 import { createVideoItem, isSupportedVideo } from './lib/media'
 
 export function VideoConvertView() {
-  const { locale, t } = useLocale()
+  const { t } = useLocale()
   const [video, setVideo] = useState<Awaited<ReturnType<typeof createVideoItem>> | null>(null)
   const [outputFormat, setOutputFormat] = useState<VideoOutputFormat>('mp4')
   const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('localConversion'),
-    message: locale === 'es' ? 'Selecciona un archivo MP4 o MKV y Naroz lo convertira al formato final elegido.' : 'Choose one MP4 or MKV file and Naroz will convert it to the selected output format.',
+    message: t('convertVideoCardDesc'),
   })
   const { progress, isProcessing, result, error, ensureLoaded, convertVideo } = useVideoConverter()
 
@@ -42,7 +43,7 @@ export function VideoConvertView() {
     }
 
     if (!isSupportedVideo(file)) {
-      setNotice({ tone: 'error', title: t('unsupportedFile'), message: locale === 'es' ? 'Esta herramienta actualmente acepta solo MP4 y MKV.' : 'This tool currently accepts MP4 and MKV only.' })
+      setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('videoOnlyAccepted') })
       return
     }
 
@@ -54,33 +55,33 @@ export function VideoConvertView() {
 
       return item
     })
-    setNotice({ tone: 'success', title: t('videoLoaded'), message: locale === 'es' ? 'Ya puedes elegir el formato final y comenzar la conversion.' : 'You can now choose the output format and start the conversion.' })
+    setNotice({ tone: 'success', title: t('videoLoaded'), message: t('videoReadyToChoose') })
   }
 
   const handleConvert = async () => {
     if (!video) {
-      setNotice({ tone: 'error', title: locale === 'es' ? 'Falta un video' : 'Missing video', message: locale === 'es' ? 'Selecciona un video antes de convertir.' : 'Select a video before converting.' })
+      setNotice({ tone: 'error', title: t('missingVideo'), message: t('selectVideoBeforeConvert') })
       return
     }
 
     const converted = await convertVideo(video.file, outputFormat)
     if (converted) {
-      setNotice({ tone: 'success', title: t('conversionCompleted'), message: locale === 'es' ? `Tu archivo ${converted.outputFormat.toUpperCase()} ya esta listo para descargar.` : `Your ${converted.outputFormat.toUpperCase()} file is ready to download.` })
+      setNotice({ tone: 'success', title: t('conversionCompleted'), message: `${t('convertedReadyToDownload')} ${converted.outputFormat.toUpperCase()}.` })
     }
   }
 
   return (
     <>
       <SectionHero
-        badge={locale === 'es' ? 'Video / Convertir formato' : 'Video / Convert format'}
+        badge={t('convertVideoBadge')}
         title={t('convertVideoTitle')}
         description={t('convertVideoDesc')}
         aside={
           <div className="rounded-[1.5rem] border border-slate-900/10 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">{t('currentScope')}</p>
             <div className="mt-4 space-y-2 text-sm text-slate-200">
-              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 {locale === 'es' ? 'o' : 'or'} MKV</div>
-              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('output')}: MP4 {locale === 'es' ? 'o' : 'or'} MKV</div>
+              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 {t('orWord')} MKV</div>
+              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('output')}: MP4 {t('orWord')} MKV</div>
             </div>
           </div>
         }
@@ -88,22 +89,15 @@ export function VideoConvertView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('convertVideoCardTitle')}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('convertVideoCardDesc')}</p>
-            </div>
-
-            <label className="btn-primary w-full cursor-pointer justify-center sm:w-auto">
-              {t('selectVideo')}
-              <input
-                type="file"
-                accept="video/mp4,.mp4,video/x-matroska,.mkv"
-                className="hidden"
-                onChange={(event) => void handleSelectFile(event.target.files)}
-              />
-            </label>
-          </div>
+          <FileDropzone
+            title={t('convertVideoCardTitle')}
+            description={t('convertVideoCardDesc')}
+            buttonLabel={t('selectVideo')}
+            accept="video/mp4,.mp4,video/x-matroska,.mkv"
+            disabled={isProcessing}
+            aside={<span className="badge">MP4 / MKV</span>}
+            onSelect={(files) => void handleSelectFile(files)}
+          />
 
           {error ? <div className="mt-6"><AlertBanner tone="error" title={t('conversionError')} message={error} /></div> : null}
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
@@ -151,10 +145,20 @@ export function VideoConvertView() {
 
                   <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:flex xl:flex-wrap">
                     <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleConvert} disabled={isProcessing}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                        <path d="M4 12h10" />
+                        <path d="m10 6 6 6-6 6" />
+                        <path d="M18 6v12" />
+                      </svg>
                       {isProcessing ? t('converting') : t('convertVideoBtn')}
                     </button>
                     {result ? (
-                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="M12 4v10" />
+                          <path d="m8 10 4 4 4-4" />
+                          <path d="M5 19h14" />
+                        </svg>
                         {t('downloadConvertedVideo')}
                       </button>
                     ) : null}
@@ -164,11 +168,7 @@ export function VideoConvertView() {
             </div>
           ) : (
             <div className="mt-6">
-              <EmptyState
-                badge={t('noVideoSelected')}
-                title={t('emptyConvertVideoTitle')}
-                description={locale === 'es' ? 'Naroz actualmente puede convertir un solo video MP4 o MKV a la vez hacia salida MP4 o MKV.' : 'Naroz can currently convert one MP4 or MKV video at a time into MP4 or MKV output.'}
-              />
+              <EmptyState badge={t('noVideoSelected')} title={t('emptyConvertVideoTitle')} description={t('emptyConvertVideoDesc')} />
             </div>
           )}
         </section>

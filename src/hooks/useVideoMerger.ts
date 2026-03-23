@@ -2,16 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
+import { useLocale } from '../i18n/LocaleProvider'
 import type { MergeProgress, MergeResult, MergeStrategy, VideoItem, VideoOutputFormat } from '../types/video'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
-
-const INITIAL_PROGRESS: MergeProgress = {
-  stage: 'idle',
-  percent: 0,
-  message: 'Listo para unir tus videos.',
-  detail: 'Elige tus archivos y el formato de salida.',
-}
 
 function createOutputFileName(extension: VideoOutputFormat): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -111,20 +105,39 @@ interface ProgressPhase {
 }
 
 export function useVideoMerger() {
+  const { locale } = useLocale()
   const ffmpegRef = useRef<FFmpeg | null>(null)
-  const [progress, setProgress] = useState<MergeProgress>(INITIAL_PROGRESS)
+  const [progress, setProgress] = useState<MergeProgress>({
+    stage: 'idle',
+    percent: 0,
+    message: locale === 'es' ? 'Listo para unir tus videos.' : 'Ready to merge your videos.',
+    detail: locale === 'es' ? 'Elige tus archivos y el formato de salida.' : 'Choose your files and the output format.',
+  })
   const [isLoadingEngine, setIsLoadingEngine] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<MergeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const lastLogRef = useRef('')
   const progressPhaseRef = useRef<ProgressPhase>({
-    stage: 'idle',
-    start: 0,
-    end: 0,
-    message: INITIAL_PROGRESS.message,
-    detail: INITIAL_PROGRESS.detail,
-  })
+      stage: 'idle',
+      start: 0,
+      end: 0,
+      message: locale === 'es' ? 'Listo para unir tus videos.' : 'Ready to merge your videos.',
+      detail: locale === 'es' ? 'Elige tus archivos y el formato de salida.' : 'Choose your files and the output format.',
+    })
+
+  useEffect(() => {
+    setProgress((current) =>
+      current.stage === 'idle'
+        ? {
+            stage: 'idle',
+            percent: 0,
+            message: locale === 'es' ? 'Listo para unir tus videos.' : 'Ready to merge your videos.',
+            detail: locale === 'es' ? 'Elige tus archivos y el formato de salida.' : 'Choose your files and the output format.',
+          }
+        : current,
+    )
+  }, [locale])
 
   useEffect(() => {
     return () => {
@@ -150,12 +163,12 @@ export function useVideoMerger() {
     }
 
     setIsLoadingEngine(true)
-    setProgress({
-      stage: 'loading',
-      percent: 10,
-      message: 'Cargando motor de video en el navegador...',
-      detail: 'La primera carga puede tardar un poco.',
-    })
+      setProgress({
+        stage: 'loading',
+        percent: 10,
+        message: locale === 'es' ? 'Cargando motor de video en el navegador...' : 'Loading video engine in the browser...',
+        detail: locale === 'es' ? 'La primera carga puede tardar un poco.' : 'The first load can take a moment.',
+      })
 
     const ffmpeg = new FFmpeg()
     ffmpeg.on('log', ({ message }) => {
@@ -184,11 +197,11 @@ export function useVideoMerger() {
     setProgress({
       stage: 'idle',
       percent: 0,
-      message: 'Motor listo. Puedes iniciar la union.',
-      detail: 'La barra avanzara segun preparacion, conversion y union.',
+      message: locale === 'es' ? 'Motor listo. Puedes iniciar la union.' : 'Engine ready. You can start merging.',
+      detail: locale === 'es' ? 'La barra avanzara segun preparacion, conversion y union.' : 'The progress bar will reflect preparation, conversion, and merge stages.',
     })
     return ffmpeg
-  }, [])
+  }, [locale])
 
   const resetResult = useCallback(() => {
     setResult((current) => {
@@ -203,12 +216,12 @@ export function useVideoMerger() {
   const mergeVideos = useCallback(
     async (videos: VideoItem[], strategy: MergeStrategy, outputFormat: VideoOutputFormat) => {
       if (videos.length === 0) {
-        setError('Selecciona al menos un video MP4 o MKV antes de unir.')
+        setError(locale === 'es' ? 'Selecciona al menos un video MP4 o MKV antes de unir.' : 'Select at least one MP4 or MKV video before merging.')
         setProgress({
           stage: 'error',
           percent: 0,
-          message: 'No hay videos para procesar.',
-          detail: 'Agrega al menos un archivo.',
+          message: locale === 'es' ? 'No hay videos para procesar.' : 'There are no videos to process.',
+          detail: locale === 'es' ? 'Agrega al menos un archivo.' : 'Add at least one file.',
         })
         return null
       }
@@ -229,8 +242,8 @@ export function useVideoMerger() {
           stage: 'preparing',
           start: 8,
           end: 12,
-          message: 'Preparando archivos...',
-          detail: 'Leyendo los videos locales antes del procesamiento.',
+          message: locale === 'es' ? 'Preparando archivos...' : 'Preparing files...',
+          detail: locale === 'es' ? 'Leyendo los videos locales antes del procesamiento.' : 'Reading local videos before processing.',
         })
 
         for (let index = 0; index < videos.length; index += 1) {
@@ -254,9 +267,9 @@ export function useVideoMerger() {
                 stage: 'preparing',
                 start: 12 + Math.round((index / inputFileNames.length) * 28),
                 end: 22 + Math.round(((index + 1) / inputFileNames.length) * 28),
-                message: `Preparando video ${index + 1} de ${inputFileNames.length}...`,
-                detail: 'Ajustando el audio para mantener compatibilidad en la salida MP4.',
-              })
+                 message: locale === 'es' ? `Preparando video ${index + 1} de ${inputFileNames.length}...` : `Preparing video ${index + 1} of ${inputFileNames.length}...`,
+                 detail: locale === 'es' ? 'Ajustando el audio para mantener compatibilidad en la salida MP4.' : 'Adjusting audio to keep MP4 output compatible.',
+               })
 
               await ffmpeg.exec([
                 '-i',
@@ -284,9 +297,9 @@ export function useVideoMerger() {
                 stage: 'preparing',
                 start: 22 + Math.round((index / inputFileNames.length) * 22),
                 end: 32 + Math.round(((index + 1) / inputFileNames.length) * 22),
-                message: `Optimizando video ${index + 1} de ${inputFileNames.length}...`,
-                detail: 'Convirtiendo a flujo intermedio rapido antes de unir.',
-              })
+                 message: locale === 'es' ? `Optimizando video ${index + 1} de ${inputFileNames.length}...` : `Optimizing video ${index + 1} of ${inputFileNames.length}...`,
+                 detail: locale === 'es' ? 'Convirtiendo a flujo intermedio rapido antes de unir.' : 'Converting to a fast intermediate stream before merging.',
+               })
 
               await ffmpeg.exec([
                 '-i',
@@ -305,8 +318,8 @@ export function useVideoMerger() {
               stage: 'merging',
               start: 68,
               end: 96,
-              message: 'Uniendo videos...',
-              detail: 'Empaquetando la salida final en MP4.',
+               message: locale === 'es' ? 'Uniendo videos...' : 'Merging videos...',
+               detail: locale === 'es' ? 'Empaquetando la salida final en MP4.' : 'Packaging the final output as MP4.',
             })
 
             await ffmpeg.exec([
@@ -332,8 +345,8 @@ export function useVideoMerger() {
               stage: 'merging',
               start: 16,
               end: 96,
-              message: 'Uniendo videos...',
-              detail: 'Todos ya son MKV compatibles, asi que se uniran sin conversion pesada.',
+               message: locale === 'es' ? 'Uniendo videos...' : 'Merging videos...',
+               detail: locale === 'es' ? 'Todos ya son MKV compatibles, asi que se uniran sin conversion pesada.' : 'All files are already compatible MKV files, so they will merge without heavy conversion.',
             })
 
             await ffmpeg.exec([
@@ -359,8 +372,8 @@ export function useVideoMerger() {
               stage: 'converting',
               start: 14 + Math.round((index / videos.length) * 54),
               end: 22 + Math.round(((index + 1) / videos.length) * 54),
-              message: `Cambiando formato ${index + 1} de ${videos.length}...`,
-              detail: `Convirtiendo a ${outputFormat.toUpperCase()} compatible antes de la union final.`,
+               message: locale === 'es' ? `Cambiando formato ${index + 1} de ${videos.length}...` : `Converting format ${index + 1} of ${videos.length}...`,
+               detail: locale === 'es' ? `Convirtiendo a ${outputFormat.toUpperCase()} compatible antes de la union final.` : `Converting into a compatible ${outputFormat.toUpperCase()} file before the final merge.`,
             })
 
             await ffmpeg.exec([
@@ -398,9 +411,9 @@ export function useVideoMerger() {
             stage: 'merging',
             start: 74,
             end: 96,
-            message: 'Uniendo videos...',
-            detail: `Todos los videos convertidos se estan uniendo en ${outputFormat.toUpperCase()}.`,
-          })
+             message: locale === 'es' ? 'Uniendo videos...' : 'Merging videos...',
+             detail: locale === 'es' ? `Todos los videos convertidos se estan uniendo en ${outputFormat.toUpperCase()}.` : `All converted videos are being merged into ${outputFormat.toUpperCase()}.`,
+           })
 
           await ffmpeg.exec([
             '-f',
@@ -442,8 +455,8 @@ export function useVideoMerger() {
         setProgress({
           stage: 'finished',
           percent: 100,
-          message: 'Video unido correctamente.',
-          detail: `La descarga final ya esta lista en ${outputFormat.toUpperCase()}.`,
+          message: locale === 'es' ? 'Video unido correctamente.' : 'Video merged successfully.',
+          detail: locale === 'es' ? `La descarga final ya esta lista en ${outputFormat.toUpperCase()}.` : `Your final ${outputFormat.toUpperCase()} download is ready.`,
         })
 
         await Promise.allSettled([
@@ -469,14 +482,16 @@ export function useVideoMerger() {
                   ? `No se pudieron convertir y unir correctamente los videos a ${outputFormat.toUpperCase()} porque los formatos o codecs son demasiado distintos.`
                   : lastLogRef.current.includes('Impossible to open') || lastLogRef.current.includes('Invalid data')
                     ? `No se pudieron unir los videos. La app intento normalizarlos a ${outputFormat.toUpperCase()}, pero siguen siendo incompatibles entre si.`
-                    : 'Fallo el procesamiento en el navegador. No se genero ninguna descarga para evitar un resultado incompleto.'
+                    : locale === 'es'
+                      ? 'Fallo el procesamiento en el navegador. No se genero ninguna descarga para evitar un resultado incompleto.'
+                      : 'Browser processing failed. No download was generated to avoid an incomplete result.'
 
         setError(fallbackMessage)
         setProgress({
           stage: 'error',
           percent: 0,
           message: fallbackMessage,
-          detail: 'Prueba otro formato final o usa archivos mas compatibles.',
+          detail: locale === 'es' ? 'Prueba otro formato final o usa archivos mas compatibles.' : 'Try another output format or use more compatible files.',
         })
         console.error(mergeError)
         return null
@@ -484,7 +499,7 @@ export function useVideoMerger() {
         setIsProcessing(false)
       }
     },
-    [ensureLoaded, resetResult, setProgressPhase],
+    [ensureLoaded, locale, resetResult, setProgressPhase],
   )
 
   return {

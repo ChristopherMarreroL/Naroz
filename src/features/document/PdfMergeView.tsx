@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { downloadFromUrl } from '../../lib/download'
@@ -11,12 +12,12 @@ import { usePdfMerger } from './hooks/usePdfMerger'
 import { createDocumentItem, getTotalSize, isSupportedPdf, moveDocument, type DocumentItem } from './lib/files'
 
 export function PdfMergeView() {
-  const { locale, t } = useLocale()
+  const { t } = useLocale()
   const [items, setItems] = useState<DocumentItem[]>([])
   const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
-    message: locale === 'es' ? 'Agrega varios PDF, ordenalos y genera un solo archivo final.' : 'Add multiple PDFs, reorder them, and generate one final file.',
+    message: t('pdfMergeCardDesc'),
   })
   const { progress, isProcessing, result, error, mergePdfFiles } = usePdfMerger()
 
@@ -30,30 +31,30 @@ export function PdfMergeView() {
     const files = Array.from(fileList)
     const invalid = files.find((file) => !isSupportedPdf(file))
     if (invalid) {
-      setNotice({ tone: 'error', title: t('unsupportedFile'), message: locale === 'es' ? 'Solo se admiten archivos PDF en esta herramienta.' : 'Only PDF files are supported in this tool.' })
+      setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('pdfOnlyAccepted') })
       return
     }
 
     setItems(files.map((file) => createDocumentItem(file, 'pdf')))
-    setNotice({ tone: 'success', title: t('documentsAdded'), message: locale === 'es' ? 'La lista actual se actualizo con los PDF seleccionados. Ya puedes reorganizarlos antes de unirlos.' : 'The current list was updated with the selected PDFs. You can now reorder them before merging.' })
+    setNotice({ tone: 'success', title: t('documentsAdded'), message: t('pdfListUpdated') })
   }
 
   const handleMerge = async () => {
     if (items.length < 2) {
-      setNotice({ tone: 'error', title: t('documentsRequired'), message: locale === 'es' ? 'Agrega al menos dos PDF para poder unirlos.' : 'Add at least two PDFs to merge them.' })
+      setNotice({ tone: 'error', title: t('documentsRequired'), message: t('pdfNeedAtLeastTwo') })
       return
     }
 
     const merged = await mergePdfFiles(items.map((item) => item.file))
     if (merged) {
-      setNotice({ tone: 'success', title: t('pdfMergeCompleted'), message: locale === 'es' ? 'Tu PDF unido ya esta listo para descargar.' : 'Your merged PDF is ready to download.' })
+      setNotice({ tone: 'success', title: t('pdfMergeCompleted'), message: t('pdfReadyToDownload') })
     }
   }
 
   return (
     <>
       <SectionHero
-        badge={locale === 'es' ? 'Documentos / Unir PDF' : 'Documents / Merge PDF'}
+        badge={`${t('document')} / ${t('mergePdf')}`}
         title={t('pdfMergeTitle')}
         description={t('pdfMergeDesc')}
         aside={
@@ -69,26 +70,16 @@ export function PdfMergeView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('pdfMergeCardTitle')}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('pdfMergeCardDesc')}</p>
-            </div>
-
-            <label className="btn-primary w-full cursor-pointer justify-center sm:w-auto">
-              {t('selectPdf')}
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                multiple
-                className="hidden"
-                onChange={(event) => {
-                  handleSelectFiles(event.target.files)
-                  event.target.value = ''
-                }}
-              />
-            </label>
-          </div>
+          <FileDropzone
+            title={t('pdfMergeCardTitle')}
+            description={t('pdfMergeCardDesc')}
+            buttonLabel={t('selectPdf')}
+            accept="application/pdf,.pdf"
+            multiple
+            disabled={isProcessing}
+            aside={<span className="badge">PDF</span>}
+            onSelect={(files) => handleSelectFiles(files)}
+          />
 
           {error ? <div className="mt-6"><AlertBanner tone="error" title={t('pdfMergeError')} message={error} /></div> : null}
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
@@ -125,6 +116,12 @@ export function PdfMergeView() {
 
           <div className="mt-6 grid gap-3 lg:grid-cols-2 xl:flex xl:flex-wrap">
             <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleMerge} disabled={isProcessing || items.length < 2}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                <path d="M7 7h10" />
+                <path d="M7 12h10" />
+                <path d="M7 17h10" />
+                <path d="m12 4 3 3-3 3" />
+              </svg>
               {isProcessing ? t('mergingDocuments') : t('mergePdfBtn')}
             </button>
             {items.length > 0 ? (
@@ -133,15 +130,20 @@ export function PdfMergeView() {
                 className="btn-secondary w-full sm:w-auto"
                 onClick={() => {
                   setItems([])
-                  setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: locale === 'es' ? 'La lista de PDF se vacio. Selecciona los archivos que quieras unir.' : 'The PDF list was cleared. Select the files you want to merge.' })
+                  setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: t('pdfListCleared') })
                 }}
                 disabled={isProcessing}
               >
-                {locale === 'es' ? 'Vaciar lista' : 'Clear list'}
+                {t('clearList')}
               </button>
             ) : null}
             {result ? (
-              <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+              <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                  <path d="M12 4v10" />
+                  <path d="m8 10 4 4 4-4" />
+                  <path d="M5 19h14" />
+                </svg>
                 {t('downloadMergedPdf')}
               </button>
             ) : null}

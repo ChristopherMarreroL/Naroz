@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
+import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { downloadFromUrl } from '../../lib/download'
@@ -11,12 +13,12 @@ import { useDocxMerger } from './hooks/useDocxMerger'
 import { createDocumentItem, getTotalSize, isSupportedDocx, moveDocument, type DocumentItem } from './lib/files'
 
 export function DocxMergeView() {
-  const { locale, t } = useLocale()
+  const { t } = useLocale()
   const [items, setItems] = useState<DocumentItem[]>([])
   const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
-    message: locale === 'es' ? 'Agrega varios DOCX, ordenalos y genera un solo documento final.' : 'Add multiple DOCX files, reorder them, and generate one final document.',
+    message: t('docxMergeCardDesc'),
   })
   const { progress, isProcessing, result, error, mergeDocxFiles } = useDocxMerger()
 
@@ -30,30 +32,30 @@ export function DocxMergeView() {
     const files = Array.from(fileList)
     const invalid = files.find((file) => !isSupportedDocx(file))
     if (invalid) {
-      setNotice({ tone: 'error', title: t('unsupportedFile'), message: locale === 'es' ? 'Solo se admiten archivos DOCX en esta herramienta.' : 'Only DOCX files are supported in this tool.' })
+      setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('docxOnlyAccepted') })
       return
     }
 
     setItems(files.map((file) => createDocumentItem(file, 'docx')))
-    setNotice({ tone: 'success', title: t('documentsAdded'), message: locale === 'es' ? 'La lista actual se actualizo con los DOCX seleccionados. Ya puedes reorganizarlos antes de unirlos.' : 'The current list was updated with the selected DOCX files. You can now reorder them before merging.' })
+    setNotice({ tone: 'success', title: t('documentsAdded'), message: t('docxListUpdated') })
   }
 
   const handleMerge = async () => {
     if (items.length < 2) {
-      setNotice({ tone: 'error', title: t('documentsRequired'), message: locale === 'es' ? 'Agrega al menos dos DOCX para poder unirlos.' : 'Add at least two DOCX files to merge them.' })
+      setNotice({ tone: 'error', title: t('documentsRequired'), message: t('docxNeedAtLeastTwo') })
       return
     }
 
     const merged = await mergeDocxFiles(items.map((item) => item.file))
     if (merged) {
-      setNotice({ tone: 'success', title: t('docxMergeCompleted'), message: locale === 'es' ? 'Tu documento DOCX unido ya esta listo para descargar.' : 'Your merged DOCX is ready to download.' })
+      setNotice({ tone: 'success', title: t('docxMergeCompleted'), message: t('docxReadyToDownload') })
     }
   }
 
   return (
     <>
       <SectionHero
-        badge={locale === 'es' ? 'Documentos / Unir Word' : 'Documents / Merge Word'}
+        badge={`${t('document')} / ${t('mergeWord')}`}
         title={t('docxMergeTitle')}
         description={t('docxMergeDesc')}
         aside={
@@ -69,26 +71,18 @@ export function DocxMergeView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('docxMergeCardTitle')}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('docxMergeCardDesc')}</p>
-            </div>
+          <BetaNotice message={t('betaWordMessage')} />
 
-            <label className="btn-primary w-full cursor-pointer justify-center sm:w-auto">
-              {t('selectDocx')}
-              <input
-                type="file"
-                accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                multiple
-                className="hidden"
-                onChange={(event) => {
-                  handleSelectFiles(event.target.files)
-                  event.target.value = ''
-                }}
-              />
-            </label>
-          </div>
+          <FileDropzone
+            title={t('docxMergeCardTitle')}
+            description={t('docxMergeCardDesc')}
+            buttonLabel={t('selectDocx')}
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            multiple
+            disabled={isProcessing}
+            aside={<span className="badge">DOCX</span>}
+            onSelect={(files) => handleSelectFiles(files)}
+          />
 
           {error ? <div className="mt-6"><AlertBanner tone="error" title={t('docxMergeError')} message={error} /></div> : null}
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
@@ -125,6 +119,12 @@ export function DocxMergeView() {
 
           <div className="mt-6 grid gap-3 lg:grid-cols-2 xl:flex xl:flex-wrap">
             <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleMerge} disabled={isProcessing || items.length < 2}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                <path d="M7 7h10" />
+                <path d="M7 12h10" />
+                <path d="M7 17h10" />
+                <path d="m12 4 3 3-3 3" />
+              </svg>
               {isProcessing ? t('mergingDocuments') : t('mergeDocxBtn')}
             </button>
             {items.length > 0 ? (
@@ -133,15 +133,20 @@ export function DocxMergeView() {
                 className="btn-secondary w-full sm:w-auto"
                 onClick={() => {
                   setItems([])
-                  setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: locale === 'es' ? 'La lista de documentos Word se vacio. Selecciona los archivos que quieras unir.' : 'The Word document list was cleared. Select the files you want to merge.' })
+                  setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: t('docxListCleared') })
                 }}
                 disabled={isProcessing}
               >
-                {locale === 'es' ? 'Vaciar lista' : 'Clear list'}
+                {t('clearList')}
               </button>
             ) : null}
             {result ? (
-              <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+              <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                  <path d="M12 4v10" />
+                  <path d="m8 10 4 4 4-4" />
+                  <path d="M5 19h14" />
+                </svg>
                 {t('downloadMergedDocx')}
               </button>
             ) : null}

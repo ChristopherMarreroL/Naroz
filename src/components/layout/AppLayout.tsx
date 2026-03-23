@@ -44,7 +44,7 @@ export function AppLayout({ children, items, activeTool, activeSection, onNaviga
           </>
         ) : null}
 
-        <main className="flex min-w-0 overflow-x-hidden flex-1 flex-col gap-4 sm:gap-5 lg:gap-6">{children}</main>
+        <main className="flex min-w-0 overflow-x-hidden flex-1 flex-col gap-5 sm:gap-6 lg:gap-8">{children}</main>
         <Footer />
       </div>
     </div>

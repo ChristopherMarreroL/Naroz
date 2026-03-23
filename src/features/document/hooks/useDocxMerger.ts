@@ -25,7 +25,7 @@ function arrayBufferToBinaryString(buffer: ArrayBuffer) {
 }
 
 export function useDocxMerger() {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const [progress, setProgress] = useState<MergeProgress>({
     stage: 'idle',
     percent: 0,
@@ -76,7 +76,7 @@ export function useDocxMerger() {
       setProgress({
         stage: 'preparing',
         percent: 10,
-        message: locale === 'es' ? 'Preparando documentos...' : 'Preparing documents...',
+        message: t('stagePreparing'),
         detail: locale === 'es' ? 'Leyendo los DOCX seleccionados.' : 'Reading the selected DOCX files.',
       })
 
@@ -113,8 +113,8 @@ export function useDocxMerger() {
       setProgress({
         stage: 'finished',
         percent: 100,
-        message: locale === 'es' ? 'Documento DOCX unido correctamente.' : 'DOCX merged successfully.',
-        detail: locale === 'es' ? 'Tu archivo DOCX final ya esta listo para descargar.' : 'Your merged DOCX is ready to download.',
+        message: t('docxMergeCompleted'),
+        detail: t('docxReadyToDownload'),
       })
 
       return mergeResult
@@ -123,7 +123,7 @@ export function useDocxMerger() {
       setProgress({
         stage: 'error',
         percent: 0,
-        message: locale === 'es' ? 'La union fallo.' : 'Merge failed.',
+        message: t('docxMergeError'),
         detail: locale === 'es' ? 'Algunos DOCX complejos pueden necesitar ajustes adicionales.' : 'Some complex DOCX files may need extra handling.',
       })
       console.error(mergeError)
@@ -131,7 +131,7 @@ export function useDocxMerger() {
     } finally {
       setIsProcessing(false)
     }
-  }, [locale, resetResult])
+  }, [locale, resetResult, t])
 
   return { progress, isProcessing, result, error, mergeDocxFiles }
 }

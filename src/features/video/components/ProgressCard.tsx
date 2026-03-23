@@ -1,4 +1,5 @@
 import type { MergeProgress } from '../../../types/video'
+import { useLocale } from '../../../i18n/LocaleProvider'
 
 interface ProgressCardProps {
   progress: MergeProgress
@@ -7,22 +8,23 @@ interface ProgressCardProps {
 }
 
 export function ProgressCard({ progress, isLoadingEngine, isProcessing }: ProgressCardProps) {
+  const { t } = useLocale()
   const isBusy = isLoadingEngine || isProcessing
   const stages = [
-    { key: 'preparing', label: 'Preparando' },
-    { key: 'converting', label: 'Convirtiendo' },
-    { key: 'merging', label: 'Uniendo' },
+    { key: 'preparing', label: t('stagePreparing') },
+    { key: 'converting', label: t('stageConverting') },
+    { key: 'merging', label: t('stageMerging') },
   ] as const
 
   return (
     <section className="panel p-6 sm:p-8">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-950">Estado del procesamiento</h2>
+          <h2 className="text-xl font-extrabold text-slate-950">{t('processingStatusTitle')}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">{progress.message}</p>
           {progress.detail ? <p className="mt-1 text-xs leading-5 text-slate-500">{progress.detail}</p> : null}
         </div>
-        <span className="badge">{isBusy ? 'Procesando' : 'En espera'}</span>
+        <span className="badge">{isBusy ? t('processingNow') : t('waitingStatus')}</span>
       </div>
 
       <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
