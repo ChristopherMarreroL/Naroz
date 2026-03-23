@@ -16,6 +16,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
     general: t('general'),
     video: t('video'),
     image: t('image'),
+    document: t('document'),
   }
 
   return (
@@ -43,7 +44,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
       </div>
 
       <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-6">
-        {(['general', 'video', 'image'] as AppSectionId[]).map((section) => {
+        {(['general', 'video', 'image', 'document'] as AppSectionId[]).map((section) => {
           const sectionItems = items.filter((item) => item.section === section)
 
           return (

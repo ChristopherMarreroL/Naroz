@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "seo:generate": "node scripts/generate-seo.mjs",
+    "build": "node scripts/generate-seo.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -13,7 +14,9 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@tailwindcss/vite": "^4.2.2",
+    "docx-merger": "^1.2.2",
     "gifenc": "^1.0.3",
+    "pdf-lib": "^1.17.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

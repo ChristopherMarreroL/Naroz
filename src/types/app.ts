@@ -1,4 +1,4 @@
-export type AppSectionId = 'general' | 'video' | 'image'
+export type AppSectionId = 'general' | 'video' | 'image' | 'document'
 
 export type AppToolId =
   | 'home'
@@ -8,6 +8,8 @@ export type AppToolId =
   | 'video-extract-audio'
   | 'video-resize'
   | 'image-convert'
+  | 'document-merge-pdf'
+  | 'document-merge-docx'
 
 export interface SidebarItem {
   id: AppToolId
