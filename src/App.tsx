@@ -21,7 +21,7 @@ function ToolLoadingFallback() {
 }
 
 function getToolViewClassName(isActive: boolean) {
-  return `${isActive ? 'flex' : 'hidden'} min-w-0 flex-col gap-5 sm:gap-6 lg:gap-8`
+  return `${isActive ? 'flex' : 'hidden'} min-w-0 flex-col gap-6 sm:gap-8 lg:gap-10`
 }
 
 function App() {
