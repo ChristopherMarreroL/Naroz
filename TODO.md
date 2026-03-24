@@ -1,0 +1,25 @@
+# TODO - Naroz
+
+- [x] Unir videos
+- [x] Convertir formato de video
+- [x] Convertir formato de imagen
+- [x] Extraer audio
+- [ ] Cortar audio
+- [x] Unir PDF
+- [x] Unir Word
+- [x] Recortar video
+- [ ] Cambiar resolucion de video
+- [ ] Comprimir video
+- [ ] Eliminar audio
+- [ ] Rotar / voltear video
+- [ ] Agregar subtitulos
+- [ ] Cambiar velocidad
+- [ ] Redimensionar imagen
+- [ ] Comprimir / calidad de imagen
+- [ ] Recortar imagen
+- [ ] Rotar / voltear imagen
+- [ ] Eliminar paginas
+- [ ] Convertir PDF a imagen
+- [ ] Imagen a PDF
+- [ ] Remover fondo de imagen
+- [ ] Convertir TXT a DOCX

@@ -65,13 +65,6 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   return locale === 'es' ? 'Transforma imagenes JPG, PNG, WebP, AVIF, GIF e ICO con vista previa y descarga inmediata.' : 'Convert JPG, PNG, WebP, AVIF, GIF, and ICO images with preview and instant download.'
 }
 
-const upcomingTools = [
-  { id: 'video-resize' as const, category: 'video', titleEs: 'Cambiar resolucion', titleEn: 'Resize video' },
-  { category: 'image', titleEs: 'Redimensionar', titleEn: 'Resize image' },
-  { category: 'image', titleEs: 'Comprimir / calidad', titleEn: 'Compress / quality' },
-  { category: 'document', titleEs: 'Convertir PDF a imagen', titleEn: 'Convert PDF to image' },
-]
-
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { locale, t } = useLocale()
 
@@ -88,66 +81,34 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">{t('homeIntroDescription')}</p>
       </section>
 
-      <section className="grid min-w-0 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="panel p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('homeAvailable')}</h2>
-            </div>
-            <span className="badge">{availableTools.length} {t('activeCount')}</span>
+      <section className="panel p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-950">{t('homeAvailable')}</h2>
           </div>
-
-          <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {availableTools.map((tool) => (
-              <article key={tool.id} className="panel-subtle min-w-0 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="badge">{tool.category === 'video' ? t('video') : tool.category === 'image' ? t('image') : t('document')}</span>
-                    {tool.status === 'beta' ? <span className="badge bg-sky-100 text-sky-700">{t('betaBadge')}</span> : null}
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                    <ToolIcon toolId={tool.id} />
-                  </div>
-                </div>
-                <h3 className="mt-4 text-xl font-bold text-slate-950">{getToolTitle(tool.id, locale)}</h3>
-                <p className="mt-2 break-words text-sm leading-6 text-slate-600">{getToolDescription(tool.id, locale)}</p>
-                <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
-                  {t('openTool')}
-                </button>
-              </article>
-            ))}
-          </div>
+          <span className="badge">{availableTools.length} {t('activeCount')}</span>
         </div>
 
-        <section className="panel p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-950">{t('homeUpcoming')}</h2>
-            </div>
-            <span className="badge bg-amber-100 text-amber-700">{t('roadmap')}</span>
-          </div>
-
-          <div className="mt-5 grid min-w-0 gap-3">
-            {upcomingTools.map((tool) => (
-              <button
-                key={`${tool.category}-${tool.titleEs}`}
-                type="button"
-                onClick={() => {
-                  if ('id' in tool && tool.id) {
-                    onNavigate(tool.id as AppToolId)
-                  }
-                }}
-                className="panel-subtle min-w-0 flex flex-col items-start justify-between gap-3 px-4 py-3 text-left transition hover:border-slate-300 sm:flex-row sm:items-center"
-              >
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-semibold text-slate-900">{locale === 'es' ? tool.titleEs : tool.titleEn}</p>
-                  <p className="text-xs text-slate-500">{tool.category === 'video' ? t('video') : tool.category === 'image' ? t('image') : t('document')}</p>
+        <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {availableTools.map((tool) => (
+            <article key={tool.id} className="panel-subtle min-w-0 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="badge">{tool.category === 'video' ? t('video') : tool.category === 'image' ? t('image') : t('document')}</span>
+                  {tool.status === 'beta' ? <span className="badge bg-sky-100 text-sky-700">{t('betaBadge')}</span> : null}
                 </div>
-                <span className="badge bg-slate-100 text-slate-500">{t('homeUpcoming')}</span>
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <ToolIcon toolId={tool.id} />
+                </div>
+              </div>
+              <h3 className="mt-4 text-xl font-bold text-slate-950">{getToolTitle(tool.id, locale)}</h3>
+              <p className="mt-2 break-words text-sm leading-6 text-slate-600">{getToolDescription(tool.id, locale)}</p>
+              <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
+                {t('openTool')}
               </button>
-            ))}
-          </div>
-        </section>
+            </article>
+          ))}
+        </div>
       </section>
     </>
   )
