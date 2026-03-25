@@ -51,6 +51,21 @@ export function VideoTrimView() {
   const endPercent = Math.min(100, (endTime / timelineDenominator) * 100)
   const playheadPercent = Math.min(100, ((currentTime || 0) / timelineDenominator) * 100)
 
+  const clearAll = () => {
+    setVideo((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl)
+      }
+
+      return null
+    })
+    setStartTime(0)
+    setEndTime(0)
+    setCurrentTime(0)
+    setIsPreviewPlaying(false)
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('trimInitialNotice') })
+  }
+
   useEffect(() => {
     const player = videoRef.current
     if (!player) {
@@ -398,6 +413,9 @@ export function VideoTrimView() {
                         <path d="m10 11 4 2" />
                       </svg>
                       {isProcessing ? t('trimmingVideo') : t('trimVideoBtn')}
+                    </button>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                      {t('clearContent')}
                     </button>
                     {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>

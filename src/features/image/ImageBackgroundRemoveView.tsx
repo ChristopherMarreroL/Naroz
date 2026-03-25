@@ -76,6 +76,18 @@ export function ImageBackgroundRemoveView() {
     })
   }
 
+  const clearAll = () => {
+    clearResult()
+    setUpload((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl)
+      }
+
+      return null
+    })
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('removeBackgroundCardDesc') })
+  }
+
   const handleSelectedFile = async (file: File | null | undefined) => {
     if (!file) {
       return
@@ -257,6 +269,9 @@ export function ImageBackgroundRemoveView() {
                         <path d="M4 19h16" />
                       </svg>
                       {isProcessing ? t('removingBackground') : t('removeBackgroundBtn')}
+                    </button>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                      {t('clearContent')}
                     </button>
                     {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>

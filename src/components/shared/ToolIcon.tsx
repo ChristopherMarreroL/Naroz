@@ -75,6 +75,26 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'image-crop') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M7 4v10a3 3 0 0 0 3 3h10" />
+        <path d="M4 7h10a3 3 0 0 1 3 3v10" />
+      </svg>
+    )
+  }
+
+  if (toolId === 'image-transform') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M7 5h10v10H7z" />
+        <path d="m12 3 3 3-3 3" />
+        <path d="M15 6H9a3 3 0 0 0-3 3v6" />
+        <path d="m12 21-3-3 3-3" />
+      </svg>
+    )
+  }
+
   if (toolId === 'document-merge-pdf') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
