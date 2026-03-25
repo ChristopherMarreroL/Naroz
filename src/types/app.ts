@@ -11,7 +11,10 @@ export type AppToolId =
   | 'video-resize'
   | 'image-convert'
   | 'image-remove-background'
+  | 'image-crop'
+  | 'image-transform'
   | 'document-merge-pdf'
+  | 'document-delete-pages'
   | 'document-merge-docx'
 
 export interface SidebarItem {

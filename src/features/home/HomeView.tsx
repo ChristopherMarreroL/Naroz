@@ -29,6 +29,16 @@ const availableTools = [
     status: 'beta',
   },
   {
+    id: 'image-crop' as const,
+    category: 'image',
+    status: 'stable',
+  },
+  {
+    id: 'image-transform' as const,
+    category: 'image',
+    status: 'stable',
+  },
+  {
     id: 'video-extract-audio' as const,
     category: 'video',
     status: 'stable',
@@ -42,6 +52,11 @@ const availableTools = [
     id: 'document-merge-pdf' as const,
     category: 'document',
     status: 'stable',
+  },
+  {
+    id: 'document-delete-pages' as const,
+    category: 'document',
+    status: 'beta',
   },
   {
     id: 'document-merge-docx' as const,
@@ -61,8 +76,11 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-extract-audio') return locale === 'es' ? 'Extraer audio' : 'Extract audio'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Eliminar audio' : 'Remove audio'
   if (id === 'video-trim') return locale === 'es' ? 'Recortar video' : 'Trim video'
+  if (id === 'image-crop') return locale === 'es' ? 'Recortar imagen' : 'Crop image'
+  if (id === 'image-transform') return locale === 'es' ? 'Rotar / voltear imagen' : 'Rotate / flip image'
   if (id === 'image-remove-background') return locale === 'es' ? 'Remover fondo' : 'Remove background'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Unir PDF' : 'Merge PDF'
+  if (id === 'document-delete-pages') return locale === 'es' ? 'Eliminar paginas' : 'Delete pages'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Unir Word' : 'Merge Word'
   return locale === 'es' ? 'Convertir formato' : 'Convert format'
 }
@@ -73,8 +91,11 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-extract-audio') return locale === 'es' ? 'Separa el audio de un video MP4 o MKV y exportalo en MP3 o WAV.' : 'Separate audio from an MP4 or MKV video and export it as MP3 or WAV.'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Genera una copia silenciosa de un video MP4 o MKV sin tocar la imagen.' : 'Generate a silent copy of an MP4 or MKV video without changing the picture.'
   if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4 o MKV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4 or MKV video and export only the clip you need.'
+  if (id === 'image-crop') return locale === 'es' ? 'Recorta una imagen y exporta solo el area que necesitas sin salir del navegador.' : 'Crop one image and export only the area you need directly in the browser.'
+  if (id === 'image-transform') return locale === 'es' ? 'Rota una imagen o volteala horizontal y verticalmente antes de descargarla.' : 'Rotate an image or flip it horizontally and vertically before downloading it.'
   if (id === 'image-remove-background') return locale === 'es' ? 'Intenta quitar fondos lisos o uniformes y exporta la imagen en PNG con transparencia.' : 'Attempts to remove plain or uniform backgrounds and exports the image as a transparent PNG.'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Combina varios PDF en un unico documento final y decide el orden antes de exportar.' : 'Combine multiple PDFs into one final document and choose the order before exporting.'
+  if (id === 'document-delete-pages') return locale === 'es' ? 'Selecciona un PDF y elimina paginas especificas antes de descargar una nueva version.' : 'Pick a PDF and remove specific pages before downloading a new version.'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Combina varios archivos DOCX en un solo documento Word desde el navegador.' : 'Combine multiple DOCX files into one Word document in the browser.'
   return locale === 'es' ? 'Transforma imagenes JPG, PNG, WebP, AVIF, GIF e ICO con vista previa y descarga inmediata.' : 'Convert JPG, PNG, WebP, AVIF, GIF, and ICO images with preview and instant download.'
 }

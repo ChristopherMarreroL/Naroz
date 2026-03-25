@@ -75,11 +75,42 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'image-crop') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M7 4v10a3 3 0 0 0 3 3h10" />
+        <path d="M4 7h10a3 3 0 0 1 3 3v10" />
+      </svg>
+    )
+  }
+
+  if (toolId === 'image-transform') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M7 5h10v10H7z" />
+        <path d="m12 3 3 3-3 3" />
+        <path d="M15 6H9a3 3 0 0 0-3 3v6" />
+        <path d="m12 21-3-3 3-3" />
+      </svg>
+    )
+  }
+
   if (toolId === 'document-merge-pdf') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
         <path d="M8 4h6l4 4v12H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
         <path d="M14 4v4h4M9 13h6M9 17h6" />
+      </svg>
+    )
+  }
+
+  if (toolId === 'document-delete-pages') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M8 4h6l4 4v12H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M10 12h4" />
+        <path d="M9 9h6" />
+        <path d="M11 15h2" />
       </svg>
     )
   }

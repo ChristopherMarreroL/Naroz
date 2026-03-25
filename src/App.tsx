@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
@@ -14,8 +14,37 @@ const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudi
 const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
 const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackgroundRemoveView').then((module) => ({ default: module.ImageBackgroundRemoveView })))
+const ImageCropView = lazy(() => import('./features/image/ImageCropView').then((module) => ({ default: module.ImageCropView })))
+const ImageTransformView = lazy(() => import('./features/image/ImageTransformView').then((module) => ({ default: module.ImageTransformView })))
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
+const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePagesView').then((module) => ({ default: module.PdfDeletePagesView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
+
+const ROUTABLE_TOOLS: AppToolId[] = [
+  'home',
+  'video-merge',
+  'video-convert',
+  'video-trim',
+  'video-extract-audio',
+  'video-remove-audio',
+  'video-resize',
+  'image-convert',
+  'image-remove-background',
+  'image-crop',
+  'image-transform',
+  'document-merge-pdf',
+  'document-delete-pages',
+  'document-merge-docx',
+]
+
+function getToolFromHash(): AppToolId {
+  if (typeof window === 'undefined') {
+    return 'home'
+  }
+
+  const hash = window.location.hash.replace(/^#/, '')
+  return ROUTABLE_TOOLS.includes(hash as AppToolId) ? (hash as AppToolId) : 'home'
+}
 
 function ToolLoadingFallback() {
   const { t } = useLocale()
@@ -87,6 +116,20 @@ function App() {
         status: 'stable',
       },
       {
+        id: 'image-crop',
+        label: t('cropImage'),
+        description: t('cropImageShortDesc'),
+        section: 'image',
+        status: 'stable',
+      },
+      {
+        id: 'image-transform',
+        label: t('transformImage'),
+        description: t('transformImageShortDesc'),
+        section: 'image',
+        status: 'stable',
+      },
+      {
         id: 'image-remove-background',
         label: t('removeImageBackground'),
         description: t('removeImageBackgroundShortDesc'),
@@ -101,6 +144,13 @@ function App() {
         status: 'stable',
       },
       {
+        id: 'document-delete-pages',
+        label: t('deletePdfPages'),
+        description: t('deletePdfPagesShortDesc'),
+        section: 'document',
+        status: 'beta',
+      },
+      {
         id: 'document-merge-docx',
         label: t('mergeWord'),
         description: t('combineDocxDesc'),
@@ -111,12 +161,35 @@ function App() {
     [t],
   )
 
-  const [activeTool, setActiveTool] = useState<AppToolId>('home')
-  const [mountedTools, setMountedTools] = useState<AppToolId[]>(['home'])
+  const initialTool = getToolFromHash()
+  const [activeTool, setActiveTool] = useState<AppToolId>(initialTool)
+  const [mountedTools, setMountedTools] = useState<AppToolId[]>([initialTool])
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const nextTool = getToolFromHash()
+      setMountedTools((current) => (current.includes(nextTool) ? current : [...current, nextTool]))
+      setActiveTool(nextTool)
+    }
+
+    if (!window.location.hash) {
+      window.history.replaceState(null, '', '#home')
+    }
+
+    window.addEventListener('hashchange', syncFromHash)
+    syncFromHash()
+
+    return () => {
+      window.removeEventListener('hashchange', syncFromHash)
+    }
+  }, [])
 
   const handleNavigate = (tool: AppToolId) => {
     setMountedTools((current) => (current.includes(tool) ? current : [...current, tool]))
     setActiveTool(tool)
+    if (window.location.hash.replace(/^#/, '') !== tool) {
+      window.location.hash = tool
+    }
   }
 
   const activeItem = sidebarItems.find((item) => item.id === activeTool) ?? sidebarItems[0]
@@ -126,7 +199,7 @@ function App() {
   return (
     <>
       <SeoHead />
-      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate}>
+      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={() => handleNavigate('home')}>
         {mountedTools.includes('home') ? <div className={getToolViewClassName(activeTool === 'home')}><HomeView onNavigate={handleNavigate} /></div> : null}
         {mountedTools.includes('video-merge') ? <div className={getToolViewClassName(activeTool === 'video-merge')}><Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense></div> : null}
         {mountedTools.includes('video-convert') ? <div className={getToolViewClassName(activeTool === 'video-convert')}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}
@@ -135,8 +208,11 @@ function App() {
         {mountedTools.includes('video-remove-audio') ? <div className={getToolViewClassName(activeTool === 'video-remove-audio')}><Suspense fallback={<ToolLoadingFallback />}><VideoRemoveAudioView /></Suspense></div> : null}
         {mountedTools.includes('video-resize') ? <div className={getToolViewClassName(activeTool === 'video-resize')}><ToolPlaceholderView badge={t('resizeVideo')} title={t('resizeVideo')} description={t('resizeVideoDesc')} /></div> : null}
         {mountedTools.includes('image-convert') ? <div className={getToolViewClassName(activeTool === 'image-convert')}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
+        {mountedTools.includes('image-crop') ? <div className={getToolViewClassName(activeTool === 'image-crop')}><Suspense fallback={<ToolLoadingFallback />}><ImageCropView /></Suspense></div> : null}
+        {mountedTools.includes('image-transform') ? <div className={getToolViewClassName(activeTool === 'image-transform')}><Suspense fallback={<ToolLoadingFallback />}><ImageTransformView /></Suspense></div> : null}
         {mountedTools.includes('image-remove-background') ? <div className={getToolViewClassName(activeTool === 'image-remove-background')}><Suspense fallback={<ToolLoadingFallback />}><ImageBackgroundRemoveView /></Suspense></div> : null}
         {mountedTools.includes('document-merge-pdf') ? <div className={getToolViewClassName(activeTool === 'document-merge-pdf')}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
+        {mountedTools.includes('document-delete-pages') ? <div className={getToolViewClassName(activeTool === 'document-delete-pages')}><Suspense fallback={<ToolLoadingFallback />}><PdfDeletePagesView /></Suspense></div> : null}
         {mountedTools.includes('document-merge-docx') ? <div className={getToolViewClassName(activeTool === 'document-merge-docx')}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
       </AppLayout>
     </>
