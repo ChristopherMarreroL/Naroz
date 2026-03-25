@@ -7,8 +7,10 @@ export type AppToolId =
   | 'video-convert'
   | 'video-trim'
   | 'video-extract-audio'
+  | 'video-remove-audio'
   | 'video-resize'
   | 'image-convert'
+  | 'image-remove-background'
   | 'document-merge-pdf'
   | 'document-merge-docx'
 

@@ -10,7 +10,7 @@
 - [x] Recortar video
 - [ ] Cambiar resolucion de video
 - [ ] Comprimir video
-- [ ] Eliminar audio
+- [x] Eliminar audio
 - [ ] Rotar / voltear video
 - [ ] Agregar subtitulos
 - [ ] Cambiar velocidad
@@ -21,5 +21,5 @@
 - [ ] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
-- [ ] Remover fondo de imagen
+- [x] Remover fondo de imagen
 - [ ] Convertir TXT a DOCX

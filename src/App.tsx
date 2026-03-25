@@ -10,8 +10,10 @@ import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 const VideoMergeView = lazy(() => import('./features/video/VideoMergeView').then((module) => ({ default: module.VideoMergeView })))
 const VideoConvertView = lazy(() => import('./features/video/VideoConvertView').then((module) => ({ default: module.VideoConvertView })))
 const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').then((module) => ({ default: module.AudioExtractView })))
+const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudioView').then((module) => ({ default: module.VideoRemoveAudioView })))
 const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
+const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackgroundRemoveView').then((module) => ({ default: module.ImageBackgroundRemoveView })))
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
 
@@ -64,6 +66,13 @@ function App() {
         status: 'stable',
       },
       {
+        id: 'video-remove-audio',
+        label: t('removeAudio'),
+        description: t('removeAudioDescShort'),
+        section: 'video',
+        status: 'stable',
+      },
+      {
         id: 'video-resize',
         label: t('resizeVideo'),
         description: t('resizeVideoDesc'),
@@ -76,6 +85,13 @@ function App() {
         description: t('convertImagesDesc'),
         section: 'image',
         status: 'stable',
+      },
+      {
+        id: 'image-remove-background',
+        label: t('removeImageBackground'),
+        description: t('removeImageBackgroundShortDesc'),
+        section: 'image',
+        status: 'beta',
       },
       {
         id: 'document-merge-pdf',
@@ -116,8 +132,10 @@ function App() {
         {mountedTools.includes('video-convert') ? <div className={getToolViewClassName(activeTool === 'video-convert')}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}
         {mountedTools.includes('video-trim') ? <div className={getToolViewClassName(activeTool === 'video-trim')}><Suspense fallback={<ToolLoadingFallback />}><VideoTrimView /></Suspense></div> : null}
         {mountedTools.includes('video-extract-audio') ? <div className={getToolViewClassName(activeTool === 'video-extract-audio')}><Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense></div> : null}
+        {mountedTools.includes('video-remove-audio') ? <div className={getToolViewClassName(activeTool === 'video-remove-audio')}><Suspense fallback={<ToolLoadingFallback />}><VideoRemoveAudioView /></Suspense></div> : null}
         {mountedTools.includes('video-resize') ? <div className={getToolViewClassName(activeTool === 'video-resize')}><ToolPlaceholderView badge={t('resizeVideo')} title={t('resizeVideo')} description={t('resizeVideoDesc')} /></div> : null}
         {mountedTools.includes('image-convert') ? <div className={getToolViewClassName(activeTool === 'image-convert')}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
+        {mountedTools.includes('image-remove-background') ? <div className={getToolViewClassName(activeTool === 'image-remove-background')}><Suspense fallback={<ToolLoadingFallback />}><ImageBackgroundRemoveView /></Suspense></div> : null}
         {mountedTools.includes('document-merge-pdf') ? <div className={getToolViewClassName(activeTool === 'document-merge-pdf')}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
         {mountedTools.includes('document-merge-docx') ? <div className={getToolViewClassName(activeTool === 'document-merge-docx')}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
       </AppLayout>
