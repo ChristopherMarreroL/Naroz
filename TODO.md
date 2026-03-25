@@ -19,6 +19,7 @@
 - [ ] Recortar imagen
 - [ ] Rotar / voltear imagen
 - [ ] Eliminar paginas
+- [x] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
 - [x] Remover fondo de imagen

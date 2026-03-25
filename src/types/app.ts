@@ -12,6 +12,7 @@ export type AppToolId =
   | 'image-convert'
   | 'image-remove-background'
   | 'document-merge-pdf'
+  | 'document-delete-pages'
   | 'document-merge-docx'
 
 export interface SidebarItem {
