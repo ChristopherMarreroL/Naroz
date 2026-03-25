@@ -84,6 +84,17 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-delete-pages') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M8 4h6l4 4v12H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M10 12h4" />
+        <path d="M9 9h6" />
+        <path d="M11 15h2" />
+      </svg>
+    )
+  }
+
   if (toolId === 'document-merge-docx') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">

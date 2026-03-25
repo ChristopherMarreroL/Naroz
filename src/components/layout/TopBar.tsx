@@ -5,9 +5,10 @@ interface TopBarProps {
   locale: Locale
   setLocale: (locale: Locale) => void
   onOpenSidebar: () => void
+  onGoHome: () => void
 }
 
-export function TopBar({ locale, setLocale, onOpenSidebar }: TopBarProps) {
+export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarProps) {
   const { t } = useLocale()
 
   return (
@@ -28,7 +29,7 @@ export function TopBar({ locale, setLocale, onOpenSidebar }: TopBarProps) {
 
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={onGoHome}
               className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50"
             >
               Naroz

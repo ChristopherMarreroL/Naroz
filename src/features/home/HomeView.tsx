@@ -44,6 +44,11 @@ const availableTools = [
     status: 'stable',
   },
   {
+    id: 'document-delete-pages' as const,
+    category: 'document',
+    status: 'beta',
+  },
+  {
     id: 'document-merge-docx' as const,
     category: 'document',
     status: 'beta',
@@ -63,6 +68,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-trim') return locale === 'es' ? 'Recortar video' : 'Trim video'
   if (id === 'image-remove-background') return locale === 'es' ? 'Remover fondo' : 'Remove background'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Unir PDF' : 'Merge PDF'
+  if (id === 'document-delete-pages') return locale === 'es' ? 'Eliminar paginas' : 'Delete pages'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Unir Word' : 'Merge Word'
   return locale === 'es' ? 'Convertir formato' : 'Convert format'
 }
@@ -75,6 +81,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4 o MKV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4 or MKV video and export only the clip you need.'
   if (id === 'image-remove-background') return locale === 'es' ? 'Intenta quitar fondos lisos o uniformes y exporta la imagen en PNG con transparencia.' : 'Attempts to remove plain or uniform backgrounds and exports the image as a transparent PNG.'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Combina varios PDF en un unico documento final y decide el orden antes de exportar.' : 'Combine multiple PDFs into one final document and choose the order before exporting.'
+  if (id === 'document-delete-pages') return locale === 'es' ? 'Selecciona un PDF y elimina paginas especificas antes de descargar una nueva version.' : 'Pick a PDF and remove specific pages before downloading a new version.'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Combina varios archivos DOCX en un solo documento Word desde el navegador.' : 'Combine multiple DOCX files into one Word document in the browser.'
   return locale === 'es' ? 'Transforma imagenes JPG, PNG, WebP, AVIF, GIF e ICO con vista previa y descarga inmediata.' : 'Convert JPG, PNG, WebP, AVIF, GIF, and ICO images with preview and instant download.'
 }
