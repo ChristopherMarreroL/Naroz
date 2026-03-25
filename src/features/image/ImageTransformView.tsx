@@ -172,59 +172,59 @@ export function ImageTransformView() {
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 
           {upload ? (
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(360px,1.1fr)_minmax(0,0.9fr)] lg:gap-6">
-              <div className="grid gap-4">
+            <div className="mt-6 grid gap-5">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
                 <div className="panel-subtle overflow-hidden p-3">
-                  <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-[1.2rem] bg-slate-100 p-5 lg:min-h-[520px]">
-                    <img src={upload.previewUrl} alt={upload.file.name} className="max-h-[420px] max-w-full object-contain transition duration-300 lg:max-h-[560px]" style={{ transform: previewTransform }} />
+                  <div className="flex min-h-[420px] items-center justify-center overflow-hidden rounded-[1.2rem] bg-slate-100 p-5 lg:min-h-[620px]">
+                    <img src={upload.previewUrl} alt={upload.file.name} className="max-h-[520px] max-w-full object-contain transition duration-300 lg:max-h-[660px]" style={{ transform: previewTransform }} />
                   </div>
                 </div>
 
-                {result ? (
-                  <div className="panel-subtle overflow-hidden p-3">
-                    <div className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-[1.2rem] bg-slate-100 p-5 lg:min-h-[440px]">
-                      <img src={result.url} alt={result.fileName} className="max-h-[380px] max-w-full object-contain lg:max-h-[480px]" />
+                <div className="grid gap-5">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('name')}</p><p className="mt-2 break-words text-sm font-semibold text-slate-900">{upload.file.name}</p></div>
+                    <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(upload.file.size)}</p></div>
+                    <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('format')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{sourceLabel}</p></div>
+                    <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('rotation')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{rotation}deg</p></div>
+                  </div>
+
+                  <div className="panel-subtle p-5 sm:p-6">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <button type="button" className="btn-secondary" onClick={() => setRotation((current) => (current - 90 + 360) % 360)}>{t('rotateLeft')}</button>
+                      <button type="button" className="btn-secondary" onClick={() => setRotation((current) => (current + 90) % 360)}>{t('rotateRight')}</button>
+                      <button type="button" className="btn-secondary" onClick={() => setFlipX((current) => !current)}>{t('flipHorizontal')}</button>
+                      <button type="button" className="btn-secondary" onClick={() => setFlipY((current) => !current)}>{t('flipVertical')}</button>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      <p className="font-semibold text-slate-900">{t('transformState')}</p>
+                      <p className="mt-2">{t('rotation')}: {rotation}deg</p>
+                      <p className="mt-1">{t('flipHorizontal')}: {flipX ? t('enabled') : t('disabled')}</p>
+                      <p className="mt-1">{t('flipVertical')}: {flipY ? t('enabled') : t('disabled')}</p>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                      <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleExport} disabled={isProcessing}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><path d="M7 5h10v10H7z" /><path d="m12 3 3 3-3 3" /><path d="M15 6H9a3 3 0 0 0-3 3v6" /><path d="m12 21-3-3 3-3" /></svg>
+                        {isProcessing ? t('transformingImage') : t('transformImageBtn')}
+                      </button>
+                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                        {t('clearContent')}
+                      </button>
+                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => { setRotation(0); setFlipX(false); setFlipY(false) }} disabled={isProcessing}>{t('resetChanges')}</button>
+                      {result ? <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}><svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><path d="M12 4v10" /><path d="m8 10 4 4 4-4" /><path d="M5 19h14" /></svg>{t('downloadTransformedImage')}</button> : null}
                     </div>
                   </div>
-                ) : null}
-              </div>
-
-              <div className="grid gap-5">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('name')}</p><p className="mt-2 break-words text-sm font-semibold text-slate-900">{upload.file.name}</p></div>
-                  <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(upload.file.size)}</p></div>
-                  <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('format')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{sourceLabel}</p></div>
-                  <div className="panel-subtle p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('rotation')}</p><p className="mt-2 text-sm font-semibold text-slate-900">{rotation}deg</p></div>
-                </div>
-
-                <div className="panel-subtle p-5 sm:p-6">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <button type="button" className="btn-secondary" onClick={() => setRotation((current) => (current - 90 + 360) % 360)}>{t('rotateLeft')}</button>
-                    <button type="button" className="btn-secondary" onClick={() => setRotation((current) => (current + 90) % 360)}>{t('rotateRight')}</button>
-                    <button type="button" className="btn-secondary" onClick={() => setFlipX((current) => !current)}>{t('flipHorizontal')}</button>
-                    <button type="button" className="btn-secondary" onClick={() => setFlipY((current) => !current)}>{t('flipVertical')}</button>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">{t('transformState')}</p>
-                    <p className="mt-2">{t('rotation')}: {rotation}deg</p>
-                    <p className="mt-1">{t('flipHorizontal')}: {flipX ? t('enabled') : t('disabled')}</p>
-                    <p className="mt-1">{t('flipVertical')}: {flipY ? t('enabled') : t('disabled')}</p>
-                  </div>
-
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                    <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleExport} disabled={isProcessing}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><path d="M7 5h10v10H7z" /><path d="m12 3 3 3-3 3" /><path d="M15 6H9a3 3 0 0 0-3 3v6" /><path d="m12 21-3-3 3-3" /></svg>
-                      {isProcessing ? t('transformingImage') : t('transformImageBtn')}
-                    </button>
-                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
-                      {t('clearContent')}
-                    </button>
-                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={() => { setRotation(0); setFlipX(false); setFlipY(false) }} disabled={isProcessing}>{t('resetChanges')}</button>
-                    {result ? <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}><svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><path d="M12 4v10" /><path d="m8 10 4 4 4-4" /><path d="M5 19h14" /></svg>{t('downloadTransformedImage')}</button> : null}
-                  </div>
                 </div>
               </div>
+
+              {result ? (
+                <div className="panel-subtle overflow-hidden p-3">
+                  <div className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-[1.2rem] bg-slate-100 p-5 lg:min-h-[440px]">
+                    <img src={result.url} alt={result.fileName} className="max-h-[380px] max-w-full object-contain lg:max-h-[480px]" />
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="mt-6"><EmptyState badge={t('noImage')} title={t('emptyTransformImageTitle')} description={t('emptyTransformImageDesc')} /></div>
