@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist'
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { PDFDocument } from 'pdf-lib'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { MergeProgress } from '../../../types/video'
+
+GlobalWorkerOptions.workerSrc = pdfWorkerSrc
+
+interface PdfPagePreview {
+  pageNumber: number
+  thumbnailUrl: string
+}
 
 interface PdfDeleteResult {
   blob: Blob
@@ -13,53 +22,72 @@ interface PdfDeleteResult {
   totalPages: number
 }
 
+interface LoadResult {
+  totalPages: number
+  previews: PdfPagePreview[]
+}
+
 function createOutputName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, '') || 'documento'
   return `${baseName}-sin-paginas.pdf`
 }
 
-function parsePagesToDelete(input: string, totalPages: number): number[] {
-  const normalized = input.trim()
-  if (!normalized) {
-    throw new Error('EMPTY_SELECTION')
+async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number) {
+  const page = await pdf.getPage(pageNumber)
+  const viewport = page.getViewport({ scale: 0.22 })
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+
+  if (!context) {
+    throw new Error('No se pudo generar la vista previa de la pagina.')
   }
 
-  const selected = new Set<number>()
-  const parts = normalized.split(/[\s,]+/).filter(Boolean)
+  const outputScale = window.devicePixelRatio || 1
+  canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
+  canvas.height = Math.max(1, Math.floor(viewport.height * outputScale))
+  canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
+  canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
 
-  for (const part of parts) {
-    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/)
-    if (rangeMatch) {
-      const start = Number(rangeMatch[1])
-      const end = Number(rangeMatch[2])
-      if (start <= 0 || end <= 0 || start > end) {
-        throw new Error('INVALID_SELECTION')
-      }
+  context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
+  await page.render({ canvasContext: context, viewport, canvas }).promise
 
-      for (let page = start; page <= end; page += 1) {
-        selected.add(page)
-      }
-      continue
-    }
+  const thumbnailUrl = canvas.toDataURL('image/png')
+  page.cleanup?.()
+  return { pageNumber, thumbnailUrl }
+}
 
-    const page = Number(part)
-    if (!Number.isInteger(page) || page <= 0) {
-      throw new Error('INVALID_SELECTION')
-    }
+export async function renderPdfPagePreview(file: File, pageNumber: number, scale = 1.4) {
+  const buffer = await file.arrayBuffer()
+  const loadingTask = getDocument({
+    data: buffer,
+    useWorkerFetch: true,
+    disableStream: true,
+    disableAutoFetch: true,
+    isEvalSupported: false,
+    stopAtErrors: true,
+  })
+  const pdf = await loadingTask.promise
+  const page = await pdf.getPage(pageNumber)
+  const viewport = page.getViewport({ scale })
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d', { willReadFrequently: true })
 
-    selected.add(page)
+  if (!context) {
+    throw new Error('No se pudo generar la vista previa de la pagina.')
   }
 
-  const pages = Array.from(selected).sort((a, b) => a - b)
-  if (pages.some((page) => page > totalPages)) {
-    throw new Error('OUT_OF_RANGE')
-  }
+  const outputScale = window.devicePixelRatio || 1
+  canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
+  canvas.height = Math.max(1, Math.floor(viewport.height * outputScale))
+  canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
+  canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
 
-  if (pages.length === totalPages) {
-    throw new Error('DELETE_ALL')
-  }
-
-  return pages
+  context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
+  await page.render({ canvasContext: context, viewport, canvas }).promise
+  const previewUrl = canvas.toDataURL('image/png')
+  page.cleanup?.()
+  await loadingTask.destroy()
+  return previewUrl
 }
 
 export function usePdfPageRemover() {
@@ -68,20 +96,23 @@ export function usePdfPageRemover() {
     stage: 'idle',
     percent: 0,
     message: locale === 'es' ? 'Listo para eliminar paginas.' : 'Ready to delete pages.',
-    detail: locale === 'es' ? 'Agrega un PDF y elige las paginas a borrar.' : 'Add a PDF and choose the pages to delete.',
+    detail: locale === 'es' ? 'Agrega un PDF y selecciona las paginas que quieres quitar.' : 'Add a PDF and select the pages you want to remove.',
   })
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<PdfDeleteResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pageCount, setPageCount] = useState<number | null>(null)
+  const [pagePreviews, setPagePreviews] = useState<PdfPagePreview[]>([])
+  const [selectedPages, setSelectedPages] = useState<number[]>([])
 
   useEffect(() => {
     return () => {
       if (result?.url) {
         URL.revokeObjectURL(result.url)
       }
+      pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
     }
-  }, [result])
+  }, [pagePreviews, result])
 
   useEffect(() => {
     setProgress((current) =>
@@ -90,7 +121,7 @@ export function usePdfPageRemover() {
             stage: 'idle',
             percent: 0,
             message: locale === 'es' ? 'Listo para eliminar paginas.' : 'Ready to delete pages.',
-            detail: locale === 'es' ? 'Agrega un PDF y elige las paginas a borrar.' : 'Add a PDF and choose the pages to delete.',
+            detail: locale === 'es' ? 'Agrega un PDF y selecciona las paginas que quieres quitar.' : 'Add a PDF and select the pages you want to remove.',
           }
         : current,
     )
@@ -106,53 +137,112 @@ export function usePdfPageRemover() {
     })
   }, [])
 
-  const inspectPdf = useCallback(async (file: File) => {
+  const loadPdf = useCallback(async (file: File): Promise<LoadResult> => {
     setError(null)
     resetResult()
     setProgress({
       stage: 'preparing',
-      percent: 12,
+      percent: 8,
       message: locale === 'es' ? 'Leyendo PDF...' : 'Reading PDF...',
-      detail: locale === 'es' ? 'Contando cuantas paginas tiene el archivo.' : 'Counting how many pages the file contains.',
+      detail: locale === 'es' ? 'Generando vistas previas de cada pagina.' : 'Generating page previews.',
     })
 
     const buffer = await file.arrayBuffer()
-    const pdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
-    const total = pdf.getPageCount()
-    setPageCount(total)
+    const loadingTask = getDocument({
+      data: buffer,
+      useWorkerFetch: true,
+      disableStream: true,
+      disableAutoFetch: true,
+      isEvalSupported: false,
+      stopAtErrors: true,
+    })
+    const pdf = await loadingTask.promise
+    const totalPages = pdf.numPages
+
+    setPageCount(totalPages)
+    setSelectedPages([])
+
+    pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+    setPagePreviews([])
+
+    const previews: PdfPagePreview[] = []
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+      setProgress({
+        stage: 'preparing',
+        percent: Math.max(8, Math.min(96, Math.round((pageNumber / totalPages) * 78) + 8)),
+        message: locale === 'es' ? 'Cargando paginas...' : 'Loading pages...',
+        detail: locale === 'es' ? `Generando vista ${pageNumber} de ${totalPages}.` : `Rendering preview ${pageNumber} of ${totalPages}.`,
+      })
+
+      previews.push(await renderPageThumbnail(pdf, pageNumber))
+    }
+
+    setPagePreviews(previews)
     setProgress({
       stage: 'idle',
       percent: 0,
       message: locale === 'es' ? 'PDF cargado.' : 'PDF loaded.',
-      detail: locale === 'es' ? `Este archivo tiene ${total} paginas.` : `This file has ${total} pages.`,
+      detail: locale === 'es' ? `Este archivo tiene ${totalPages} paginas.` : `This file has ${totalPages} pages.`,
     })
 
-    return total
-  }, [locale, resetResult])
+    return { totalPages, previews }
+  }, [locale, pagePreviews, resetResult])
 
-  const deletePages = useCallback(async (file: File, pagesToDeleteInput: string) => {
+  const togglePageSelection = useCallback((pageNumber: number) => {
+    setSelectedPages((current) =>
+      current.includes(pageNumber)
+        ? current.filter((page) => page !== pageNumber)
+        : [...current, pageNumber].sort((a, b) => a - b),
+    )
+  }, [])
+
+  const selectAllPages = useCallback(() => {
+    if (!pageCount) {
+      return
+    }
+
+    setSelectedPages(Array.from({ length: pageCount }, (_, index) => index + 1))
+  }, [pageCount])
+
+  const clearSelection = useCallback(() => {
+    setSelectedPages([])
+  }, [])
+
+  const deletePages = useCallback(async (file: File, pagesToDelete: number[]) => {
     setError(null)
     resetResult()
     setIsProcessing(true)
 
     try {
+      if (pagesToDelete.length === 0) {
+        throw new Error('EMPTY_SELECTION')
+      }
+
       const buffer = await file.arrayBuffer()
       const sourcePdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
       const total = sourcePdf.getPageCount()
       setPageCount(total)
 
-      const pagesToDelete = parsePagesToDelete(pagesToDeleteInput, total)
+      const validPages = Array.from(new Set(pagesToDelete)).filter((page) => page > 0 && page <= total).sort((a, b) => a - b)
+      if (validPages.length === 0) {
+        throw new Error('EMPTY_SELECTION')
+      }
+
+      if (validPages.length === total) {
+        throw new Error('DELETE_ALL')
+      }
+
+      const remainingPageIndices = sourcePdf.getPageIndices().filter((pageIndex) => !validPages.includes(pageIndex + 1))
+      if (remainingPageIndices.length === 0) {
+        throw new Error('DELETE_ALL')
+      }
+
       setProgress({
         stage: 'preparing',
         percent: 18,
         message: locale === 'es' ? 'Preparando PDF...' : 'Preparing PDF...',
         detail: locale === 'es' ? 'Calculando las paginas que se conservaran.' : 'Calculating which pages will be kept.',
       })
-
-      const remainingPageIndices = sourcePdf.getPageIndices().filter((pageIndex) => !pagesToDelete.includes(pageIndex + 1))
-      if (remainingPageIndices.length === 0) {
-        throw new Error('DELETE_ALL')
-      }
 
       const outputPdf = await PDFDocument.create()
       const copiedPages = await outputPdf.copyPages(sourcePdf, remainingPageIndices)
@@ -162,7 +252,7 @@ export function usePdfPageRemover() {
         stage: 'merging',
         percent: 80,
         message: locale === 'es' ? 'Eliminando paginas...' : 'Deleting pages...',
-        detail: locale === 'es' ? `Quitando ${pagesToDelete.length} paginas del PDF.` : `Removing ${pagesToDelete.length} pages from the PDF.`,
+        detail: locale === 'es' ? `Quitando ${validPages.length} paginas del PDF.` : `Removing ${validPages.length} pages from the PDF.`,
       })
 
       const bytes = await outputPdf.save()
@@ -174,7 +264,7 @@ export function usePdfPageRemover() {
         url: URL.createObjectURL(blob),
         fileName: createOutputName(file.name),
         size: blob.size,
-        removedPages: pagesToDelete,
+        removedPages: validPages,
         totalPages: total,
       }
 
@@ -193,10 +283,6 @@ export function usePdfPageRemover() {
       if (deleteError instanceof Error) {
         if (deleteError.message === 'EMPTY_SELECTION') {
           message = t('deletePdfPagesMissingPages')
-        } else if (deleteError.message === 'INVALID_SELECTION') {
-          message = t('deletePdfPagesInvalidRange')
-        } else if (deleteError.message === 'OUT_OF_RANGE') {
-          message = t('deletePdfPagesOutOfRange')
         } else if (deleteError.message === 'DELETE_ALL') {
           message = t('deletePdfPagesAllSelected')
         }
@@ -207,7 +293,7 @@ export function usePdfPageRemover() {
         stage: 'error',
         percent: 0,
         message: t('deletePdfPagesError'),
-        detail: locale === 'es' ? 'Revisa la lista de paginas e intenta de nuevo.' : 'Check the page list and try again.',
+        detail: locale === 'es' ? 'Revisa la seleccion e intenta de nuevo.' : 'Review the selection and try again.',
       })
       return null
     } finally {
@@ -215,5 +301,21 @@ export function usePdfPageRemover() {
     }
   }, [locale, resetResult, t])
 
-  return { progress, isProcessing, result, error, inspectPdf, deletePages, pageCount }
+  const selectedCount = useMemo(() => selectedPages.length, [selectedPages])
+
+  return {
+    progress,
+    isProcessing,
+    result,
+    error,
+    loadPdf,
+    deletePages,
+    pageCount,
+    pagePreviews,
+    selectedPages,
+    selectedCount,
+    togglePageSelection,
+    selectAllPages,
+    clearSelection,
+  }
 }
