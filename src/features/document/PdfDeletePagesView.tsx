@@ -40,6 +40,13 @@ export function PdfDeletePagesView() {
 
   const pageCountLabel = useMemo(() => (pageCount ? `${pageCount}` : '--'), [pageCount])
 
+  const clearAll = () => {
+    setDocumentItem(null)
+    clearSelection()
+    closePreview()
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('deletePdfPagesCardDesc') })
+  }
+
   const closePreview = () => {
     setPreviewPage(null)
     setPreviewUrlPage(null)
@@ -171,6 +178,9 @@ export function PdfDeletePagesView() {
                   </button>
                   <button type="button" className="btn-secondary" onClick={clearSelection} disabled={isProcessing || selectedPages.length === 0}>
                     {t('clearSelection')}
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={clearAll} disabled={isProcessing || !documentItem}>
+                    {t('clearContent')}
                   </button>
                 </div>
               </div>

@@ -35,6 +35,17 @@ export function AudioExtractView() {
 
   const outputInfo = useMemo(() => outputFormat.toUpperCase(), [outputFormat])
 
+  const clearAll = () => {
+    setVideo((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl)
+      }
+
+      return null
+    })
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('extractAudioCardDesc') })
+  }
+
   const handleSelectFile = async (fileList: FileList | null) => {
     const file = fileList?.[0]
     if (!file) {
@@ -150,6 +161,9 @@ export function AudioExtractView() {
                         <path d="M7 20h10" />
                       </svg>
                       {isProcessing ? t('extractingAudio') : t('extractAudioBtn')}
+                    </button>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                      {t('clearContent')}
                     </button>
                     {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>

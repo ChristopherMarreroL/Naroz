@@ -77,6 +77,18 @@ export function ImageConvertView() {
     })
   }
 
+  const clearAll = () => {
+    clearResult()
+    setUpload((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl)
+      }
+
+      return null
+    })
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('imageConvertDesc') })
+  }
+
   const handleSelectedFile = async (file: File | null | undefined) => {
     if (!file) {
       return
@@ -283,6 +295,9 @@ export function ImageConvertView() {
                         <rect x="4" y="5" width="3" height="14" rx="1" />
                       </svg>
                       {isConverting ? t('converting') : t('convertImageBtn')}
+                    </button>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isConverting}>
+                      {t('clearContent')}
                     </button>
                     {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>

@@ -34,6 +34,17 @@ export function VideoRemoveAudioView() {
 
   const outputInfo = useMemo(() => video?.extension.toUpperCase() ?? '--', [video])
 
+  const clearAll = () => {
+    setVideo((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl)
+      }
+
+      return null
+    })
+    setNotice({ tone: 'info', title: t('contentCleared'), message: t('removeAudioCardDesc') })
+  }
+
   const handleSelectFile = async (fileList: FileList | null) => {
     const file = fileList?.[0]
     if (!file) {
@@ -142,6 +153,9 @@ export function VideoRemoveAudioView() {
                         <path d="m21 9-4 6" />
                       </svg>
                       {isProcessing ? t('removingAudio') : t('removeAudioBtn')}
+                    </button>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                      {t('clearContent')}
                     </button>
                     {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>

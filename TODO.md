@@ -16,9 +16,8 @@
 - [ ] Cambiar velocidad
 - [ ] Redimensionar imagen
 - [ ] Comprimir / calidad de imagen
-- [ ] Recortar imagen
-- [ ] Rotar / voltear imagen
-- [ ] Eliminar paginas
+- [x] Recortar imagen
+- [x] Rotar / voltear imagen
 - [x] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
