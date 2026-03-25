@@ -38,6 +38,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'video-remove-audio') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M4 9h4l5-4v14l-5-4H4Z" />
+        <path d="m17 9 4 6" />
+        <path d="m21 9-4 6" />
+      </svg>
+    )
+  }
+
   if (toolId === 'video-resize') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
@@ -51,6 +61,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
         <rect x="4" y="5" width="16" height="14" rx="2" />
         <path d="m8 14 2.5-2.5L13 14l2-2 3 3" />
+      </svg>
+    )
+  }
+
+  if (toolId === 'image-remove-background') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M5 19V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12" />
+        <path d="m8 14 2.5-2.5L13 14l2-2 2 2" />
+        <path d="M4 19h16" />
       </svg>
     )
   }
