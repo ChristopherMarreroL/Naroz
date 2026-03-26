@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 
+import JSZip from 'jszip'
+
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
@@ -8,6 +10,7 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { convertImageFile, getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
+import { loadImagePreview } from './lib/imageEditor'
 import type { ConvertedImageResult, ImageOutputFormat, ImageUploadState } from './types'
 
 type NoticeTone = 'error' | 'warning' | 'success' | 'info'
@@ -16,6 +19,12 @@ interface Notice {
   tone: NoticeTone
   title: string
   message: string
+}
+
+interface BatchDownloadResult {
+  url: string
+  fileName: string
+  size: number
 }
 
 const OUTPUT_OPTIONS: Array<{ value: ImageOutputFormat; label: string }> = [
@@ -27,31 +36,18 @@ const OUTPUT_OPTIONS: Array<{ value: ImageOutputFormat; label: string }> = [
   { value: 'ico', label: 'ICO' },
 ]
 
-function loadImagePreview(file: File): Promise<ImageUploadState> {
-  return new Promise((resolve, reject) => {
-    const previewUrl = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      resolve({
-        file,
-        previewUrl,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      })
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(previewUrl)
-      reject(new Error('IMAGE_LOAD_FAILED'))
-    }
-    image.src = previewUrl
-  })
+const ZIP_THRESHOLD = 5
+
+function createZipName(format: ImageOutputFormat) {
+  return `imagenes-convertidas-${format}.zip`
 }
 
 export function ImageConvertView() {
   const { t } = useLocale()
-  const [upload, setUpload] = useState<ImageUploadState | null>(null)
+  const [uploads, setUploads] = useState<ImageUploadState[]>([])
   const [outputFormat, setOutputFormat] = useState<ImageOutputFormat>('webp')
-  const [result, setResult] = useState<ConvertedImageResult | null>(null)
+  const [results, setResults] = useState<ConvertedImageResult[]>([])
+  const [batchDownload, setBatchDownload] = useState<BatchDownloadResult | null>(null)
   const [isConverting, setIsConverting] = useState(false)
   const [notice, setNotice] = useState<Notice | null>({
     tone: 'info',
@@ -59,16 +55,34 @@ export function ImageConvertView() {
     message: t('imageLocalInfo'),
   })
 
+  const primaryUpload = uploads[0] ?? null
   const sourceLabel = useMemo(() => {
-    if (!upload) {
+    if (!primaryUpload) {
       return null
     }
 
-    return getImageExtensionLabel(upload.file)
-  }, [upload])
+    return uploads.length === 1 ? getImageExtensionLabel(primaryUpload.file) : t('multipleFilesLoaded')
+  }, [primaryUpload, t, uploads.length])
 
-  const clearResult = () => {
-    setResult((current) => {
+  const totalInputSize = useMemo(() => uploads.reduce((sum, item) => sum + item.file.size, 0), [uploads])
+  const outputInfo = useMemo(() => outputFormat.toUpperCase(), [outputFormat])
+  const shouldUseZip = results.length >= ZIP_THRESHOLD
+
+  const downloadAllResults = () => {
+    results.forEach((item, index) => {
+      window.setTimeout(() => {
+        downloadFromUrl(item.url, item.fileName)
+      }, index * 180)
+    })
+  }
+
+  const clearResults = () => {
+    setResults((current) => {
+      current.forEach((item) => URL.revokeObjectURL(item.url))
+      return []
+    })
+
+    setBatchDownload((current) => {
       if (current?.url) {
         URL.revokeObjectURL(current.url)
       }
@@ -78,49 +92,52 @@ export function ImageConvertView() {
   }
 
   const clearAll = () => {
-    clearResult()
-    setUpload((current) => {
-      if (current?.previewUrl) {
-        URL.revokeObjectURL(current.previewUrl)
-      }
-
-      return null
+    clearResults()
+    setUploads((current) => {
+      current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      return []
     })
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('imageConvertDesc') })
   }
 
-  const handleSelectedFile = async (file: File | null | undefined) => {
-    if (!file) {
+  const handleSelectedFiles = async (fileList: FileList | null) => {
+    const incomingFiles = Array.from(fileList ?? [])
+    if (incomingFiles.length === 0) {
       return
     }
 
-    clearResult()
+    clearResults()
 
-    if (!isSupportedImageType(file)) {
-      setNotice({
-        tone: 'error',
-        title: t('unsupportedImage'),
-        message: t('imageInputSupported'),
-      })
+    const validFiles = incomingFiles.filter((file) => isSupportedImageType(file))
+    const invalidFiles = incomingFiles.filter((file) => !isSupportedImageType(file))
+
+    if (validFiles.length === 0) {
+      setNotice({ tone: 'error', title: t('unsupportedImage'), message: t('imageInputSupported') })
       return
     }
 
     try {
-      setUpload((current) => {
-        if (current?.previewUrl) {
-          URL.revokeObjectURL(current.previewUrl)
-        }
-
+      setUploads((current) => {
+        current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
         return current
       })
 
-      const nextUpload = await loadImagePreview(file)
-      setUpload(nextUpload)
-      setNotice({
-        tone: 'success',
-        title: t('imageLoaded'),
-        message: t('imageReadyToChoose'),
-      })
+      const nextUploads = await Promise.all(validFiles.map((file) => loadImagePreview(file)))
+      setUploads(nextUploads)
+
+      if (invalidFiles.length > 0) {
+        setNotice({
+          tone: 'warning',
+          title: t('unsupportedImage'),
+          message: `${t('imageBatchAccepted')} ${validFiles.length}. ${t('imageBatchSkipped')} ${invalidFiles.map((file) => file.name).join(', ')}`,
+        })
+      } else {
+        setNotice({
+          tone: 'success',
+          title: t('imageLoaded'),
+          message: validFiles.length > 1 ? `${t('imageBatchReady')} ${validFiles.length}.` : t('imageReadyToChoose'),
+        })
+      }
     } catch (error) {
       setNotice({
         tone: 'error',
@@ -131,26 +148,51 @@ export function ImageConvertView() {
   }
 
   const handleConvert = async () => {
-    if (!upload) {
-      setNotice({
-        tone: 'error',
-        title: t('imageMissing'),
-        message: t('selectImageFirst'),
-      })
+    if (uploads.length === 0) {
+      setNotice({ tone: 'error', title: t('imageMissing'), message: t('selectImageFirst') })
       return
     }
 
     setIsConverting(true)
-    clearResult()
+    clearResults()
 
     try {
-      const converted = await convertImageFile(upload.file, outputFormat)
-      setResult(converted)
-      setNotice({
-        tone: 'success',
-        title: t('conversionCompleted'),
-        message: `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.`,
-      })
+      const convertedItems: ConvertedImageResult[] = []
+
+      for (const upload of uploads) {
+        convertedItems.push(await convertImageFile(upload.file, outputFormat))
+      }
+
+      setResults(convertedItems)
+
+      if (convertedItems.length >= ZIP_THRESHOLD) {
+        const zip = new JSZip()
+        for (const item of convertedItems) {
+          zip.file(item.fileName, item.blob)
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' })
+        const zipUrl = URL.createObjectURL(zipBlob)
+        setBatchDownload({
+          url: zipUrl,
+          fileName: createZipName(outputFormat),
+          size: zipBlob.size,
+        })
+        setNotice({
+          tone: 'success',
+          title: t('conversionCompleted'),
+          message: `${t('imageBatchZipReady')} ${convertedItems.length}.`,
+        })
+      } else {
+        setNotice({
+          tone: 'success',
+          title: t('conversionCompleted'),
+          message:
+            convertedItems.length === 1
+              ? `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.`
+              : `${t('imageBatchDirectReady')} ${convertedItems.length}.`,
+        })
+      }
     } catch (error) {
       setNotice({
         tone: 'error',
@@ -174,7 +216,7 @@ export function ImageConvertView() {
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
               <li>{t('imageInputLine')}</li>
               <li>{t('imageOutputLine')}</li>
-              <li>3. {t('realConversion')}</li>
+              <li>3. {t('imageBatchHint')}</li>
             </ul>
           </div>
         }
@@ -187,32 +229,47 @@ export function ImageConvertView() {
             description={t('imageConvertDesc')}
             buttonLabel={t('selectImage')}
             accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            multiple
             disabled={isConverting}
             aside={<span className="badge">JPG / PNG / WebP</span>}
             onSelect={(files) => {
-              void handleSelectedFile(files?.[0])
+              void handleSelectedFiles(files)
             }}
           />
 
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 
-          {upload ? (
+          {primaryUpload ? (
             <div className="mt-6 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
-              <div className="panel-subtle overflow-hidden p-3">
-                <div className="overflow-hidden rounded-[1.2rem] bg-slate-100">
-                  <img src={upload.previewUrl} alt={upload.file.name} className="aspect-square h-full w-full object-contain sm:aspect-[4/3]" />
+              <div className="grid gap-4">
+                <div className="panel-subtle overflow-hidden p-3">
+                  <div className="overflow-hidden rounded-[1.2rem] bg-slate-100">
+                    <img src={primaryUpload.previewUrl} alt={primaryUpload.file.name} className="aspect-square h-full w-full object-contain sm:aspect-[4/3]" />
+                  </div>
                 </div>
+
+                {uploads.length > 1 ? (
+                  <div className="panel-subtle p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      {uploads.slice(0, 5).map((item) => (
+                        <div key={item.file.name} className="truncate rounded-2xl bg-slate-50 px-3 py-2">{item.file.name}</div>
+                      ))}
+                      {uploads.length > 5 ? <div className="text-xs text-slate-500">+{uploads.length - 5} {t('moreFiles')}</div> : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid gap-5">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('name')}</p>
-                    <p className="mt-2 break-words text-sm font-semibold text-slate-900">{upload.file.name}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{uploads.length}</p>
                   </div>
                   <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(upload.file.size)}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(totalInputSize)}</p>
                   </div>
                   <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('format')}</p>
@@ -220,7 +277,7 @@ export function ImageConvertView() {
                   </div>
                   <div className="panel-subtle p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('resolution')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{upload.width}x{upload.height}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{primaryUpload.width}x{primaryUpload.height}</p>
                   </div>
                 </div>
 
@@ -237,53 +294,33 @@ export function ImageConvertView() {
                     ))}
                   </select>
 
-                  {outputFormat === 'jpeg' && sourceLabel === 'PNG' ? (
+                  {outputFormat === 'jpeg' && uploads.some((item) => item.file.type === 'image/png') ? (
                     <div className="mt-4">
-                      <AlertBanner
-                        tone="warning"
-                        title={t('transparencyTitle')}
-                        message={t('transparencyMessage')}
-                      />
+                      <AlertBanner tone="warning" title={t('transparencyTitle')} message={t('transparencyMessage')} />
                     </div>
                   ) : null}
 
                   {outputFormat === 'gif' ? (
                     <div className="mt-4">
-                      <AlertBanner
-                        tone="info"
-                        title={t('staticGifTitle')}
-                        message={t('staticGifMessage')}
-                      />
+                      <AlertBanner tone="info" title={t('staticGifTitle')} message={t('staticGifMessage')} />
                     </div>
                   ) : null}
 
                   {outputFormat === 'ico' ? (
                     <div className="mt-4">
-                      <AlertBanner
-                        tone="info"
-                        title={t('icoTitle')}
-                        message={t('icoMessage')}
-                      />
+                      <AlertBanner tone="info" title={t('icoTitle')} message={t('icoMessage')} />
                     </div>
                   ) : null}
 
                   {outputFormat === 'avif' ? (
                     <div className="mt-4">
-                      <AlertBanner
-                        tone="info"
-                        title={t('avifTitle')}
-                        message={t('avifMessage')}
-                      />
+                      <AlertBanner tone="info" title={t('avifTitle')} message={t('avifMessage')} />
                     </div>
                   ) : null}
 
                   {outputFormat === 'webp' ? (
                     <div className="mt-4">
-                      <AlertBanner
-                        tone="info"
-                        title={t('webpTitle')}
-                        message={t('webpMessage')}
-                      />
+                      <AlertBanner tone="info" title={t('webpTitle')} message={t('webpMessage')} />
                     </div>
                   ) : null}
 
@@ -294,22 +331,41 @@ export function ImageConvertView() {
                         <path d="m10 6 6 6-6 6" />
                         <rect x="4" y="5" width="3" height="14" rx="1" />
                       </svg>
-                      {isConverting ? t('converting') : t('convertImageBtn')}
+                      {isConverting ? t('converting') : uploads.length > 1 ? t('convertImagesBtn') : t('convertImageBtn')}
                     </button>
                     <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isConverting}>
                       {t('clearContent')}
                     </button>
-                    {result ? (
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                    {batchDownload ? (
+                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(batchDownload.url, batchDownload.fileName)}>
                         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                           <path d="M12 4v10" />
                           <path d="m8 10 4 4 4-4" />
                           <path d="M5 19h14" />
                         </svg>
-                        {t('downloadConvertedImage')}
+                        {t('downloadConvertedZip')}
+                      </button>
+                    ) : results.length > 1 ? (
+                      <button type="button" className="btn-download w-full sm:w-auto" onClick={downloadAllResults}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="M12 4v10" />
+                          <path d="m8 10 4 4 4-4" />
+                          <path d="M5 19h14" />
+                        </svg>
+                        {t('downloadConvertedImages')}
                       </button>
                     ) : null}
                   </div>
+
+                  {results.length > 0 && !shouldUseZip ? (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {results.map((item) => (
+                        <div key={item.fileName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          {item.fileName}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -327,18 +383,26 @@ export function ImageConvertView() {
           <div className="mt-6 grid gap-4">
             <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('targetOutput')}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{outputFormat.toUpperCase()}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{outputInfo}</p>
+            </div>
+            <div className="panel-subtle p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{uploads.length}</p>
             </div>
             <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('compatibility')}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {t('compatibilityTextImage')}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{t('compatibilityTextImage')}</p>
             </div>
-            {result ? (
+            {batchDownload ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-700">{t('zipReady')}</p>
+                <p className="mt-2 text-sm leading-6 text-emerald-700">{batchDownload.fileName} · {formatBytes(batchDownload.size)}</p>
+              </div>
+            ) : null}
+            {results.length > 0 && !shouldUseZip ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-semibold text-emerald-700">{t('outputReady')}</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-700">{result.fileName} · {formatBytes(result.size)}</p>
+                <p className="mt-2 text-sm leading-6 text-emerald-700">{results.length} {results.length === 1 ? t('convertedFileReady') : t('convertedFilesReady')}</p>
               </div>
             ) : null}
           </div>
