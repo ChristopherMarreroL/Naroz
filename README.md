@@ -15,8 +15,13 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
   - Trim one video segment with timeline preview
 - Images
   - Convert images between `JPG`, `PNG`, `WebP`, `AVIF`, `GIF`, and `ICO`
+  - Convert multiple images in one batch with direct downloads or ZIP export
+  - Crop images in the browser
+  - Rotate and flip images
+  - Remove image backgrounds (`beta`)
 - Documents
   - Merge multiple `PDF` files into one final PDF
+  - Delete selected pages from one PDF (`beta`)
   - Merge multiple `DOCX` files into one final Word document (`beta`)
 
 ## UX Highlights
@@ -37,6 +42,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - `pdf-lib` for PDF merging
 - `docx-merger` for DOCX merging
 - `gifenc` for GIF image export
+- `jszip` for batch image ZIP downloads
 
 ## Setup
 
