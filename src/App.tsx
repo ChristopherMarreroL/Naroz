@@ -3,7 +3,6 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
 import { HomeView } from './features/home/HomeView'
-import { ToolPlaceholderView } from './features/shared/ToolPlaceholderView'
 import { useLocale } from './i18n/LocaleProvider'
 import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 
@@ -12,6 +11,7 @@ const VideoConvertView = lazy(() => import('./features/video/VideoConvertView').
 const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').then((module) => ({ default: module.AudioExtractView })))
 const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudioView').then((module) => ({ default: module.VideoRemoveAudioView })))
 const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
+const VideoResizeView = lazy(() => import('./features/video/VideoResizeView').then((module) => ({ default: module.VideoResizeView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
 const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackgroundRemoveView').then((module) => ({ default: module.ImageBackgroundRemoveView })))
 const ImageCropView = lazy(() => import('./features/image/ImageCropView').then((module) => ({ default: module.ImageCropView })))
@@ -106,7 +106,7 @@ function App() {
         label: t('resizeVideo'),
         description: t('resizeVideoDesc'),
         section: 'video',
-        status: 'soon',
+        status: 'stable',
       },
       {
         id: 'image-convert',
@@ -206,7 +206,7 @@ function App() {
         {mountedTools.includes('video-trim') ? <div className={getToolViewClassName(activeTool === 'video-trim')}><Suspense fallback={<ToolLoadingFallback />}><VideoTrimView /></Suspense></div> : null}
         {mountedTools.includes('video-extract-audio') ? <div className={getToolViewClassName(activeTool === 'video-extract-audio')}><Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense></div> : null}
         {mountedTools.includes('video-remove-audio') ? <div className={getToolViewClassName(activeTool === 'video-remove-audio')}><Suspense fallback={<ToolLoadingFallback />}><VideoRemoveAudioView /></Suspense></div> : null}
-        {mountedTools.includes('video-resize') ? <div className={getToolViewClassName(activeTool === 'video-resize')}><ToolPlaceholderView badge={t('resizeVideo')} title={t('resizeVideo')} description={t('resizeVideoDesc')} /></div> : null}
+        {mountedTools.includes('video-resize') ? <div className={getToolViewClassName(activeTool === 'video-resize')}><Suspense fallback={<ToolLoadingFallback />}><VideoResizeView /></Suspense></div> : null}
         {mountedTools.includes('image-convert') ? <div className={getToolViewClassName(activeTool === 'image-convert')}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
         {mountedTools.includes('image-crop') ? <div className={getToolViewClassName(activeTool === 'image-crop')}><Suspense fallback={<ToolLoadingFallback />}><ImageCropView /></Suspense></div> : null}
         {mountedTools.includes('image-transform') ? <div className={getToolViewClassName(activeTool === 'image-transform')}><Suspense fallback={<ToolLoadingFallback />}><ImageTransformView /></Suspense></div> : null}

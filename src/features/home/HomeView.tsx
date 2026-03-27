@@ -19,6 +19,21 @@ const availableTools = [
     status: 'stable',
   },
   {
+    id: 'video-extract-audio' as const,
+    category: 'video',
+    status: 'stable',
+  },
+  {
+    id: 'video-remove-audio' as const,
+    category: 'video',
+    status: 'stable',
+  },
+  {
+    id: 'video-resize' as const,
+    category: 'video',
+    status: 'stable',
+  },
+  {
     id: 'image-convert' as const,
     category: 'image',
     status: 'stable',
@@ -36,16 +51,6 @@ const availableTools = [
   {
     id: 'image-transform' as const,
     category: 'image',
-    status: 'stable',
-  },
-  {
-    id: 'video-extract-audio' as const,
-    category: 'video',
-    status: 'stable',
-  },
-  {
-    id: 'video-remove-audio' as const,
-    category: 'video',
     status: 'stable',
   },
   {
@@ -75,6 +80,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-convert') return locale === 'es' ? 'Convertir formato' : 'Convert format'
   if (id === 'video-extract-audio') return locale === 'es' ? 'Extraer audio' : 'Extract audio'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Eliminar audio' : 'Remove audio'
+  if (id === 'video-resize') return locale === 'es' ? 'Cambiar resolucion' : 'Change resolution'
   if (id === 'video-trim') return locale === 'es' ? 'Recortar video' : 'Trim video'
   if (id === 'image-crop') return locale === 'es' ? 'Recortar imagen' : 'Crop image'
   if (id === 'image-transform') return locale === 'es' ? 'Rotar / voltear imagen' : 'Rotate / flip image'
@@ -90,6 +96,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-convert') return locale === 'es' ? 'Convierte un solo video entre MP4 y MKV desde el navegador.' : 'Convert a single video between MP4 and MKV right in the browser.'
   if (id === 'video-extract-audio') return locale === 'es' ? 'Separa el audio de un video MP4 o MKV y exportalo en MP3 o WAV.' : 'Separate audio from an MP4 or MKV video and export it as MP3 or WAV.'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Genera una copia silenciosa de un video MP4 o MKV sin tocar la imagen.' : 'Generate a silent copy of an MP4 or MKV video without changing the picture.'
+  if (id === 'video-resize') return locale === 'es' ? 'Cambia el ancho y alto de un video MP4 o MKV y exporta una nueva version.' : 'Change the width and height of an MP4 or MKV video and export a resized version.'
   if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4 o MKV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4 or MKV video and export only the clip you need.'
   if (id === 'image-crop') return locale === 'es' ? 'Recorta una imagen y exporta solo el area que necesitas sin salir del navegador.' : 'Crop one image and export only the area you need directly in the browser.'
   if (id === 'image-transform') return locale === 'es' ? 'Rota una imagen o volteala horizontal y verticalmente antes de descargarla.' : 'Rotate an image or flip it horizontally and vertically before downloading it.'
@@ -102,6 +109,11 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
 
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { locale, t } = useLocale()
+  const sections = [
+    { id: 'video', label: t('video') },
+    { id: 'image', label: t('image') },
+    { id: 'document', label: t('document') },
+  ] as const
 
   return (
     <>
@@ -124,25 +136,43 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <span className="badge">{availableTools.length} {t('activeCount')}</span>
         </div>
 
-        <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {availableTools.map((tool) => (
-            <article key={tool.id} className="panel-subtle min-w-0 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="badge">{tool.category === 'video' ? t('video') : tool.category === 'image' ? t('image') : t('document')}</span>
-                  {tool.status === 'beta' ? <span className="badge bg-sky-100 text-sky-700">{t('betaBadge')}</span> : null}
+        <div className="mt-6 space-y-8">
+          {sections.map((section) => {
+            const tools = availableTools.filter((tool) => tool.category === section.id)
+            if (tools.length === 0) {
+              return null
+            }
+
+            return (
+              <div key={section.id}>
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{section.label}</span>
+                  <div className="h-px flex-1 bg-slate-200" />
                 </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                  <ToolIcon toolId={tool.id} />
+
+                <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {tools.map((tool) => (
+                    <article key={tool.id} className="panel-subtle min-w-0 p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="badge">{section.label}</span>
+                          {tool.status === 'beta' ? <span className="badge bg-sky-100 text-sky-700">{t('betaBadge')}</span> : null}
+                        </div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                          <ToolIcon toolId={tool.id} />
+                        </div>
+                      </div>
+                      <h3 className="mt-4 text-xl font-bold text-slate-950">{getToolTitle(tool.id, locale)}</h3>
+                      <p className="mt-2 break-words text-sm leading-6 text-slate-600">{getToolDescription(tool.id, locale)}</p>
+                      <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
+                        {t('openTool')}
+                      </button>
+                    </article>
+                  ))}
                 </div>
               </div>
-              <h3 className="mt-4 text-xl font-bold text-slate-950">{getToolTitle(tool.id, locale)}</h3>
-              <p className="mt-2 break-words text-sm leading-6 text-slate-600">{getToolDescription(tool.id, locale)}</p>
-              <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
-                {t('openTool')}
-              </button>
-            </article>
-          ))}
+            )
+          })}
         </div>
       </section>
     </>
