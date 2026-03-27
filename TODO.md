@@ -8,7 +8,7 @@
 - [x] Unir PDF
 - [x] Unir Word
 - [x] Recortar video
-- [ ] Cambiar resolucion de video
+- [x] Cambiar resolucion de video
 - [ ] Comprimir video
 - [x] Eliminar audio
 - [ ] Rotar / voltear video
