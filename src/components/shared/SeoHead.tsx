@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { useLocale } from '../../i18n/LocaleProvider'
 import { getCanonicalUrl, getSeoContent, SEO_SITE_NAME } from '../../lib/seo'
+import { getToolFromPath } from '../../lib/routes'
 
 function upsertMeta(selector: string, attributes: Record<string, string>) {
   let element = document.head.querySelector(selector) as HTMLMetaElement | null
@@ -31,10 +33,12 @@ function upsertLink(selector: string, attributes: Record<string, string>) {
 
 export function SeoHead() {
   const { locale } = useLocale()
+  const location = useLocation()
 
   useEffect(() => {
-    const { title, description } = getSeoContent(locale)
-    const canonicalUrl = getCanonicalUrl()
+    const activeTool = getToolFromPath(location.pathname)
+    const { title, description, canonicalPath } = getSeoContent(locale, activeTool)
+    const canonicalUrl = getCanonicalUrl(canonicalPath)
 
     document.title = title
 
@@ -49,7 +53,7 @@ export function SeoHead() {
     upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: title })
     upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: description })
     upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl })
-  }, [locale])
+  }, [locale, location.pathname])
 
   return null
 }
