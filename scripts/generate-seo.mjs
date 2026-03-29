@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const DEFAULT_SITE_URL = 'https://naroz.netlify.app'
+const DEFAULT_SITE_URL = 'https://naroz.vercel.app'
 const routes = [
   '/',
   '/video-merge',

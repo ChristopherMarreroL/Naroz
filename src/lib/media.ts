@@ -113,6 +113,11 @@ export function getCompatibilityWarnings(videos: VideoItem[], outputFormat: Vide
 }
 
 function allSameResolution(videos: VideoItem[]): boolean {
+  const hasCompleteMetadata = videos.every((video) => Boolean(video.duration && video.width && video.height))
+  if (!hasCompleteMetadata) {
+    return false
+  }
+
   const resolutions = new Set(
     videos
       .filter((video) => video.width && video.height)

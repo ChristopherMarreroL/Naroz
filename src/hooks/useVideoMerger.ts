@@ -78,6 +78,11 @@ function getOutputSettings(outputFormat: VideoOutputFormat) {
 }
 
 function validateFastMode(videos: VideoItem[], outputFormat: VideoOutputFormat) {
+  const hasCompleteMetadata = videos.every((video) => Boolean(video.duration && video.width && video.height))
+  if (!hasCompleteMetadata) {
+    throw new Error('FAST_MODE_REQUIRES_METADATA')
+  }
+
   const sameFormat = videos.every((video) => video.extension === outputFormat)
   if (!sameFormat) {
     throw new Error('FAST_MODE_REQUIRES_SAME_FORMAT')
@@ -474,6 +479,8 @@ export function useVideoMerger() {
         const fallbackMessage =
           mergeError instanceof Error && mergeError.message === 'INCOMPLETE_OUTPUT'
             ? 'No se genero un archivo valido porque la union quedo incompleta. Revisa formatos, duraciones y codecs antes de intentarlo otra vez.'
+            : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_METADATA'
+              ? 'La ruta rapida requiere metadata valida de duracion y resolucion en todos los videos.'
             : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_SAME_FORMAT'
               ? 'La ruta rapida solo funciona cuando todos los videos ya estan en el formato de salida elegido.'
               : mergeError instanceof Error && mergeError.message === 'FAST_MODE_REQUIRES_SAME_RESOLUTION'
