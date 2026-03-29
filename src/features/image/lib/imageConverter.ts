@@ -2,7 +2,7 @@ import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 
 import type { ConvertedImageResult, ImageOutputFormat } from '../types'
 
-const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'])
 
 function getMimeType(format: ImageOutputFormat): string {
   if (format === 'jpeg') {
@@ -19,6 +19,10 @@ function getMimeType(format: ImageOutputFormat): string {
 
   if (format === 'avif') {
     return 'image/avif'
+  }
+
+  if (format === 'svg') {
+    return 'image/svg+xml'
   }
 
   return 'image/gif'
@@ -43,6 +47,10 @@ export function getImageExtensionLabel(file: File): string {
 
   if (file.type === 'image/webp') {
     return 'WEBP'
+  }
+
+  if (file.type === 'image/svg+xml') {
+    return 'SVG'
   }
 
   return 'JPG / JPEG'
@@ -179,6 +187,18 @@ async function createIcoBlob(image: HTMLImageElement): Promise<Blob> {
   return new Blob([icoHeader, pngBuffer], { type: 'image/x-icon' })
 }
 
+async function createSvgBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  const pngDataUrl = canvas.toDataURL('image/png')
+  const svgMarkup = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}">`,
+    `<image width="${canvas.width}" height="${canvas.height}" href="${pngDataUrl}"/>`,
+    '</svg>',
+  ].join('')
+
+  return new Blob([svgMarkup], { type: 'image/svg+xml' })
+}
+
 export async function convertImageFile(file: File, format: ImageOutputFormat): Promise<ConvertedImageResult> {
   const image = await loadImage(file)
   const canvas = drawImageOnCanvas(image, format)
@@ -188,6 +208,8 @@ export async function convertImageFile(file: File, format: ImageOutputFormat): P
     blob = await createGifBlob(canvas)
   } else if (format === 'ico') {
     blob = await createIcoBlob(image)
+  } else if (format === 'svg') {
+    blob = await createSvgBlob(canvas)
   } else {
     blob = await canvasToBlob(canvas, format)
   }

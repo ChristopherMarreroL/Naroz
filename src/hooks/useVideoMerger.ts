@@ -191,21 +191,24 @@ export function useVideoMerger() {
       })
     })
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-      workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-    })
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
+      })
 
-    ffmpegRef.current = ffmpeg
-    setIsLoadingEngine(false)
-    setProgress({
-      stage: 'idle',
-      percent: 0,
-      message: locale === 'es' ? 'Motor listo. Puedes iniciar la union.' : 'Engine ready. You can start merging.',
-      detail: locale === 'es' ? 'La barra avanzara segun preparacion, conversion y union.' : 'The progress bar will reflect preparation, conversion, and merge stages.',
-    })
-    return ffmpeg
+      ffmpegRef.current = ffmpeg
+      setProgress({
+        stage: 'idle',
+        percent: 0,
+        message: locale === 'es' ? 'Motor listo. Puedes iniciar la union.' : 'Engine ready. You can start merging.',
+        detail: locale === 'es' ? 'La barra avanzara segun preparacion, conversion y union.' : 'The progress bar will reflect preparation, conversion, and merge stages.',
+      })
+      return ffmpeg
+    } finally {
+      setIsLoadingEngine(false)
+    }
   }, [locale])
 
   const resetResult = useCallback(() => {
@@ -234,14 +237,16 @@ export function useVideoMerger() {
       setError(null)
       resetResult()
       setIsProcessing(true)
+      let ffmpeg: FFmpeg | null = null
+      const inputFileNames: string[] = []
+      const normalizedFileNames: string[] = []
+      const transportStreamFileNames: string[] = []
+      let outputFileName: string | null = null
 
       try {
-        const ffmpeg = await ensureLoaded()
-        const inputFileNames: string[] = []
-        const normalizedFileNames: string[] = []
-        const transportStreamFileNames: string[] = []
+        ffmpeg = await ensureLoaded()
         const outputSettings = getOutputSettings(outputFormat)
-        const outputFileName = `output.${outputSettings.extension}`
+        outputFileName = `output.${outputSettings.extension}`
 
         setProgressPhase({
           stage: 'preparing',
@@ -464,14 +469,6 @@ export function useVideoMerger() {
           detail: locale === 'es' ? `La descarga final ya esta lista en ${outputFormat.toUpperCase()}.` : `Your final ${outputFormat.toUpperCase()} download is ready.`,
         })
 
-        await Promise.allSettled([
-          ffmpeg.deleteFile('inputs.txt'),
-          ffmpeg.deleteFile(outputFileName),
-          ...inputFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-          ...normalizedFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-          ...transportStreamFileNames.map((fileName) => ffmpeg.deleteFile(fileName)),
-        ])
-
         return mergedResult
       } catch (mergeError) {
         const hasMixedFormats = new Set(videos.map((video) => video.extension)).size > 1
@@ -503,6 +500,14 @@ export function useVideoMerger() {
         console.error(mergeError)
         return null
       } finally {
+        if (ffmpeg) {
+          const ffmpegInstance = ffmpeg
+          await Promise.allSettled(
+            ['inputs.txt', outputFileName, ...inputFileNames, ...normalizedFileNames, ...transportStreamFileNames]
+              .filter((fileName): fileName is string => Boolean(fileName))
+              .map((fileName) => ffmpegInstance.deleteFile(fileName)),
+          )
+        }
         setIsProcessing(false)
       }
     },

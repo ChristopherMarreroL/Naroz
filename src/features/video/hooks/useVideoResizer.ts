@@ -82,22 +82,25 @@ export function useVideoResizer() {
       }))
     })
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-      workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-    })
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
+      })
 
-    ffmpegRef.current = ffmpeg
-    setIsLoadingEngine(false)
-    setProgress({
-      stage: 'idle',
-      percent: 0,
-      message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
-      detail: locale === 'es' ? 'Ya puedes redimensionar el video.' : 'You can resize the video now.',
-    })
+      ffmpegRef.current = ffmpeg
+      setProgress({
+        stage: 'idle',
+        percent: 0,
+        message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
+        detail: locale === 'es' ? 'Ya puedes redimensionar el video.' : 'You can resize the video now.',
+      })
 
-    return ffmpeg
+      return ffmpeg
+    } finally {
+      setIsLoadingEngine(false)
+    }
   }, [locale])
 
   const resetResult = useCallback(() => {
@@ -114,13 +117,16 @@ export function useVideoResizer() {
     setError(null)
     resetResult()
     setIsProcessing(true)
+    let ffmpeg: FFmpeg | null = null
+    let inputName: string | null = null
+    let outputName: string | null = null
 
     try {
-      const ffmpeg = await ensureLoaded()
+      ffmpeg = await ensureLoaded()
       const outputFormat = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
       const inputExtension = outputFormat
-      const inputName = `input.${inputExtension}`
-      const outputName = `output.${outputFormat}`
+      inputName = `input.${inputExtension}`
+      outputName = `output.${outputFormat}`
 
       setProgress({
         stage: 'preparing',
@@ -184,7 +190,6 @@ export function useVideoResizer() {
         detail: locale === 'es' ? `Tu video ${width}x${height} ya esta listo para descargar.` : `Your ${width}x${height} video is ready to download.`,
       })
 
-      await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)])
       return resizedResult
     } catch (resizeError) {
       setError(locale === 'es' ? 'No se pudo cambiar la resolucion con el motor actual del navegador.' : 'The video resolution could not be changed with the current browser engine.')
@@ -197,6 +202,14 @@ export function useVideoResizer() {
       console.error(resizeError)
       return null
     } finally {
+      if (ffmpeg) {
+        const ffmpegInstance = ffmpeg
+        await Promise.allSettled(
+          [inputName, outputName]
+            .filter((fileName): fileName is string => Boolean(fileName))
+            .map((fileName) => ffmpegInstance.deleteFile(fileName)),
+        )
+      }
       setIsProcessing(false)
     }
   }, [ensureLoaded, locale, resetResult])

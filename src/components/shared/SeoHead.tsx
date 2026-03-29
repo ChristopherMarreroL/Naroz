@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useLocale } from '../../i18n/LocaleProvider'
-import { getCanonicalUrl, getSeoContent, SEO_SITE_NAME } from '../../lib/seo'
+import { getCanonicalUrl, getOgImageUrl, getSeoContent, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
 import { getToolFromPath } from '../../lib/routes'
 
 function upsertMeta(selector: string, attributes: Record<string, string>) {
@@ -39,6 +39,7 @@ export function SeoHead() {
     const activeTool = getToolFromPath(location.pathname)
     const { title, description, canonicalPath } = getSeoContent(locale, activeTool)
     const canonicalUrl = getCanonicalUrl(canonicalPath)
+    const imageUrl = getOgImageUrl()
 
     document.title = title
 
@@ -49,9 +50,15 @@ export function SeoHead() {
     upsertMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' })
     upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl })
     upsertMeta('meta[property="og:site_name"]', { property: 'og:site_name', content: SEO_SITE_NAME })
-    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary' })
+    upsertMeta('meta[property="og:image"]', { property: 'og:image', content: imageUrl })
+    upsertMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: SEO_OG_IMAGE_ALT })
+    upsertMeta('meta[property="og:image:width"]', { property: 'og:image:width', content: '629' })
+    upsertMeta('meta[property="og:image:height"]', { property: 'og:image:height', content: '552' })
+    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' })
     upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: title })
     upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: description })
+    upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: imageUrl })
+    upsertMeta('meta[name="twitter:image:alt"]', { name: 'twitter:image:alt', content: SEO_OG_IMAGE_ALT })
     upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl })
   }, [locale, location.pathname])
 
