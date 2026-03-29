@@ -82,22 +82,25 @@ export function useAudioExtractor() {
       }))
     })
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-      workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-    })
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
+      })
 
-    ffmpegRef.current = ffmpeg
-    setIsLoadingEngine(false)
-    setProgress({
-      stage: 'idle',
-      percent: 0,
-      message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
-      detail: locale === 'es' ? 'Ya puedes extraer audio.' : 'You can extract audio now.',
-    })
+      ffmpegRef.current = ffmpeg
+      setProgress({
+        stage: 'idle',
+        percent: 0,
+        message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
+        detail: locale === 'es' ? 'Ya puedes extraer audio.' : 'You can extract audio now.',
+      })
 
-    return ffmpeg
+      return ffmpeg
+    } finally {
+      setIsLoadingEngine(false)
+    }
   }, [locale])
 
   const resetResult = useCallback(() => {
@@ -114,12 +117,15 @@ export function useAudioExtractor() {
     setError(null)
     resetResult()
     setIsProcessing(true)
+    let ffmpeg: FFmpeg | null = null
+    let inputName: string | null = null
+    let outputName: string | null = null
 
     try {
-      const ffmpeg = await ensureLoaded()
+      ffmpeg = await ensureLoaded()
       const inputExtension = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
-      const inputName = `input.${inputExtension}`
-      const outputName = `output.${outputFormat}`
+      inputName = `input.${inputExtension}`
+      outputName = `output.${outputFormat}`
 
       setProgress({
         stage: 'preparing',
@@ -178,7 +184,6 @@ export function useAudioExtractor() {
             : `Your ${outputFormat.toUpperCase()} file is ready to download.`,
       })
 
-      await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)])
       return extractedResult
     } catch (extractError) {
       setError(locale === 'es' ? 'No se pudo extraer el audio con el motor actual del navegador.' : 'The selected audio could not be extracted with the current browser engine.')
@@ -191,6 +196,14 @@ export function useAudioExtractor() {
       console.error(extractError)
       return null
     } finally {
+      if (ffmpeg) {
+        const ffmpegInstance = ffmpeg
+        await Promise.allSettled(
+          [inputName, outputName]
+            .filter((fileName): fileName is string => Boolean(fileName))
+            .map((fileName) => ffmpegInstance.deleteFile(fileName)),
+        )
+      }
       setIsProcessing(false)
     }
   }, [ensureLoaded, locale, resetResult])

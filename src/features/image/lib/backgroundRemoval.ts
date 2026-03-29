@@ -26,7 +26,10 @@ function getRemovalConfig(onProgress?: (message: string) => void): Config {
 
 export function preloadBackgroundRemoval(onProgress?: (message: string) => void) {
   if (!preloadPromise) {
-    preloadPromise = preload(getRemovalConfig(onProgress))
+    preloadPromise = preload(getRemovalConfig(onProgress)).catch((error) => {
+      preloadPromise = null
+      throw error
+    })
   }
 
   return preloadPromise
