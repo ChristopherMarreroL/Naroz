@@ -1,5 +1,6 @@
 import type { AppSectionId, AppToolId, SidebarItem } from '../../types/app'
 import { useLocale } from '../../i18n/LocaleProvider'
+import narozLogo from '../../assets/naroz-logo.svg'
 import { ToolIcon } from '../shared/ToolIcon'
 
 interface SidebarProps {
@@ -24,8 +25,12 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
       <div className="border-b border-slate-100/80 px-5 py-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50">
-              Naroz
+            <div className="inline-flex items-center gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-3 py-2">
+              <img src={narozLogo} alt="Naroz logo" className="h-10 w-10 rounded-2xl bg-white object-contain p-1.5 shadow-[0_12px_24px_-18px_rgba(15,23,42,0.5)]" />
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-slate-400">Brand</p>
+                <p className="text-sm font-bold text-slate-900">Naroz</p>
+              </div>
             </div>
             <p className="mt-3 max-w-xs text-sm leading-7 text-slate-600">{t('brandTagline')}</p>
           </div>

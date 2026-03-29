@@ -76,21 +76,24 @@ export function useVideoConverter() {
       }))
     })
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-      workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-    })
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
+      })
 
-    ffmpegRef.current = ffmpeg
-    setIsLoadingEngine(false)
-    setProgress({
-      stage: 'idle',
-      percent: 0,
-      message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
-      detail: locale === 'es' ? 'Ya puedes empezar a convertir.' : 'You can start converting now.',
-    })
-    return ffmpeg
+      ffmpegRef.current = ffmpeg
+      setProgress({
+        stage: 'idle',
+        percent: 0,
+        message: locale === 'es' ? 'Motor listo.' : 'Engine ready.',
+        detail: locale === 'es' ? 'Ya puedes empezar a convertir.' : 'You can start converting now.',
+      })
+      return ffmpeg
+    } finally {
+      setIsLoadingEngine(false)
+    }
   }, [locale])
 
   const resetResult = useCallback(() => {
@@ -107,12 +110,15 @@ export function useVideoConverter() {
     setError(null)
     resetResult()
     setIsProcessing(true)
+    let ffmpeg: FFmpeg | null = null
+    let inputName: string | null = null
+    let outputName: string | null = null
 
     try {
-      const ffmpeg = await ensureLoaded()
+      ffmpeg = await ensureLoaded()
       const inputExtension = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
-      const inputName = `input.${inputExtension}`
-      const outputName = `output.${outputFormat}`
+      inputName = `input.${inputExtension}`
+      outputName = `output.${outputFormat}`
 
       setProgress({
         stage: 'preparing',
@@ -187,7 +193,6 @@ export function useVideoConverter() {
         detail: locale === 'es' ? `Tu archivo ${outputFormat.toUpperCase()} ya esta listo para descargar.` : `Your ${outputFormat.toUpperCase()} file is ready to download.`,
       })
 
-      await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)])
       return convertedResult
     } catch (conversionError) {
       setError(locale === 'es' ? 'No se pudo convertir el video con el motor actual del navegador.' : 'The selected video could not be converted with the current browser engine.')
@@ -200,6 +205,14 @@ export function useVideoConverter() {
       console.error(conversionError)
       return null
     } finally {
+      if (ffmpeg) {
+        const ffmpegInstance = ffmpeg
+        await Promise.allSettled(
+          [inputName, outputName]
+            .filter((fileName): fileName is string => Boolean(fileName))
+            .map((fileName) => ffmpegInstance.deleteFile(fileName)),
+        )
+      }
       setIsProcessing(false)
     }
   }, [ensureLoaded, locale, resetResult])
