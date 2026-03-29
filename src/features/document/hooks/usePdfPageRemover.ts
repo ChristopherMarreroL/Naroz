@@ -32,6 +32,18 @@ function createOutputName(fileName: string) {
   return `${baseName}-sin-paginas.pdf`
 }
 
+async function canvasToObjectUrl(canvas: HTMLCanvasElement) {
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/png')
+  })
+
+  if (!blob) {
+    throw new Error('No se pudo generar la vista previa de la pagina.')
+  }
+
+  return URL.createObjectURL(blob)
+}
+
 async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number) {
   const page = await pdf.getPage(pageNumber)
   const viewport = page.getViewport({ scale: 0.22 })
@@ -51,7 +63,7 @@ async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number) {
   context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
   await page.render({ canvasContext: context, viewport, canvas }).promise
 
-  const thumbnailUrl = canvas.toDataURL('image/png')
+  const thumbnailUrl = await canvasToObjectUrl(canvas)
   page.cleanup?.()
   return { pageNumber, thumbnailUrl }
 }
@@ -84,7 +96,7 @@ export async function renderPdfPagePreview(file: File, pageNumber: number, scale
 
   context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
   await page.render({ canvasContext: context, viewport, canvas }).promise
-  const previewUrl = canvas.toDataURL('image/png')
+  const previewUrl = await canvasToObjectUrl(canvas)
   page.cleanup?.()
   await loadingTask.destroy()
   return previewUrl
@@ -157,35 +169,41 @@ export function usePdfPageRemover() {
       stopAtErrors: true,
     })
     const pdf = await loadingTask.promise
-    const totalPages = pdf.numPages
 
-    setPageCount(totalPages)
-    setSelectedPages([])
+    try {
+      const totalPages = pdf.numPages
 
-    pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
-    setPagePreviews([])
+      setPageCount(totalPages)
+      setSelectedPages([])
 
-    const previews: PdfPagePreview[] = []
-    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+      pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+      setPagePreviews([])
+
+      const previews: PdfPagePreview[] = []
+      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+        setProgress({
+          stage: 'preparing',
+          percent: Math.max(8, Math.min(96, Math.round((pageNumber / totalPages) * 78) + 8)),
+          message: locale === 'es' ? 'Cargando paginas...' : 'Loading pages...',
+          detail: locale === 'es' ? `Generando vista ${pageNumber} de ${totalPages}.` : `Rendering preview ${pageNumber} of ${totalPages}.`,
+        })
+
+        previews.push(await renderPageThumbnail(pdf, pageNumber))
+      }
+
+      setPagePreviews(previews)
       setProgress({
-        stage: 'preparing',
-        percent: Math.max(8, Math.min(96, Math.round((pageNumber / totalPages) * 78) + 8)),
-        message: locale === 'es' ? 'Cargando paginas...' : 'Loading pages...',
-        detail: locale === 'es' ? `Generando vista ${pageNumber} de ${totalPages}.` : `Rendering preview ${pageNumber} of ${totalPages}.`,
+        stage: 'idle',
+        percent: 0,
+        message: locale === 'es' ? 'PDF cargado.' : 'PDF loaded.',
+        detail: locale === 'es' ? `Este archivo tiene ${totalPages} paginas.` : `This file has ${totalPages} pages.`,
       })
 
-      previews.push(await renderPageThumbnail(pdf, pageNumber))
+      return { totalPages, previews }
+    } finally {
+      pdf.cleanup()
+      await loadingTask.destroy()
     }
-
-    setPagePreviews(previews)
-    setProgress({
-      stage: 'idle',
-      percent: 0,
-      message: locale === 'es' ? 'PDF cargado.' : 'PDF loaded.',
-      detail: locale === 'es' ? `Este archivo tiene ${totalPages} paginas.` : `This file has ${totalPages} pages.`,
-    })
-
-    return { totalPages, previews }
   }, [locale, pagePreviews, resetResult])
 
   const togglePageSelection = useCallback((pageNumber: number) => {

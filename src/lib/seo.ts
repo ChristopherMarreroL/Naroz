@@ -3,7 +3,7 @@ import type { AppToolId } from '../types/app'
 import { TOOL_PATHS, getToolPath } from './routes'
 
 export const SEO_SITE_NAME = 'Naroz'
-export const SEO_DEFAULT_SITE_URL = 'https://naroz.netlify.app'
+export const SEO_DEFAULT_SITE_URL = 'https://naroz.vercel.app'
 export const SEO_OG_IMAGE_NOTE = 'Add a future social share image at public/og-image.jpg and wire it in when available.'
 
 function normalizeSiteUrl(value: string) {
