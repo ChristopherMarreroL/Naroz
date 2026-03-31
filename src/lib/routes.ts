@@ -8,6 +8,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'video-extract-audio': '/video-extract-audio',
   'video-remove-audio': '/video-remove-audio',
   'video-resize': '/video-resize',
+  'video-speed': '/video-speed',
   'image-convert': '/image-convert',
   'image-remove-background': '/image-remove-background',
   'image-crop': '/image-crop',

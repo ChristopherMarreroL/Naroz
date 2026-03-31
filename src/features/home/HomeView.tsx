@@ -34,6 +34,11 @@ const availableTools = [
     status: 'stable',
   },
   {
+    id: 'video-speed' as const,
+    category: 'video',
+    status: 'beta',
+  },
+  {
     id: 'image-convert' as const,
     category: 'image',
     status: 'stable',
@@ -81,6 +86,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-extract-audio') return locale === 'es' ? 'Extraer audio' : 'Extract audio'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Eliminar audio' : 'Remove audio'
   if (id === 'video-resize') return locale === 'es' ? 'Cambiar resolucion' : 'Change resolution'
+  if (id === 'video-speed') return locale === 'es' ? 'Cambiar velocidad' : 'Change speed'
   if (id === 'video-trim') return locale === 'es' ? 'Recortar video' : 'Trim video'
   if (id === 'image-crop') return locale === 'es' ? 'Recortar imagen' : 'Crop image'
   if (id === 'image-transform') return locale === 'es' ? 'Rotar / voltear imagen' : 'Rotate / flip image'
@@ -97,6 +103,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'video-extract-audio') return locale === 'es' ? 'Separa el audio de un video MP4 o MKV y exportalo en MP3 o WAV.' : 'Separate audio from an MP4 or MKV video and export it as MP3 or WAV.'
   if (id === 'video-remove-audio') return locale === 'es' ? 'Genera una copia silenciosa de un video MP4 o MKV sin tocar la imagen.' : 'Generate a silent copy of an MP4 or MKV video without changing the picture.'
   if (id === 'video-resize') return locale === 'es' ? 'Cambia el ancho y alto de un video MP4 o MKV y exporta una nueva version.' : 'Change the width and height of an MP4 or MKV video and export a resized version.'
+  if (id === 'video-speed') return locale === 'es' ? 'Acelera o ralentiza un video MP4 o MKV con salidas a 0.5x, 1x, 1.5x o 2x.' : 'Speed up or slow down an MP4 or MKV video with 0.5x, 1x, 1.5x, or 2x outputs.'
   if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4 o MKV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4 or MKV video and export only the clip you need.'
   if (id === 'image-crop') return locale === 'es' ? 'Recorta una imagen y exporta solo el area que necesitas sin salir del navegador.' : 'Crop one image and export only the area you need directly in the browser.'
   if (id === 'image-transform') return locale === 'es' ? 'Rota una imagen o volteala horizontal y verticalmente antes de descargarla.' : 'Rotate an image or flip it horizontally and vertically before downloading it.'
@@ -114,6 +121,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     { id: 'image', label: t('image') },
     { id: 'document', label: t('document') },
   ] as const
+  const roadmapItems = [
+    {
+      title: t('roadmapMsgPdfTitle'),
+      description: t('roadmapMsgPdfDesc'),
+      status: t('betaBadge'),
+    },
+  ]
 
   return (
     <>
@@ -173,6 +187,29 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      <section className="panel p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-950">{t('roadmap')}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">{t('homeUpcomingDescription')}</p>
+          </div>
+          <span className="badge bg-sky-100 text-sky-700">{t('homeUpcoming')}</span>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          {roadmapItems.map((item) => (
+            <article key={item.title} className="panel-subtle min-w-0 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="badge">{t('document')}</span>
+                <span className="badge bg-sky-100 text-sky-700">{item.status}</span>
+              </div>
+              <h3 className="mt-4 text-xl font-bold text-slate-950">{item.title}</h3>
+              <p className="mt-2 break-words text-sm leading-6 text-slate-600">{item.description}</p>
+            </article>
+          ))}
         </div>
       </section>
     </>

@@ -9,6 +9,7 @@ export type AppToolId =
   | 'video-extract-audio'
   | 'video-remove-audio'
   | 'video-resize'
+  | 'video-speed'
   | 'image-convert'
   | 'image-remove-background'
   | 'image-crop'
