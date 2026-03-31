@@ -14,6 +14,7 @@ const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').
 const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudioView').then((module) => ({ default: module.VideoRemoveAudioView })))
 const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
 const VideoResizeView = lazy(() => import('./features/video/VideoResizeView').then((module) => ({ default: module.VideoResizeView })))
+const VideoSpeedView = lazy(() => import('./features/video/VideoSpeedView').then((module) => ({ default: module.VideoSpeedView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
 const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackgroundRemoveView').then((module) => ({ default: module.ImageBackgroundRemoveView })))
 const ImageCropView = lazy(() => import('./features/image/ImageCropView').then((module) => ({ default: module.ImageCropView })))
@@ -85,6 +86,13 @@ function App() {
         description: t('resizeVideoDesc'),
         section: 'video',
         status: 'stable',
+      },
+      {
+        id: 'video-speed',
+        label: t('changeSpeed'),
+        description: t('changeSpeedDesc'),
+        section: 'video',
+        status: 'beta',
       },
       {
         id: 'image-convert',
@@ -169,6 +177,7 @@ function App() {
         {activeTool === 'video-extract-audio' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense></div> : null}
         {activeTool === 'video-remove-audio' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoRemoveAudioView /></Suspense></div> : null}
         {activeTool === 'video-resize' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoResizeView /></Suspense></div> : null}
+        {activeTool === 'video-speed' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoSpeedView /></Suspense></div> : null}
         {activeTool === 'image-convert' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
         {activeTool === 'image-crop' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageCropView /></Suspense></div> : null}
         {activeTool === 'image-transform' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageTransformView /></Suspense></div> : null}
