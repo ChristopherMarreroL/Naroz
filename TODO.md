@@ -23,3 +23,4 @@
 - [ ] Imagen a PDF
 - [ ] Convertir MSG a PDF
 - [x] Remover fondo de imagen
+- [ ] Editor de PDF
