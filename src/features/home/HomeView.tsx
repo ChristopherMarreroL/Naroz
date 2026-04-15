@@ -117,9 +117,9 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { locale, t } = useLocale()
   const sections = [
-    { id: 'video', label: t('video') },
-    { id: 'image', label: t('image') },
     { id: 'document', label: t('document') },
+    { id: 'image', label: t('image') },
+    { id: 'video', label: t('video') },
   ] as const
   const roadmapItems = [
     {
