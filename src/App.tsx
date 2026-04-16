@@ -22,6 +22,7 @@ const ImageTransformView = lazy(() => import('./features/image/ImageTransformVie
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
 const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePagesView').then((module) => ({ default: module.PdfDeletePagesView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
+const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 
 function ToolLoadingFallback() {
   const { t } = useLocale()
@@ -143,6 +144,13 @@ function App() {
         section: 'document',
         status: 'beta',
       },
+      {
+        id: 'document-msg-to-pdf',
+        label: t('mailToPdf'),
+        description: t('mailToPdfShortDesc'),
+        section: 'document',
+        status: 'beta',
+      },
     ],
     [t],
   )
@@ -185,6 +193,7 @@ function App() {
         {activeTool === 'document-merge-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
         {activeTool === 'document-delete-pages' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfDeletePagesView /></Suspense></div> : null}
         {activeTool === 'document-merge-docx' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
+        {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
       </AppLayout>
     </>
   )

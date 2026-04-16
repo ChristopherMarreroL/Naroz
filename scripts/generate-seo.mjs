@@ -17,6 +17,7 @@ const routes = [
   '/document-merge-pdf',
   '/document-delete-pages',
   '/document-merge-docx',
+  '/msg-to-pdf',
  ]
 
 function normalizeSiteUrl(value) {

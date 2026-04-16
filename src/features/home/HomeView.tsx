@@ -74,6 +74,11 @@ const availableTools = [
     status: 'beta',
   },
   {
+    id: 'document-msg-to-pdf' as const,
+    category: 'document',
+    status: 'beta',
+  },
+  {
     id: 'video-trim' as const,
     category: 'video',
     status: 'beta',
@@ -94,6 +99,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Unir PDF' : 'Merge PDF'
   if (id === 'document-delete-pages') return locale === 'es' ? 'Eliminar paginas' : 'Delete pages'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Unir Word' : 'Merge Word'
+  if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Convertir correo a PDF' : 'Convert email to PDF'
   return locale === 'es' ? 'Convertir formato' : 'Convert format'
 }
 
@@ -111,6 +117,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Combina varios PDF en un unico documento final y decide el orden antes de exportar.' : 'Combine multiple PDFs into one final document and choose the order before exporting.'
   if (id === 'document-delete-pages') return locale === 'es' ? 'Selecciona un PDF y elimina paginas especificas antes de descargar una nueva version.' : 'Pick a PDF and remove specific pages before downloading a new version.'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Combina varios archivos DOCX en un solo documento Word desde el navegador.' : 'Combine multiple DOCX files into one Word document in the browser.'
+  if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Lee correos .MSG o .EML y genera una version PDF con sus datos principales.' : 'Read .MSG or .EML emails and generate a PDF version with their main details.'
   return locale === 'es' ? 'Transforma imagenes JPG, PNG, WebP, AVIF, GIF e ICO con vista previa y descarga inmediata.' : 'Convert JPG, PNG, WebP, AVIF, GIF, and ICO images with preview and instant download.'
 }
 
@@ -121,14 +128,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     { id: 'image', label: t('image') },
     { id: 'video', label: t('video') },
   ] as const
-  const roadmapItems = [
-    {
-      title: t('roadmapMsgPdfTitle'),
-      description: t('roadmapMsgPdfDesc'),
-      status: t('betaBadge'),
-    },
-  ]
-
   return (
     <>
       <SectionHero
@@ -187,29 +186,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               </div>
             )
           })}
-        </div>
-      </section>
-
-      <section className="panel p-4 sm:p-6 lg:p-8">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-950">{t('roadmap')}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">{t('homeUpcomingDescription')}</p>
-          </div>
-          <span className="badge bg-sky-100 text-sky-700">{t('homeUpcoming')}</span>
-        </div>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-2">
-          {roadmapItems.map((item) => (
-            <article key={item.title} className="panel-subtle min-w-0 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="badge">{t('document')}</span>
-                <span className="badge bg-sky-100 text-sky-700">{item.status}</span>
-              </div>
-              <h3 className="mt-4 text-xl font-bold text-slate-950">{item.title}</h3>
-              <p className="mt-2 break-words text-sm leading-6 text-slate-600">{item.description}</p>
-            </article>
-          ))}
         </div>
       </section>
     </>

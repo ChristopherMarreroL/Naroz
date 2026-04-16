@@ -16,6 +16,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-merge-pdf': '/document-merge-pdf',
   'document-delete-pages': '/document-delete-pages',
   'document-merge-docx': '/document-merge-docx',
+  'document-msg-to-pdf': '/msg-to-pdf',
 }
 
 export const ROUTABLE_TOOLS = Object.keys(TOOL_PATHS) as AppToolId[]

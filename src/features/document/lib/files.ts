@@ -1,4 +1,4 @@
-export type DocumentExtension = 'pdf' | 'docx'
+export type DocumentExtension = 'pdf' | 'docx' | 'msg' | 'eml'
 
 export interface DocumentItem {
   id: string
@@ -26,6 +26,20 @@ export function isSupportedPdf(file: File): boolean {
 export function isSupportedDocx(file: File): boolean {
   const lowerName = file.name.toLowerCase()
   return file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || lowerName.endsWith('.docx')
+}
+
+export function isSupportedMsg(file: File): boolean {
+  const lowerName = file.name.toLowerCase()
+  return file.type === 'application/vnd.ms-outlook' || lowerName.endsWith('.msg')
+}
+
+export function isSupportedEml(file: File): boolean {
+  const lowerName = file.name.toLowerCase()
+  return file.type === 'message/rfc822' || lowerName.endsWith('.eml')
+}
+
+export function isSupportedMailFile(file: File): boolean {
+  return isSupportedMsg(file) || isSupportedEml(file)
 }
 
 export function moveDocument(items: DocumentItem[], from: number, to: number) {

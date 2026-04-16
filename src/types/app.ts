@@ -17,6 +17,7 @@ export type AppToolId =
   | 'document-merge-pdf'
   | 'document-delete-pages'
   | 'document-merge-docx'
+  | 'document-msg-to-pdf'
 
 export interface SidebarItem {
   id: AppToolId
