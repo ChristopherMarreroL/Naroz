@@ -9,6 +9,7 @@ export type AppToolId =
   | 'video-extract-audio'
   | 'video-remove-audio'
   | 'video-resize'
+  | 'video-speed'
   | 'image-convert'
   | 'image-remove-background'
   | 'image-crop'
@@ -16,6 +17,7 @@ export type AppToolId =
   | 'document-merge-pdf'
   | 'document-delete-pages'
   | 'document-merge-docx'
+  | 'document-msg-to-pdf'
 
 export interface SidebarItem {
   id: AppToolId

@@ -13,7 +13,7 @@
 - [x] Eliminar audio
 - [ ] Rotar / voltear video
 - [ ] Agregar subtitulos
-- [ ] Cambiar velocidad
+- [x] Cambiar velocidad
 - [ ] Redimensionar imagen
 - [ ] Comprimir / calidad de imagen
 - [x] Recortar imagen
@@ -21,5 +21,6 @@
 - [x] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
+- [ ] Convertir MSG a PDF
 - [x] Remover fondo de imagen
-- [ ] Convertir TXT a DOCX
+- [ ] Editor de PDF

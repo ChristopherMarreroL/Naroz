@@ -14,6 +14,7 @@ const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').
 const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudioView').then((module) => ({ default: module.VideoRemoveAudioView })))
 const VideoTrimView = lazy(() => import('./features/video/VideoTrimView').then((module) => ({ default: module.VideoTrimView })))
 const VideoResizeView = lazy(() => import('./features/video/VideoResizeView').then((module) => ({ default: module.VideoResizeView })))
+const VideoSpeedView = lazy(() => import('./features/video/VideoSpeedView').then((module) => ({ default: module.VideoSpeedView })))
 const ImageConvertView = lazy(() => import('./features/image/ImageConvertView').then((module) => ({ default: module.ImageConvertView })))
 const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackgroundRemoveView').then((module) => ({ default: module.ImageBackgroundRemoveView })))
 const ImageCropView = lazy(() => import('./features/image/ImageCropView').then((module) => ({ default: module.ImageCropView })))
@@ -21,6 +22,7 @@ const ImageTransformView = lazy(() => import('./features/image/ImageTransformVie
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
 const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePagesView').then((module) => ({ default: module.PdfDeletePagesView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
+const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 
 function ToolLoadingFallback() {
   const { t } = useLocale()
@@ -87,6 +89,13 @@ function App() {
         status: 'stable',
       },
       {
+        id: 'video-speed',
+        label: t('changeSpeed'),
+        description: t('changeSpeedDesc'),
+        section: 'video',
+        status: 'beta',
+      },
+      {
         id: 'image-convert',
         label: t('convertImage'),
         description: t('convertImagesDesc'),
@@ -135,6 +144,13 @@ function App() {
         section: 'document',
         status: 'beta',
       },
+      {
+        id: 'document-msg-to-pdf',
+        label: t('mailToPdf'),
+        description: t('mailToPdfShortDesc'),
+        section: 'document',
+        status: 'beta',
+      },
     ],
     [t],
   )
@@ -169,6 +185,7 @@ function App() {
         {activeTool === 'video-extract-audio' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><AudioExtractView /></Suspense></div> : null}
         {activeTool === 'video-remove-audio' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoRemoveAudioView /></Suspense></div> : null}
         {activeTool === 'video-resize' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoResizeView /></Suspense></div> : null}
+        {activeTool === 'video-speed' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoSpeedView /></Suspense></div> : null}
         {activeTool === 'image-convert' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageConvertView /></Suspense></div> : null}
         {activeTool === 'image-crop' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageCropView /></Suspense></div> : null}
         {activeTool === 'image-transform' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageTransformView /></Suspense></div> : null}
@@ -176,6 +193,7 @@ function App() {
         {activeTool === 'document-merge-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
         {activeTool === 'document-delete-pages' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfDeletePagesView /></Suspense></div> : null}
         {activeTool === 'document-merge-docx' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
+        {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
       </AppLayout>
     </>
   )

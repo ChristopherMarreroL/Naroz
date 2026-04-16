@@ -68,6 +68,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     es: { title: 'Cambiar resolucion de video - Naroz', description: 'Redimensiona videos MP4 o MKV con presets y exportacion local.' },
     en: { title: 'Resize video - Naroz', description: 'Resize MP4 or MKV videos with presets and local export.' },
   },
+  'video-speed': {
+    es: { title: 'Cambiar velocidad de video - Naroz', description: 'Ajusta videos MP4 o MKV a 0.5x, 1x, 1.5x o 2x desde el navegador.' },
+    en: { title: 'Change video speed - Naroz', description: 'Adjust MP4 or MKV videos to 0.5x, 1x, 1.5x, or 2x directly in the browser.' },
+  },
   'image-convert': {
     es: { title: 'Convertir imagen - Naroz', description: 'Convierte imagenes entre JPG, PNG, WebP, AVIF, GIF e ICO.' },
     en: { title: 'Convert image - Naroz', description: 'Convert images between JPG, PNG, WebP, AVIF, GIF, and ICO.' },
@@ -95,6 +99,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
   'document-merge-docx': {
     es: { title: 'Unir Word - Naroz', description: 'Combina varios archivos DOCX desde el navegador.' },
     en: { title: 'Merge Word - Naroz', description: 'Combine multiple DOCX files in the browser.' },
+  },
+  'document-msg-to-pdf': {
+    es: { title: 'Convertir correo a PDF - Naroz', description: 'Convierte correos MSG o EML a PDF desde el navegador.' },
+    en: { title: 'Convert email to PDF - Naroz', description: 'Convert MSG or EML emails to PDF directly in the browser.' },
   },
 }
 

@@ -56,6 +56,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'video-speed') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M4 14a8 8 0 1 1 2.34 5.66" />
+        <path d="M4 20v-6h6" />
+        <path d="M12 8v4l3 2" />
+      </svg>
+    )
+  }
+
   if (toolId === 'image-convert') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
@@ -120,6 +130,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
         <path d="M8 4h6l4 4v12H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
         <path d="M14 4v4h4M9 12l1.5 5L12 13l1.5 4 1.5-5" />
+      </svg>
+    )
+  }
+
+  if (toolId === 'document-msg-to-pdf') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M4 7h16v10H4z" />
+        <path d="m4 8 8 6 8-6" />
+        <path d="M15 16h4v4h-4z" />
       </svg>
     )
   }
