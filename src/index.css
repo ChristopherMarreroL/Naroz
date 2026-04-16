@@ -168,6 +168,38 @@ svg {
   .trim-handle-label {
     @apply pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 rounded-full border border-slate-200/70 bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-700 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur;
   }
+
+  .msg-preview-html {
+    color: #334155;
+  }
+
+  .msg-preview-html * {
+    max-width: 100%;
+    word-break: break-word;
+  }
+
+  .msg-preview-html img {
+    height: auto;
+  }
+
+  .msg-preview-html table {
+    width: 100%;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+  }
+
+  .msg-preview-html td,
+  .msg-preview-html th {
+    padding: 0.35rem 0.5rem;
+    vertical-align: top;
+  }
+
+  .msg-preview-html p,
+  .msg-preview-html div,
+  .msg-preview-html li {
+    line-height: 1.7;
+  }
 }
 
 @keyframes drawer-enter {

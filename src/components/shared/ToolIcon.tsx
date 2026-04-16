@@ -134,6 +134,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-msg-to-pdf') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M4 7h16v10H4z" />
+        <path d="m4 8 8 6 8-6" />
+        <path d="M15 16h4v4h-4z" />
+      </svg>
+    )
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
       <path d="M5 12h14M12 5v14" />
