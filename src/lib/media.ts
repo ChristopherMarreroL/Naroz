@@ -1,11 +1,27 @@
 import type { MergeStrategy, VideoItem, VideoOutputFormat } from '../types/video'
 
-const SUPPORTED_TYPES = new Set(['video/mp4', 'video/x-matroska'])
-const SUPPORTED_EXTENSIONS = ['.mp4', '.mkv']
+const SUPPORTED_TYPES = new Set(['video/mp4', 'video/x-matroska', 'video/quicktime'])
+const SUPPORTED_EXTENSIONS = ['.mp4', '.mkv', '.mov']
 
-export function getVideoExtension(file: File): 'mp4' | 'mkv' {
+export function getVideoExtension(file: File): VideoOutputFormat {
   const lowerName = file.name.toLowerCase()
+  if (lowerName.endsWith('.mov') || file.type === 'video/quicktime') {
+    return 'mov'
+  }
+
   return lowerName.endsWith('.mkv') || file.type === 'video/x-matroska' ? 'mkv' : 'mp4'
+}
+
+export function getVideoMimeType(format: VideoOutputFormat) {
+  if (format === 'mkv') {
+    return 'video/x-matroska'
+  }
+
+  return format === 'mov' ? 'video/quicktime' : 'video/mp4'
+}
+
+export function shouldUseFastStart(format: VideoOutputFormat) {
+  return format === 'mp4' || format === 'mov'
 }
 
 export function isSupportedVideo(file: File): boolean {
@@ -75,7 +91,7 @@ export async function createVideoItem(file: File): Promise<VideoItem> {
     width: metadata.width,
     height: metadata.height,
     previewUrl,
-    type: file.type || 'video/mp4',
+    type: file.type || getVideoMimeType(extension),
     extension,
     warnings,
   }
@@ -99,7 +115,7 @@ export function getCompatibilityWarnings(videos: VideoItem[], outputFormat: Vide
 
   const extensions = new Set(videos.map((video) => video.extension))
   if (extensions.size > 1) {
-    warnings.add(`Estas mezclando MP4 y MKV. La app intentara convertirlos a un ${outputFormat.toUpperCase()} comun antes de unirlos.`)
+    warnings.add(`Estas mezclando formatos de video. La app intentara convertirlos a un ${outputFormat.toUpperCase()} comun antes de unirlos.`)
   }
 
   const filesWithoutMetadata = videos.filter((video) => !video.duration || !video.width || !video.height)

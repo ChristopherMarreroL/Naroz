@@ -3,14 +3,13 @@ import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
-import type { MergeProgress } from '../../../types/video'
+import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
+import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 const SPEED_CHANGE_VIDEO_PRESET = 'ultrafast'
 const SPEED_CHANGE_VIDEO_CRF = '28'
 const SPEED_CHANGE_AUDIO_BITRATE = '128k'
-
-type VideoOutputFormat = 'mp4' | 'mkv'
 
 interface SpeedChangeResult {
   blob: Blob
@@ -33,12 +32,8 @@ function createOutputName(fileName: string, playbackRate: number, outputFormat: 
   return `${baseName}-speed-${speedLabel}x.${outputFormat}`
 }
 
-function getVideoMimeType(outputFormat: VideoOutputFormat) {
-  return outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4'
-}
-
 function getOutputFormat(file: File): VideoOutputFormat {
-  return file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
+  return getVideoExtension(file)
 }
 
 function getSetPtsMultiplier(playbackRate: number) {
@@ -201,7 +196,7 @@ export function useVideoSpeedChanger() {
     async (ffmpeg: FFmpeg, inputName: string, outputName: string, outputFormat: VideoOutputFormat, playbackRate: number, includeAudio: boolean) => {
       const command =
         playbackRate === 1
-          ? ['-i', inputName, '-c', 'copy', ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []), outputName]
+          ? ['-i', inputName, '-c', 'copy', ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []), outputName]
           : [
               '-i',
               inputName,
@@ -217,7 +212,7 @@ export function useVideoSpeedChanger() {
               '-crf',
               SPEED_CHANGE_VIDEO_CRF,
               ...(includeAudio ? ['-filter:a', `atempo=${playbackRate.toFixed(2)}`, '-c:a', 'aac', '-b:a', SPEED_CHANGE_AUDIO_BITRATE] : ['-an']),
-              ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+              ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []),
               outputName,
             ]
 

@@ -3,7 +3,8 @@ import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
-import type { MergeProgress } from '../../../types/video'
+import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
+import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
@@ -12,16 +13,12 @@ interface RemoveAudioResult {
   url: string
   fileName: string
   size: number
-  outputFormat: 'mp4' | 'mkv'
+  outputFormat: VideoOutputFormat
 }
 
-function createOutputName(fileName: string, outputFormat: 'mp4' | 'mkv'): string {
+function createOutputName(fileName: string, outputFormat: VideoOutputFormat): string {
   const baseName = fileName.replace(/\.[^.]+$/, '') || 'video'
   return `${baseName}-silent.${outputFormat}`
-}
-
-function getVideoMimeType(outputFormat: 'mp4' | 'mkv') {
-  return outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4'
 }
 
 export function useVideoAudioRemover() {
@@ -31,7 +28,7 @@ export function useVideoAudioRemover() {
     stage: 'idle',
     percent: 0,
     message: locale === 'es' ? 'Listo para eliminar audio.' : 'Ready to remove audio.',
-    detail: locale === 'es' ? 'Elige un video MP4 o MKV para crear una copia silenciosa.' : 'Choose an MP4 or MKV video to create a silent copy.',
+    detail: locale === 'es' ? 'Elige un video MP4, MKV o MOV para crear una copia silenciosa.' : 'Choose an MP4, MKV, or MOV video to create a silent copy.',
   })
   const [isLoadingEngine, setIsLoadingEngine] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -53,7 +50,7 @@ export function useVideoAudioRemover() {
             stage: 'idle',
             percent: 0,
             message: locale === 'es' ? 'Listo para eliminar audio.' : 'Ready to remove audio.',
-            detail: locale === 'es' ? 'Elige un video MP4 o MKV para crear una copia silenciosa.' : 'Choose an MP4 or MKV video to create a silent copy.',
+            detail: locale === 'es' ? 'Elige un video MP4, MKV o MOV para crear una copia silenciosa.' : 'Choose an MP4, MKV, or MOV video to create a silent copy.',
           }
         : current,
     )
@@ -121,7 +118,7 @@ export function useVideoAudioRemover() {
 
     try {
       ffmpeg = await ensureLoaded()
-      const outputFormat = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
+      const outputFormat = getVideoExtension(file)
       inputName = `input.${outputFormat}`
       outputName = `output.${outputFormat}`
 
@@ -149,7 +146,7 @@ export function useVideoAudioRemover() {
         '-c:v',
         'copy',
         '-an',
-        ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+        ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []),
         outputName,
       ])
 
@@ -185,7 +182,7 @@ export function useVideoAudioRemover() {
         stage: 'error',
         percent: 0,
         message: locale === 'es' ? 'La eliminacion de audio fallo.' : 'Audio removal failed.',
-        detail: locale === 'es' ? 'Prueba otro archivo MP4 o MKV.' : 'Try a different MP4 or MKV file.',
+        detail: locale === 'es' ? 'Prueba otro archivo MP4, MKV o MOV.' : 'Try a different MP4, MKV, or MOV file.',
       })
       console.error(removeAudioError)
       return null

@@ -104,13 +104,13 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
 }
 
 function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
-  if (id === 'video-merge') return locale === 'es' ? 'Combina varios MP4 o MKV en un unico archivo final directamente en el navegador.' : 'Combine multiple MP4 or MKV files into one final file directly in the browser.'
-  if (id === 'video-convert') return locale === 'es' ? 'Convierte un solo video entre MP4 y MKV desde el navegador.' : 'Convert a single video between MP4 and MKV right in the browser.'
-  if (id === 'video-extract-audio') return locale === 'es' ? 'Separa el audio de un video MP4 o MKV y exportalo en MP3 o WAV.' : 'Separate audio from an MP4 or MKV video and export it as MP3 or WAV.'
-  if (id === 'video-remove-audio') return locale === 'es' ? 'Genera una copia silenciosa de un video MP4 o MKV sin tocar la imagen.' : 'Generate a silent copy of an MP4 or MKV video without changing the picture.'
-  if (id === 'video-resize') return locale === 'es' ? 'Cambia el ancho y alto de un video MP4 o MKV y exporta una nueva version.' : 'Change the width and height of an MP4 or MKV video and export a resized version.'
-  if (id === 'video-speed') return locale === 'es' ? 'Acelera o ralentiza un video MP4 o MKV con salidas a 0.5x, 1x, 1.5x o 2x.' : 'Speed up or slow down an MP4 or MKV video with 0.5x, 1x, 1.5x, or 2x outputs.'
-  if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4 o MKV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4 or MKV video and export only the clip you need.'
+  if (id === 'video-merge') return locale === 'es' ? 'Combina varios MP4, MKV o MOV en un unico archivo final directamente en el navegador.' : 'Combine multiple MP4, MKV, or MOV files into one final file directly in the browser.'
+  if (id === 'video-convert') return locale === 'es' ? 'Convierte un solo video entre MP4, MKV y MOV desde el navegador.' : 'Convert a single video between MP4, MKV, and MOV right in the browser.'
+  if (id === 'video-extract-audio') return locale === 'es' ? 'Separa el audio de un video MP4, MKV o MOV y exportalo en MP3 o WAV.' : 'Separate audio from an MP4, MKV, or MOV video and export it as MP3 or WAV.'
+  if (id === 'video-remove-audio') return locale === 'es' ? 'Genera una copia silenciosa de un video MP4, MKV o MOV sin tocar la imagen.' : 'Generate a silent copy of an MP4, MKV, or MOV video without changing the picture.'
+  if (id === 'video-resize') return locale === 'es' ? 'Cambia el ancho y alto de un video MP4, MKV o MOV y exporta una nueva version.' : 'Change the width and height of an MP4, MKV, or MOV video and export a resized version.'
+  if (id === 'video-speed') return locale === 'es' ? 'Acelera o ralentiza un video MP4, MKV o MOV con salidas a 0.5x, 1x, 1.5x o 2x.' : 'Speed up or slow down an MP4, MKV, or MOV video with 0.5x, 1x, 1.5x, or 2x outputs.'
+  if (id === 'video-trim') return locale === 'es' ? 'Recorta un fragmento de un video MP4, MKV o MOV y exporta solo el tramo que necesitas.' : 'Trim one segment from an MP4, MKV, or MOV video and export only the clip you need.'
   if (id === 'image-crop') return locale === 'es' ? 'Recorta una imagen y exporta solo el area que necesitas sin salir del navegador.' : 'Crop one image and export only the area you need directly in the browser.'
   if (id === 'image-transform') return locale === 'es' ? 'Rota una imagen o volteala horizontal y verticalmente antes de descargarla.' : 'Rotate an image or flip it horizontally and vertically before downloading it.'
   if (id === 'image-remove-background') return locale === 'es' ? 'Intenta quitar fondos lisos o uniformes y exporta la imagen en PNG con transparencia.' : 'Attempts to remove plain or uniform backgrounds and exports the image as a transparent PNG.'

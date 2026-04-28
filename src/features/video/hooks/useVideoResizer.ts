@@ -3,7 +3,8 @@ import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
-import type { MergeProgress } from '../../../types/video'
+import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
+import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
@@ -12,18 +13,14 @@ interface ResizeResult {
   url: string
   fileName: string
   size: number
-  outputFormat: 'mp4' | 'mkv'
+  outputFormat: VideoOutputFormat
   width: number
   height: number
 }
 
-function createOutputName(fileName: string, outputFormat: 'mp4' | 'mkv') {
+function createOutputName(fileName: string, outputFormat: VideoOutputFormat) {
   const baseName = fileName.replace(/\.[^.]+$/, '') || 'video'
   return `${baseName}-resized.${outputFormat}`
-}
-
-function getVideoMimeType(outputFormat: 'mp4' | 'mkv') {
-  return outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4'
 }
 
 export function useVideoResizer() {
@@ -123,7 +120,7 @@ export function useVideoResizer() {
 
     try {
       ffmpeg = await ensureLoaded()
-      const outputFormat = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
+      const outputFormat = getVideoExtension(file)
       const inputExtension = outputFormat
       inputName = `input.${inputExtension}`
       outputName = `output.${outputFormat}`
@@ -159,7 +156,7 @@ export function useVideoResizer() {
         'aac',
         '-b:a',
         '192k',
-        ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+        ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []),
         outputName,
       ])
 
