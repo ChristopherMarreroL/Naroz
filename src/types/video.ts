@@ -8,7 +8,7 @@ export interface VideoItem {
   height: number | null
   previewUrl: string
   type: string
-  extension: 'mp4' | 'mkv'
+  extension: VideoOutputFormat
   warnings: string[]
 }
 
@@ -20,7 +20,7 @@ export interface MergeProgress {
 }
 
 export type MergeStrategy = 'fast' | 'compatible'
-export type VideoOutputFormat = 'mp4' | 'mkv'
+export type VideoOutputFormat = 'mp4' | 'mkv' | 'mov'
 
 export interface MergeResult {
   blob: Blob

@@ -4,6 +4,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
+import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
@@ -116,7 +117,7 @@ export function useVideoConverter() {
 
     try {
       ffmpeg = await ensureLoaded()
-      const inputExtension = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
+      const inputExtension = getVideoExtension(file)
       inputName = `input.${inputExtension}`
       outputName = `output.${outputFormat}`
 
@@ -145,7 +146,7 @@ export function useVideoConverter() {
 
       await ffmpeg.exec(
         copyOnly
-          ? ['-i', inputName, '-c', 'copy', ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []), outputName]
+          ? ['-i', inputName, '-c', 'copy', ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []), outputName]
           : [
               '-i',
               inputName,
@@ -163,7 +164,7 @@ export function useVideoConverter() {
               'aac',
               '-b:a',
               '192k',
-              ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+              ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []),
               outputName,
             ],
       )
@@ -176,7 +177,7 @@ export function useVideoConverter() {
       const bytes = outputData instanceof Uint8Array ? outputData : new Uint8Array(outputData)
       const copy = new Uint8Array(bytes.byteLength)
       copy.set(bytes)
-      const blob = new Blob([copy.buffer], { type: outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4' })
+      const blob = new Blob([copy.buffer], { type: getVideoMimeType(outputFormat) })
       const convertedResult: ConvertResult = {
         blob,
         url: URL.createObjectURL(blob),

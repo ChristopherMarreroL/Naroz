@@ -14,10 +14,10 @@ export function FilePicker({ onSelect, disabled = false }: FilePickerProps) {
       title={t('mergeVideos')}
       description={t('mergeLocalInfo')}
       buttonLabel={t('selectVideo')}
-      accept="video/mp4,.mp4,video/x-matroska,.mkv"
+      accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
       multiple
       disabled={disabled}
-      aside={<span className="badge">MP4 / MKV</span>}
+      aside={<span className="badge">MP4 / MKV / MOV</span>}
       onSelect={(files) => {
         if (files?.length) {
           onSelect(files)

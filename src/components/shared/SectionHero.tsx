@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { useLocale } from '../../i18n/LocaleProvider'
 import narozLogo from '../../assets/naroz-logo.svg'
 
 interface SectionHeroProps {
@@ -10,6 +11,8 @@ interface SectionHeroProps {
 }
 
 export function SectionHero({ badge, title, description, aside }: SectionHeroProps) {
+  const { t } = useLocale()
+
   return (
     <section className="panel relative z-0 min-w-0 overflow-hidden px-4 py-5 sm:px-7 sm:py-6 lg:px-8 lg:py-5 xl:py-6">
       <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.08),transparent_70%)] sm:h-28" />
@@ -18,7 +21,7 @@ export function SectionHero({ badge, title, description, aside }: SectionHeroPro
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] border border-slate-200 bg-white p-2 shadow-[0_18px_34px_-24px_rgba(15,23,42,0.45)]">
-              <img src={narozLogo} alt="Naroz logo" className="h-full w-full object-contain" />
+              <img src={narozLogo} alt={t('narozLogoAlt')} className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-slate-400">Naroz</p>

@@ -170,6 +170,15 @@ function App() {
     }
   }
 
+  const handleReloadHome = () => {
+    if (location.pathname === '/') {
+      window.location.reload()
+      return
+    }
+
+    window.location.assign('/')
+  }
+
   const activeItem = sidebarItems.find((item) => item.id === activeTool) ?? sidebarItems[0]
 
   const activeSection: AppSectionId = activeItem.section
@@ -177,7 +186,7 @@ function App() {
   return (
     <>
       <SeoHead />
-      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={() => handleNavigate('home')}>
+      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={handleReloadHome}>
         {activeTool === 'home' ? <div className={getToolViewClassName(true)}><HomeView onNavigate={handleNavigate} /></div> : null}
         {activeTool === 'video-merge' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense></div> : null}
         {activeTool === 'video-convert' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}

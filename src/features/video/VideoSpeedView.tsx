@@ -109,7 +109,7 @@ export function VideoSpeedView() {
           <div className="rounded-[1.5rem] border border-slate-900/10 bg-slate-950 p-5 text-slate-50 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">{t('currentScope')}</p>
             <div className="mt-4 space-y-2 text-sm text-slate-200">
-              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 / MKV</div>
+              <div className="rounded-2xl bg-white/8 px-4 py-3">{t('input')}: MP4 / MKV / MOV</div>
               <div className="rounded-2xl bg-white/8 px-4 py-3">{t('output')}: {t('keepFormat')}</div>
               <div className="rounded-2xl bg-white/8 px-4 py-3">{t('playbackSpeed')}: 0.5x / 1x / 1.5x / 2x</div>
             </div>
@@ -123,9 +123,9 @@ export function VideoSpeedView() {
             title={t('changeSpeedCardTitle')}
             description={t('changeSpeedCardDesc')}
             buttonLabel={t('selectVideo')}
-            accept="video/mp4,.mp4,video/x-matroska,.mkv"
+            accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
             disabled={isProcessing}
-            aside={<span className="badge">MP4 / MKV</span>}
+            aside={<span className="badge">MP4 / MKV / MOV</span>}
             onSelect={(files) => void handleSelectFile(files)}
           />
 

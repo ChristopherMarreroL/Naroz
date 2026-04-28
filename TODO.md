@@ -21,6 +21,7 @@
 - [x] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
-- [ ] Convertir MSG a PDF
+- [x] Convertir MSG a PDF
 - [x] Remover fondo de imagen
 - [ ] Editor de PDF
+- [x] Agregar MOV en herramientas de video
