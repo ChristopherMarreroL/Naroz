@@ -3,6 +3,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../i18n/LocaleProvider'
+import { getVideoMimeType, shouldUseFastStart } from '../lib/media'
 import type { MergeProgress, MergeResult, MergeStrategy, VideoItem, VideoOutputFormat } from '../types/video'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
@@ -58,12 +59,7 @@ async function verifyOutputDuration(url: string, videos: VideoItem[]) {
   const expectedDuration = getExpectedDuration(videos)
   const outputDuration = await loadBlobDuration(url)
 
-  if (
-    videos.length > 1 &&
-    expectedDuration > 0 &&
-    outputDuration !== null &&
-    outputDuration < expectedDuration * 0.85
-  ) {
+  if (videos.length > 1 && expectedDuration > 0 && outputDuration !== null && (outputDuration < expectedDuration * 0.85 || outputDuration > expectedDuration * 1.15)) {
     URL.revokeObjectURL(url)
     throw new Error('INCOMPLETE_OUTPUT')
   }
@@ -72,7 +68,7 @@ async function verifyOutputDuration(url: string, videos: VideoItem[]) {
 function getOutputSettings(outputFormat: VideoOutputFormat) {
   return {
     extension: outputFormat,
-    mimeType: outputFormat === 'mkv' ? 'video/x-matroska' : 'video/mp4',
+    mimeType: getVideoMimeType(outputFormat),
     fileName: createOutputFileName(outputFormat),
   }
 }
@@ -224,7 +220,7 @@ export function useVideoMerger() {
   const mergeVideos = useCallback(
     async (videos: VideoItem[], strategy: MergeStrategy, outputFormat: VideoOutputFormat) => {
       if (videos.length === 0) {
-        setError(locale === 'es' ? 'Selecciona al menos un video MP4 o MKV antes de unir.' : 'Select at least one MP4 or MKV video before merging.')
+        setError(locale === 'es' ? 'Selecciona al menos un video MP4, MKV o MOV antes de unir.' : 'Select at least one MP4, MKV, or MOV video before merging.')
         setProgress({
           stage: 'error',
           percent: 0,
@@ -265,9 +261,9 @@ export function useVideoMerger() {
         if (strategy === 'fast') {
           validateFastMode(videos, outputFormat)
 
-          if (outputFormat === 'mp4') {
+          if (shouldUseFastStart(outputFormat)) {
             for (let index = 0; index < inputFileNames.length; index += 1) {
-              const normalizedName = `fast-normalized-${index}.mp4`
+              const normalizedName = `fast-normalized-${index}.${outputFormat}`
               const transportName = `fast-${index}.ts`
 
               normalizedFileNames.push(normalizedName)
@@ -278,10 +274,12 @@ export function useVideoMerger() {
                 start: 12 + Math.round((index / inputFileNames.length) * 28),
                 end: 22 + Math.round(((index + 1) / inputFileNames.length) * 28),
                  message: locale === 'es' ? `Preparando video ${index + 1} de ${inputFileNames.length}...` : `Preparing video ${index + 1} of ${inputFileNames.length}...`,
-                 detail: locale === 'es' ? 'Ajustando el audio para mantener compatibilidad en la salida MP4.' : 'Adjusting audio to keep MP4 output compatible.',
+                 detail: locale === 'es' ? `Ajustando audio y tiempos para mantener compatibilidad en la salida ${outputFormat.toUpperCase()}.` : `Adjusting audio and timestamps for ${outputFormat.toUpperCase()} output compatibility.`,
                })
 
               await ffmpeg.exec([
+                '-fflags',
+                '+genpts',
                 '-i',
                 inputFileNames[index],
                 '-map',
@@ -300,6 +298,8 @@ export function useVideoMerger() {
                 '2',
                 '-movflags',
                 '+faststart',
+                '-avoid_negative_ts',
+                'make_zero',
                 normalizedName,
               ])
 
@@ -307,11 +307,13 @@ export function useVideoMerger() {
                 stage: 'preparing',
                 start: 22 + Math.round((index / inputFileNames.length) * 22),
                 end: 32 + Math.round(((index + 1) / inputFileNames.length) * 22),
-                 message: locale === 'es' ? `Optimizando video ${index + 1} de ${inputFileNames.length}...` : `Optimizing video ${index + 1} of ${inputFileNames.length}...`,
-                 detail: locale === 'es' ? 'Convirtiendo a flujo intermedio rapido antes de unir.' : 'Converting to a fast intermediate stream before merging.',
-               })
+                  message: locale === 'es' ? `Optimizando video ${index + 1} de ${inputFileNames.length}...` : `Optimizing video ${index + 1} of ${inputFileNames.length}...`,
+                  detail: locale === 'es' ? 'Creando un flujo intermedio rapido con tiempos regenerados antes de unir.' : 'Creating a fast intermediate stream with regenerated timestamps before merging.',
+                })
 
               await ffmpeg.exec([
+                '-fflags',
+                '+genpts',
                 '-i',
                 normalizedName,
                 '-c',
@@ -329,7 +331,7 @@ export function useVideoMerger() {
               start: 68,
               end: 96,
                message: locale === 'es' ? 'Uniendo videos...' : 'Merging videos...',
-               detail: locale === 'es' ? 'Empaquetando la salida final en MP4.' : 'Packaging the final output as MP4.',
+               detail: locale === 'es' ? `Empaquetando la salida final en ${outputFormat.toUpperCase()}.` : `Packaging the final output as ${outputFormat.toUpperCase()}.`,
             })
 
             await ffmpeg.exec([
@@ -356,7 +358,7 @@ export function useVideoMerger() {
               start: 16,
               end: 96,
                message: locale === 'es' ? 'Uniendo videos...' : 'Merging videos...',
-               detail: locale === 'es' ? 'Todos ya son MKV compatibles, asi que se uniran sin conversion pesada.' : 'All files are already compatible MKV files, so they will merge without heavy conversion.',
+               detail: locale === 'es' ? `Todos ya son ${outputFormat.toUpperCase()} compatibles, asi que se uniran sin conversion pesada.` : `All files are already compatible ${outputFormat.toUpperCase()} files, so they will merge without heavy conversion.`,
             })
 
             await ffmpeg.exec([
@@ -409,15 +411,34 @@ export function useVideoMerger() {
               '48000',
               '-ac',
               '2',
-              ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
+              ...(shouldUseFastStart(outputFormat) ? ['-movflags', '+faststart'] : []),
               normalizedName,
             ])
           }
 
-          const concatList = normalizedFileNames.map((fileName) => `file '${fileName}'`).join('\n')
-          await ffmpeg.writeFile('inputs.txt', new TextEncoder().encode(concatList))
+            if (shouldUseFastStart(outputFormat)) {
+              for (let index = 0; index < normalizedFileNames.length; index += 1) {
+                const transportName = `compatible-${index}.ts`
+                transportStreamFileNames.push(transportName)
 
-          setProgressPhase({
+                await ffmpeg.exec([
+                  '-i',
+                  normalizedFileNames[index],
+                  '-c',
+                  'copy',
+                  '-bsf:v',
+                  'h264_mp4toannexb',
+                  '-f',
+                  'mpegts',
+                  transportName,
+                ])
+              }
+            } else {
+              const concatList = normalizedFileNames.map((fileName) => `file '${fileName}'`).join('\n')
+              await ffmpeg.writeFile('inputs.txt', new TextEncoder().encode(concatList))
+            }
+
+            setProgressPhase({
             stage: 'merging',
             start: 74,
             end: 96,
@@ -425,18 +446,35 @@ export function useVideoMerger() {
              detail: locale === 'es' ? `Todos los videos convertidos se estan uniendo en ${outputFormat.toUpperCase()}.` : `All converted videos are being merged into ${outputFormat.toUpperCase()}.`,
            })
 
-          await ffmpeg.exec([
-            '-f',
-            'concat',
-            '-safe',
-            '0',
-            '-i',
-            'inputs.txt',
-            '-c',
-            'copy',
-            ...(outputFormat === 'mp4' ? ['-movflags', '+faststart'] : []),
-            outputFileName,
-          ])
+          if (shouldUseFastStart(outputFormat)) {
+            await ffmpeg.exec([
+              '-fflags',
+              '+genpts',
+              '-f',
+              'mpegts',
+              '-i',
+              `concat:${transportStreamFileNames.join('|')}`,
+              '-c',
+              'copy',
+              '-bsf:a',
+              'aac_adtstoasc',
+              '-movflags',
+              '+faststart',
+              outputFileName,
+            ])
+          } else {
+            await ffmpeg.exec([
+              '-f',
+              'concat',
+              '-safe',
+              '0',
+              '-i',
+              'inputs.txt',
+              '-c',
+              'copy',
+              outputFileName,
+            ])
+          }
         }
 
         const outputData = await ffmpeg.readFile(outputFileName)

@@ -12,7 +12,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose }: SidebarProps) {
-  const { locale, t } = useLocale()
+  const { t } = useLocale()
   const sectionLabels: Record<AppSectionId, string> = {
     general: t('general'),
     video: t('video'),
@@ -26,9 +26,9 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-3 py-2">
-              <img src={narozLogo} alt="Naroz logo" className="h-10 w-10 rounded-2xl bg-white object-contain p-1.5 shadow-[0_12px_24px_-18px_rgba(15,23,42,0.5)]" />
+              <img src={narozLogo} alt={t('narozLogoAlt')} className="h-10 w-10 rounded-2xl bg-white object-contain p-1.5 shadow-[0_12px_24px_-18px_rgba(15,23,42,0.5)]" />
               <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-slate-400">Brand</p>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-slate-400">{t('brandLabel')}</p>
                 <p className="text-sm font-bold text-slate-900">Naroz</p>
               </div>
             </div>
@@ -37,7 +37,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
 
           <button
             type="button"
-            aria-label={locale === 'es' ? 'Cerrar navegacion' : 'Close navigation'}
+            aria-label={t('closeNavigation')}
             className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
             onClick={onClose}
           >

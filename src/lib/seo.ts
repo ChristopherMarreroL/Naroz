@@ -45,32 +45,32 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     },
   },
   'video-merge': {
-    es: { title: 'Unir videos - Naroz', description: 'Une varios videos MP4 o MKV en una sola exportacion desde el navegador.' },
-    en: { title: 'Merge videos - Naroz', description: 'Merge multiple MP4 or MKV videos into one export directly in the browser.' },
+    es: { title: 'Unir videos - Naroz', description: 'Une varios videos MP4, MKV o MOV en una sola exportacion desde el navegador.' },
+    en: { title: 'Merge videos - Naroz', description: 'Merge multiple MP4, MKV, or MOV videos into one export directly in the browser.' },
   },
   'video-convert': {
-    es: { title: 'Convertir video - Naroz', description: 'Convierte videos entre MP4 y MKV desde una sola herramienta web.' },
-    en: { title: 'Convert video - Naroz', description: 'Convert videos between MP4 and MKV from a single web tool.' },
+    es: { title: 'Convertir video - Naroz', description: 'Convierte videos entre MP4, MKV y MOV desde una sola herramienta web.' },
+    en: { title: 'Convert video - Naroz', description: 'Convert videos between MP4, MKV, and MOV from a single web tool.' },
   },
   'video-trim': {
     es: { title: 'Recortar video - Naroz', description: 'Recorta un fragmento de video con vista previa y exportacion local.' },
     en: { title: 'Trim video - Naroz', description: 'Trim a video segment with preview and local export.' },
   },
   'video-extract-audio': {
-    es: { title: 'Extraer audio - Naroz', description: 'Extrae el audio de un video MP4 o MKV y descargalo como MP3 o WAV.' },
-    en: { title: 'Extract audio - Naroz', description: 'Extract audio from an MP4 or MKV video and download it as MP3 or WAV.' },
+    es: { title: 'Extraer audio - Naroz', description: 'Extrae el audio de un video MP4, MKV o MOV y descargalo como MP3 o WAV.' },
+    en: { title: 'Extract audio - Naroz', description: 'Extract audio from an MP4, MKV, or MOV video and download it as MP3 or WAV.' },
   },
   'video-remove-audio': {
     es: { title: 'Eliminar audio - Naroz', description: 'Genera una copia silenciosa de un video manteniendo la imagen.' },
     en: { title: 'Remove audio - Naroz', description: 'Generate a silent copy of a video while keeping the picture.' },
   },
   'video-resize': {
-    es: { title: 'Cambiar resolucion de video - Naroz', description: 'Redimensiona videos MP4 o MKV con presets y exportacion local.' },
-    en: { title: 'Resize video - Naroz', description: 'Resize MP4 or MKV videos with presets and local export.' },
+    es: { title: 'Cambiar resolucion de video - Naroz', description: 'Redimensiona videos MP4, MKV o MOV con presets y exportacion local.' },
+    en: { title: 'Resize video - Naroz', description: 'Resize MP4, MKV, or MOV videos with presets and local export.' },
   },
   'video-speed': {
-    es: { title: 'Cambiar velocidad de video - Naroz', description: 'Ajusta videos MP4 o MKV a 0.5x, 1x, 1.5x o 2x desde el navegador.' },
-    en: { title: 'Change video speed - Naroz', description: 'Adjust MP4 or MKV videos to 0.5x, 1x, 1.5x, or 2x directly in the browser.' },
+    es: { title: 'Cambiar velocidad de video - Naroz', description: 'Ajusta videos MP4, MKV o MOV a 0.5x, 1x, 1.5x o 2x desde el navegador.' },
+    en: { title: 'Change video speed - Naroz', description: 'Adjust MP4, MKV, or MOV videos to 0.5x, 1x, 1.5x, or 2x directly in the browser.' },
   },
   'image-convert': {
     es: { title: 'Convertir imagen - Naroz', description: 'Convierte imagenes entre JPG, PNG, WebP, AVIF, GIF e ICO.' },

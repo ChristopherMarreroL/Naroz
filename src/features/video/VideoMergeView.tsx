@@ -170,6 +170,7 @@ export function VideoMergeView() {
                   >
                     <option value="mp4">MP4</option>
                     <option value="mkv">MKV</option>
+                    <option value="mov">MOV</option>
                   </select>
                 </div>
                 <p className="mt-4 text-xs leading-5 text-slate-500">

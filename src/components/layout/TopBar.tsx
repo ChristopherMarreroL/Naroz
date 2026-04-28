@@ -19,7 +19,7 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
           <div className="flex items-center gap-3">
             <button
               type="button"
-              aria-label={locale === 'es' ? 'Abrir navegacion' : 'Open navigation'}
+              aria-label={t('openNavigation')}
               className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 transition hover:bg-slate-50"
               onClick={onOpenSidebar}
             >
@@ -31,9 +31,10 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
             <button
               type="button"
               onClick={onGoHome}
+              aria-label={t('goHomeReload')}
               className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50"
             >
-              <img src={narozLogo} alt="Naroz logo" className="h-6 w-6 rounded-full bg-white/10 object-contain" />
+              <img src={narozLogo} alt={t('narozLogoAlt')} className="h-6 w-6 rounded-full bg-white/10 object-contain" />
               Naroz
             </button>
           </div>

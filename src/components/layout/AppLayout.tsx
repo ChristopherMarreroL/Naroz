@@ -16,7 +16,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, items, activeTool, activeSection, onNavigate, onGoHome }: AppLayoutProps) {
-  const { locale, setLocale } = useLocale()
+  const { locale, setLocale, t } = useLocale()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   return (
@@ -29,7 +29,7 @@ export function AppLayout({ children, items, activeTool, activeSection, onNaviga
           <>
             <button
               type="button"
-              aria-label={locale === 'es' ? 'Cerrar navegacion' : 'Close navigation'}
+              aria-label={t('closeNavigation')}
               className="backdrop-enter fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px]"
               onClick={() => setIsSidebarOpen(false)}
             />

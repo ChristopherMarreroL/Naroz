@@ -4,6 +4,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { MergeProgress } from '../../../types/video'
+import { getVideoExtension } from '../lib/media'
 
 const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
@@ -123,7 +124,7 @@ export function useAudioExtractor() {
 
     try {
       ffmpeg = await ensureLoaded()
-      const inputExtension = file.name.toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4'
+      const inputExtension = getVideoExtension(file)
       inputName = `input.${inputExtension}`
       outputName = `output.${outputFormat}`
 
