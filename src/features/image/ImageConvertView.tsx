@@ -286,10 +286,10 @@ export function ImageConvertView() {
             title={t('loadImage')}
             description={t('imageConvertDesc')}
             buttonLabel={t('selectImage')}
-            accept="image/jpeg,image/png,image/webp,image/svg+xml,.jpg,.jpeg,.png,.webp,.svg"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/x-icon,image/vnd.microsoft.icon,image/svg+xml,.jpg,.jpeg,.png,.webp,.avif,.gif,.ico,.svg"
             multiple
             disabled={isConverting}
-            aside={<span className="badge">JPG / PNG / WebP / SVG</span>}
+            aside={<span className="badge">JPG / PNG / WebP / AVIF / GIF / ICO / SVG</span>}
             onSelect={(files) => {
               void handleSelectedFiles(files)
             }}
