@@ -2,7 +2,17 @@ import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 
 import type { ConvertedImageResult, ImageOutputFormat } from '../types'
 
-const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'])
+const SUPPORTED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+  'image/svg+xml',
+])
+const SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif', '.ico', '.svg']
 
 function getMimeType(format: ImageOutputFormat): string {
   if (format === 'jpeg') {
@@ -37,7 +47,12 @@ function getFormatLabel(format: ImageOutputFormat): string {
 }
 
 export function isSupportedImageType(file: File): boolean {
-  return SUPPORTED_IMAGE_TYPES.has(file.type)
+  if (SUPPORTED_IMAGE_TYPES.has(file.type)) {
+    return true
+  }
+
+  const lowerName = file.name.toLowerCase()
+  return SUPPORTED_IMAGE_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
 }
 
 export function getImageExtensionLabel(file: File): string {
@@ -47,6 +62,18 @@ export function getImageExtensionLabel(file: File): string {
 
   if (file.type === 'image/webp') {
     return 'WEBP'
+  }
+
+  if (file.type === 'image/avif' || file.name.toLowerCase().endsWith('.avif')) {
+    return 'AVIF'
+  }
+
+  if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+    return 'GIF'
+  }
+
+  if (file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon' || file.name.toLowerCase().endsWith('.ico')) {
+    return 'ICO'
   }
 
   if (file.type === 'image/svg+xml') {

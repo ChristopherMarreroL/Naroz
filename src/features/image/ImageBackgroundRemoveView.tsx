@@ -9,8 +9,11 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { preloadBackgroundRemoval, removeBackgroundFromImage } from './lib/backgroundRemoval'
-import { getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
+import { getImageExtensionLabel } from './lib/imageConverter'
 import type { ConvertedImageResult, ImageUploadState } from './types'
+
+const BACKGROUND_REMOVAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const BACKGROUND_REMOVAL_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 
 interface Notice {
   tone: 'error' | 'warning' | 'success' | 'info'
@@ -36,6 +39,15 @@ function loadImagePreview(file: File): Promise<ImageUploadState> {
     }
     image.src = previewUrl
   })
+}
+
+function isSupportedBackgroundRemovalImage(file: File) {
+  if (BACKGROUND_REMOVAL_TYPES.has(file.type)) {
+    return true
+  }
+
+  const lowerName = file.name.toLowerCase()
+  return BACKGROUND_REMOVAL_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
 }
 
 export function ImageBackgroundRemoveView() {
@@ -95,11 +107,11 @@ export function ImageBackgroundRemoveView() {
 
     clearResult()
 
-    if (!isSupportedImageType(file)) {
+    if (!isSupportedBackgroundRemovalImage(file)) {
       setNotice({
         tone: 'error',
         title: t('unsupportedImage'),
-        message: t('imageInputSupported'),
+        message: t('backgroundInputSupported'),
       })
       return
     }
@@ -134,7 +146,7 @@ export function ImageBackgroundRemoveView() {
       setNotice({
         tone: 'error',
         title: t('imageMissing'),
-        message: t('selectImageFirst'),
+        message: t('selectBackgroundImageFirst'),
       })
       return
     }
@@ -175,7 +187,7 @@ export function ImageBackgroundRemoveView() {
           <div className="rounded-[1.6rem] border border-slate-900/10 bg-slate-950 p-5 text-slate-50 shadow-[0_26px_60px_-34px_rgba(15,23,42,0.78)] sm:p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">{t('formatsAvailable')}</p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
-              <li>{t('imageInputLine')}</li>
+              <li>{t('backgroundInputLine')}</li>
               <li>2. {t('transparencyOutput')}: PNG</li>
               <li>3. {t('removeBackgroundAutomaticHint')}</li>
             </ul>
