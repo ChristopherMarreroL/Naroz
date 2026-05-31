@@ -16,6 +16,7 @@
     "@imgly/background-removal": "^1.7.0",
     "@kenjiuno/msgreader": "^1.28.0",
     "@tailwindcss/vite": "^4.2.2",
+    "@vercel/analytics": "^2.0.1",
     "buffer": "^6.0.3",
     "docx-merger": "^1.2.2",
     "gifenc": "^1.0.3",
