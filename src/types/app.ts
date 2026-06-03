@@ -18,6 +18,7 @@ export type AppToolId =
   | 'document-delete-pages'
   | 'document-merge-docx'
   | 'document-msg-to-pdf'
+  | 'document-excel-column-builder'
 
 export interface SidebarItem {
   id: AppToolId
