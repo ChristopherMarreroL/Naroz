@@ -54,15 +54,17 @@ export function useVideoQueue() {
     })
   }, [])
 
-  const moveVideo = useCallback((fromIndex: number, toIndex: number) => {
+  const reorderVideo = useCallback((sourceId: string, targetId: string) => {
     setVideos((current) => {
-      if (toIndex < 0 || toIndex >= current.length) {
+      const sourceIndex = current.findIndex((video) => video.id === sourceId)
+      const targetIndex = current.findIndex((video) => video.id === targetId)
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
         return current
       }
 
       const next = [...current]
-      const [movedItem] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, movedItem)
+      const [movedItem] = next.splice(sourceIndex, 1)
+      next.splice(targetIndex, 0, movedItem)
       return next
     })
   }, [])
@@ -77,7 +79,7 @@ export function useVideoQueue() {
     addVideos,
     removeVideo,
     clearVideos,
-    moveVideo,
+    reorderVideo,
     totalDuration,
   }
 }

@@ -23,7 +23,7 @@ interface Notice {
 
 export function VideoMergeView() {
   const { locale, t } = useLocale()
-  const { videos, addVideos, removeVideo, clearVideos, moveVideo, totalDuration } = useVideoQueue()
+  const { videos, addVideos, removeVideo, clearVideos, reorderVideo, totalDuration } = useVideoQueue()
   const { progress, isLoadingEngine, isProcessing, result, error, ensureLoaded, mergeVideos } = useVideoMerger()
   const [outputFormat, setOutputFormat] = useState<VideoOutputFormat>('mp4')
   const [notice, setNotice] = useState<Notice | null>({
@@ -121,7 +121,7 @@ export function VideoMergeView() {
             videos={videos}
             totalDuration={totalDuration}
             disabled={isProcessing}
-            onMove={moveVideo}
+            onReorder={reorderVideo}
             onRemove={removeVideo}
             onClear={() => {
               clearVideos()

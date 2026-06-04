@@ -43,7 +43,7 @@ export function isSupportedMailFile(file: File): boolean {
 }
 
 export function moveDocument(items: DocumentItem[], from: number, to: number) {
-  if (to < 0 || to >= items.length || from === to) {
+  if (from < 0 || from >= items.length || to < 0 || to >= items.length || from === to) {
     return items
   }
 

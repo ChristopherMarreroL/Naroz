@@ -140,8 +140,8 @@ export function ExcelColumnBuilderView() {
 
   const changeSelectedSheet = (fileId: string, sheetName: string) => {
     clearResult()
+    setActiveFileId(fileId)
     setFiles((current) => current.map((file) => (file.id === fileId ? { ...file, selectedSheetName: sheetName } : file)))
-    setSelectedColumns((current) => current.filter((column) => column.fileId !== fileId))
   }
 
   const toggleColumn = (columnIndex: number) => {
@@ -160,18 +160,18 @@ export function ExcelColumnBuilderView() {
     })
   }
 
-  const moveColumn = (columnId: string, direction: 'up' | 'down') => {
+  const reorderColumn = (sourceColumnId: string, targetColumnId: string) => {
     clearResult()
     setSelectedColumns((current) => {
-      const index = current.findIndex((column) => column.id === columnId)
-      const nextIndex = direction === 'up' ? index - 1 : index + 1
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) {
+      const sourceIndex = current.findIndex((column) => column.id === sourceColumnId)
+      const targetIndex = current.findIndex((column) => column.id === targetColumnId)
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
         return current
       }
 
       const nextColumns = [...current]
-      const [item] = nextColumns.splice(index, 1)
-      nextColumns.splice(nextIndex, 0, item)
+      const [item] = nextColumns.splice(sourceIndex, 1)
+      nextColumns.splice(targetIndex, 0, item)
       return nextColumns
     })
   }
@@ -231,8 +231,8 @@ export function ExcelColumnBuilderView() {
         }
       />
 
-      <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="grid gap-6">
+      <div className="grid min-w-0 gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="grid min-w-0 gap-6">
           <section className="panel p-6 sm:p-8">
             <FileDropzone
               title={t('excelColumnBuilderCardTitle')}
@@ -252,7 +252,20 @@ export function ExcelColumnBuilderView() {
                 {files.map((file) => {
                   const isActive = file.id === activeFile?.id
                   return (
-                    <article key={file.id} className={`rounded-2xl border p-4 transition ${isActive ? 'border-slate-900 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'}`}>
+                    <article
+                      key={file.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isActive}
+                      onClick={() => setActiveFileId(file.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setActiveFileId(file.id)
+                        }
+                      }}
+                      className={`rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-slate-900/20 ${isActive ? 'border-slate-900 bg-slate-950 text-white' : 'cursor-pointer border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50'}`}
+                    >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center">
                         <div className="min-w-0">
                           <p className="break-words text-sm font-bold">{file.name}</p>
@@ -266,6 +279,7 @@ export function ExcelColumnBuilderView() {
                           <select
                             value={file.selectedSheetName}
                             onChange={(event) => changeSelectedSheet(file.id, event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
                             className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
                             disabled={isReading || isGenerating}
                           >
@@ -276,10 +290,16 @@ export function ExcelColumnBuilderView() {
                         </label>
 
                         <div className="flex flex-wrap gap-2 xl:justify-end">
-                          <button type="button" className={isActive ? 'btn-download px-3 py-2 text-xs' : 'btn-secondary px-3 py-2 text-xs'} onClick={() => setActiveFileId(file.id)}>
+                          <button type="button" className={isActive ? 'btn-download px-3 py-2 text-xs' : 'btn-secondary px-3 py-2 text-xs'} onClick={(event) => {
+                            event.stopPropagation()
+                            setActiveFileId(file.id)
+                          }}>
                             {t('viewLarge')}
                           </button>
-                          <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={() => removeFile(file.id)} disabled={isReading || isGenerating}>
+                          <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={(event) => {
+                            event.stopPropagation()
+                            removeFile(file.id)
+                          }} disabled={isReading || isGenerating}>
                             {t('remove')}
                           </button>
                         </div>
@@ -292,7 +312,7 @@ export function ExcelColumnBuilderView() {
           </section>
 
           {activeFile && activeSheet ? (
-            <section className="panel p-6 sm:p-8">
+            <section className="panel min-w-0 p-6 sm:p-8">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-extrabold text-slate-950">{activeFile.name}</h2>
@@ -318,7 +338,7 @@ export function ExcelColumnBuilderView() {
           )}
         </div>
 
-        <div className="grid content-start gap-6">
+        <div className="grid min-w-0 content-start gap-6">
           <SelectedColumnsSummary
             selectedColumns={selectedColumns}
             isGenerating={isGenerating}
@@ -326,7 +346,7 @@ export function ExcelColumnBuilderView() {
               clearResult()
               setSelectedColumns((current) => current.filter((column) => column.id !== columnId))
             }}
-            onMove={moveColumn}
+            onReorder={reorderColumn}
             onClear={clearSelection}
             onGenerate={generateExcel}
           />
