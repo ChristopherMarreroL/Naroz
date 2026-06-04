@@ -21,6 +21,7 @@
 - [x] Eliminar paginas
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
+- [x] Crear Excel desde columnas seleccionadas de varios archivos
 - [x] Convertir MSG a PDF
 - [x] Remover fondo de imagen
 - [ ] Editor de PDF

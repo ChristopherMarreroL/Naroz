@@ -104,8 +104,11 @@ export function PdfMergeView() {
               <DocumentQueue
                 items={items}
                 emptyMessage={t('emptyPdfQueue')}
-                onMoveUp={(index) => setItems((current) => moveDocument(current, index, index - 1))}
-                onMoveDown={(index) => setItems((current) => moveDocument(current, index, index + 1))}
+                onReorder={(sourceId, targetId) => setItems((current) => {
+                  const sourceIndex = current.findIndex((item) => item.id === sourceId)
+                  const targetIndex = current.findIndex((item) => item.id === targetId)
+                  return moveDocument(current, sourceIndex, targetIndex)
+                })}
                 onRemove={(id) => setItems((current) => current.filter((item) => item.id !== id))}
                 disabled={isProcessing}
               />

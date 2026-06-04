@@ -144,6 +144,15 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-excel-column-builder') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M5 4h14v16H5z" />
+        <path d="M9 4v16M15 4v16M5 9h14M5 15h14" />
+      </svg>
+    )
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
       <path d="M5 12h14M12 5v14" />

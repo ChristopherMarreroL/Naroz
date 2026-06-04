@@ -18,6 +18,7 @@ const routes = [
   '/document-delete-pages',
   '/document-merge-docx',
   '/msg-to-pdf',
+  '/excel-column-builder',
  ]
 
 function normalizeSiteUrl(value) {

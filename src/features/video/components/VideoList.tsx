@@ -1,3 +1,5 @@
+import { useRef, useState, type PointerEvent } from 'react'
+
 import { formatDuration } from '../../../lib/format'
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { VideoItem } from '../../../types/video'
@@ -7,13 +9,46 @@ interface VideoListProps {
   videos: VideoItem[]
   totalDuration: number
   disabled?: boolean
-  onMove: (fromIndex: number, toIndex: number) => void
+  onReorder: (sourceId: string, targetId: string) => void
   onRemove: (videoId: string) => void
   onClear: () => void
 }
 
-export function VideoList({ videos, totalDuration, disabled = false, onMove, onRemove, onClear }: VideoListProps) {
+export function VideoList({ videos, totalDuration, disabled = false, onReorder, onRemove, onClear }: VideoListProps) {
   const { t } = useLocale()
+  const draggingIdRef = useRef<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  const finishDragging = () => {
+    draggingIdRef.current = null
+    setDraggingId(null)
+  }
+
+  const handleDragStart = (event: PointerEvent<HTMLButtonElement>, videoId: string) => {
+    if (disabled) {
+      return
+    }
+
+    event.preventDefault()
+    draggingIdRef.current = videoId
+    setDraggingId(videoId)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handleDragMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const sourceId = draggingIdRef.current
+    if (!sourceId) {
+      return
+    }
+
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-video-item-id]')
+    const targetId = target?.dataset.videoItemId
+    if (!targetId || targetId === sourceId) {
+      return
+    }
+
+    onReorder(sourceId, targetId)
+  }
 
   return (
     <section className="panel p-6 sm:p-8">
@@ -38,10 +73,11 @@ export function VideoList({ videos, totalDuration, disabled = false, onMove, onR
             key={video.id}
             video={video}
             index={index}
-            total={videos.length}
             disabled={disabled}
-            onMoveUp={() => onMove(index, index - 1)}
-            onMoveDown={() => onMove(index, index + 1)}
+            isDragging={draggingId === video.id}
+            onDragStart={(event) => handleDragStart(event, video.id)}
+            onDragMove={handleDragMove}
+            onDragEnd={finishDragging}
             onRemove={() => onRemove(video.id)}
           />
         ))}
