@@ -153,6 +153,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-excel-join') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
+        <path d="M4 5h7v7H4zM13 12h7v7h-7z" />
+        <path d="M8 12v2a2 2 0 0 0 2 2h3M13 8h-3a2 2 0 0 0-2 2v2" />
+        <path d="M6.5 8h2M15.5 15h2" />
+      </svg>
+    )
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
       <path d="M5 12h14M12 5v14" />

@@ -18,6 +18,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-merge-docx': '/document-merge-docx',
   'document-msg-to-pdf': '/msg-to-pdf',
   'document-excel-column-builder': '/excel-column-builder',
+  'document-excel-join': '/excel-join',
 }
 
 export const ROUTABLE_TOOLS = Object.keys(TOOL_PATHS) as AppToolId[]

@@ -22,6 +22,7 @@
 - [ ] Convertir PDF a imagen
 - [ ] Imagen a PDF
 - [x] Crear Excel desde columnas seleccionadas de varios archivos
+- [x] Cruzar Excel por columna clave
 - [x] Convertir MSG a PDF
 - [x] Remover fondo de imagen
 - [ ] Editor de PDF

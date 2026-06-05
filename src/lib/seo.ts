@@ -108,6 +108,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     es: { title: 'Crear Excel desde columnas - Naroz', description: 'Sube varios archivos Excel, selecciona columnas especificas y genera un nuevo archivo Excel desde el navegador con Naroz.' },
     en: { title: 'Create Excel from columns - Naroz', description: 'Upload multiple Excel files, select specific columns, and generate a new Excel file directly in the browser with Naroz.' },
   },
+  'document-excel-join': {
+    es: { title: 'Cruzar Excel por columna clave - Naroz', description: 'Combina varios archivos Excel usando una columna en comun y genera un nuevo archivo cruzado desde el navegador con Naroz.' },
+    en: { title: 'Join Excel by key column - Naroz', description: 'Combine multiple Excel files using a shared key column and generate a joined file directly in the browser with Naroz.' },
+  },
 }
 
 export function getSeoContent(locale: Locale, tool: AppToolId = 'home') {
