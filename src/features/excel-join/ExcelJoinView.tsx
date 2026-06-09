@@ -57,6 +57,10 @@ function getSheetByName(file: ExcelFileData, sheetName: string) {
   return file.sheets.find((sheet) => sheet.name === sheetName) ?? file.sheets[0]
 }
 
+function getOutputSelectedSecondaryColumnIndexes(config: SecondaryJoinConfig) {
+  return config.selectedColumnIndexes.filter((columnIndex) => columnIndex !== config.keyColumnIndex)
+}
+
 function findMatchingColumnIndex(file: ExcelFileData, sheetName: string, primaryHeader: string | null) {
   if (!primaryHeader) {
     return null
@@ -123,8 +127,8 @@ export function ExcelJoinView() {
 
   const selectedSecondaryColumnCount = secondaryConfigs
     .filter((config) => config.fileId !== primaryFile?.id)
-    .reduce((count, config) => count + config.selectedColumnIndexes.length, 0)
-  const activeSecondaryConfigs = secondaryConfigs.filter((config) => config.fileId !== primaryFile?.id && config.selectedColumnIndexes.length > 0)
+    .reduce((count, config) => count + getOutputSelectedSecondaryColumnIndexes(config).length, 0)
+  const activeSecondaryConfigs = secondaryConfigs.filter((config) => config.fileId !== primaryFile?.id && getOutputSelectedSecondaryColumnIndexes(config).length > 0)
   const missingSecondaryKeyConfigs = activeSecondaryConfigs.filter((config) => primaryKeyHeader !== null && config.keyColumnIndex === null)
   const currentMissingSecondaryKeyFiles = secondaryFiles.filter((file) => {
     const sheet = getSelectedSheet(file)
@@ -316,6 +320,10 @@ export function ExcelJoinView() {
     }
 
     updateSecondaryConfig(fileId, sheetName, (config) => {
+      if (columnIndex === config.keyColumnIndex) {
+        return config
+      }
+
       const exists = config.selectedColumnIndexes.includes(columnIndex)
       return {
         ...config,
@@ -614,6 +622,7 @@ export function ExcelJoinView() {
                 {secondaryFiles.map((file) => {
                   const sheet = getSelectedSheet(file)
                   const config = getSecondaryConfig(file.id, sheet.name)
+                  const outputSelectedColumnIndexes = getOutputSelectedSecondaryColumnIndexes(config)
 
                   return (
                     <article key={file.id} className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -654,21 +663,22 @@ export function ExcelJoinView() {
                         </div>
                         <div className="grid max-h-44 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                         {sheet.headers.map((header, index) => (
-                          <label key={`${file.id}-${sheet.name}-${index}`} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition ${config.selectedColumnIndexes.includes(index) ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                          <label key={`${file.id}-${sheet.name}-${index}`} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition ${index === config.keyColumnIndex ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : outputSelectedColumnIndexes.includes(index) ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
                             <input
                               type="checkbox"
                               className="h-4 w-4 rounded border-slate-300"
-                              checked={config.selectedColumnIndexes.includes(index)}
+                              checked={outputSelectedColumnIndexes.includes(index)}
                               onChange={() => toggleSecondaryColumn(file.id, index)}
-                              disabled={isGenerating}
+                              disabled={isGenerating || index === config.keyColumnIndex}
                             />
                             <span className="min-w-0 truncate">{header}</span>
+                            {index === config.keyColumnIndex ? <span className="ml-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.12em]">{t('keyColumn')}</span> : null}
                           </label>
                         ))}
                         </div>
                       </div>
 
-                      <p className="mt-4 text-xs text-slate-500">{config.selectedColumnIndexes.length} {t('selected')}</p>
+                      <p className="mt-4 text-xs text-slate-500">{outputSelectedColumnIndexes.length} {t('selected')}</p>
                     </article>
                   )
                 })}
@@ -698,7 +708,8 @@ export function ExcelJoinView() {
                   file={previewFile}
                   sheet={previewSheet}
                   keyColumnIndex={previewKeyColumn}
-                  selectedColumnIndexes={previewFile.id === primaryFile?.id ? selectedPrimaryColumnIndexes : previewConfig?.selectedColumnIndexes ?? []}
+                  selectedColumnIndexes={previewFile.id === primaryFile?.id ? selectedPrimaryColumnIndexes : previewConfig ? getOutputSelectedSecondaryColumnIndexes(previewConfig) : []}
+                  lockedColumnIndexes={previewFile.id === primaryFile?.id || previewKeyColumn === null ? [] : [previewKeyColumn]}
                   onToggleColumn={
                     previewFile.id === primaryFile?.id
                       ? togglePrimaryColumn
@@ -752,7 +763,7 @@ export function ExcelJoinView() {
                     return null
                   }
 
-                  const selectedHeaders = config.selectedColumnIndexes.map((index) => sheet.headers[index]).filter(Boolean)
+                  const selectedHeaders = getOutputSelectedSecondaryColumnIndexes(config).map((index) => sheet.headers[index]).filter(Boolean)
 
                   return (
                     <article key={`${config.fileId}-${config.sheetName}`} className="rounded-2xl border border-slate-200 bg-white p-4">

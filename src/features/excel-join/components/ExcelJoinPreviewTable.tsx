@@ -8,6 +8,7 @@ interface ExcelJoinPreviewTableProps {
   sheet: ExcelSheetData
   keyColumnIndex?: number | null
   selectedColumnIndexes?: number[]
+  lockedColumnIndexes?: number[]
   onToggleColumn?: (columnIndex: number) => void
 }
 
@@ -28,10 +29,12 @@ export function ExcelJoinPreviewTable({
   sheet,
   keyColumnIndex = null,
   selectedColumnIndexes = [],
+  lockedColumnIndexes = [],
   onToggleColumn,
 }: ExcelJoinPreviewTableProps) {
   const { t } = useLocale()
   const selectedColumns = new Set(selectedColumnIndexes)
+  const lockedColumns = new Set(lockedColumnIndexes)
   const previewRows = sheet.rows.slice(0, PREVIEW_ROW_LIMIT)
 
   if (sheet.headers.length === 0) {
@@ -50,7 +53,8 @@ export function ExcelJoinPreviewTable({
             <tr>
               {sheet.headers.map((header, columnIndex) => {
                 const isKey = columnIndex === keyColumnIndex
-                const isSelected = selectedColumns.has(columnIndex)
+                const isLocked = lockedColumns.has(columnIndex)
+                const isSelected = selectedColumns.has(columnIndex) && !isLocked
 
                 return (
                   <th key={`${file.id}-${sheet.name}-${columnIndex}`} className="min-w-48 border-r border-white/10 px-3 py-3 align-top last:border-r-0">
@@ -60,6 +64,7 @@ export function ExcelJoinPreviewTable({
                           type="checkbox"
                           className="mt-1 h-4 w-4 rounded border-slate-300"
                           checked={isSelected}
+                          disabled={isLocked}
                           onChange={() => onToggleColumn(columnIndex)}
                         />
                       ) : null}

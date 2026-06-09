@@ -106,6 +106,13 @@ function createSecondaryLookup(file: ExcelFileData, config: SecondaryJoinConfig)
   return { lookup, duplicateKeys }
 }
 
+function getOutputSecondaryConfig(config: SecondaryJoinConfig) {
+  return {
+    ...config,
+    selectedColumnIndexes: config.selectedColumnIndexes.filter((columnIndex) => columnIndex !== config.keyColumnIndex),
+  }
+}
+
 export function buildJoinedExcelWorkbook({
   files,
   primaryFileId,
@@ -121,7 +128,10 @@ export function buildJoinedExcelWorkbook({
   const primarySheet = getSelectedSheet(primaryFile)
   const primaryOutputColumnIndexes = primarySelectedColumnIndexes.filter((columnIndex) => columnIndex >= 0 && columnIndex < primarySheet.headers.length)
   const primaryOutputHeaders = primaryOutputColumnIndexes.map((columnIndex) => primarySheet.headers[columnIndex] ?? `Columna ${columnIndex + 1}`)
-  const activeSecondaryConfigs = secondaryConfigs.filter((config) => config.fileId !== primaryFileId && config.selectedColumnIndexes.length > 0)
+  const activeSecondaryConfigs = secondaryConfigs
+    .filter((config) => config.fileId !== primaryFileId)
+    .map(getOutputSecondaryConfig)
+    .filter((config) => config.selectedColumnIndexes.length > 0)
   const secondaryHeaders = createSecondaryHeaders(primaryOutputHeaders, files, activeSecondaryConfigs)
   const warnings: JoinWarning[] = []
 
