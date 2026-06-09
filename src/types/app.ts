@@ -19,6 +19,7 @@ export type AppToolId =
   | 'document-merge-docx'
   | 'document-msg-to-pdf'
   | 'document-excel-column-builder'
+  | 'document-excel-join'
 
 export interface SidebarItem {
   id: AppToolId

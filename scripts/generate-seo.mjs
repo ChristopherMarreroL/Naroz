@@ -10,6 +10,7 @@ const routes = [
   '/video-extract-audio',
   '/video-remove-audio',
   '/video-resize',
+  '/video-speed',
   '/image-convert',
   '/image-remove-background',
   '/image-crop',
@@ -19,7 +20,8 @@ const routes = [
   '/document-merge-docx',
   '/msg-to-pdf',
   '/excel-column-builder',
- ]
+  '/excel-join',
+]
 
 function normalizeSiteUrl(value) {
   return value.replace(/\/$/, '')

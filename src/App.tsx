@@ -24,6 +24,7 @@ const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePages
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 const ExcelColumnBuilderView = lazy(() => import('./features/excel/ExcelColumnBuilderView').then((module) => ({ default: module.ExcelColumnBuilderView })))
+const ExcelJoinView = lazy(() => import('./features/excel-join/ExcelJoinView').then((module) => ({ default: module.ExcelJoinView })))
 
 function ToolLoadingFallback() {
   const { t } = useLocale()
@@ -159,6 +160,13 @@ function App() {
         section: 'document',
         status: 'stable',
       },
+      {
+        id: 'document-excel-join',
+        label: t('excelJoinNavTitle'),
+        description: t('excelJoinShortDesc'),
+        section: 'document',
+        status: 'stable',
+      },
     ],
     [t],
   )
@@ -212,6 +220,7 @@ function App() {
         {activeTool === 'document-merge-docx' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
         {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
         {activeTool === 'document-excel-column-builder' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelColumnBuilderView /></Suspense></div> : null}
+        {activeTool === 'document-excel-join' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelJoinView /></Suspense></div> : null}
       </AppLayout>
     </>
   )
