@@ -94,6 +94,7 @@ export function ExcelJoinView() {
   const [files, setFiles] = useState<ExcelFileData[]>([])
   const [primaryFileId, setPrimaryFileId] = useState<string | null>(null)
   const [primaryKeyColumnIndex, setPrimaryKeyColumnIndex] = useState<number | null>(null)
+  const [primarySelectedColumnIndexes, setPrimarySelectedColumnIndexes] = useState<number[] | null>(null)
   const [secondaryConfigs, setSecondaryConfigs] = useState<SecondaryJoinConfig[]>([])
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice | null>({
@@ -117,6 +118,8 @@ export function ExcelJoinView() {
   const previewConfig = previewFile && previewFile.id !== primaryFile?.id && previewSheet ? getSecondaryConfig(previewFile.id, previewSheet.name) : null
   const previewKeyColumn = previewFile?.id === primaryFile?.id ? primaryKeyColumnIndex : previewConfig?.keyColumnIndex ?? null
   const primaryKeyHeader = primarySheet && primaryKeyColumnIndex !== null ? primarySheet.headers[primaryKeyColumnIndex] : null
+  const allPrimaryColumnIndexes = primarySheet?.headers.map((_, index) => index) ?? []
+  const selectedPrimaryColumnIndexes = primarySelectedColumnIndexes ?? allPrimaryColumnIndexes
 
   const selectedSecondaryColumnCount = secondaryConfigs
     .filter((config) => config.fileId !== primaryFile?.id)
@@ -131,8 +134,9 @@ export function ExcelJoinView() {
   const hasEnoughFiles = files.length >= 2
   const hasPrimaryKey = primaryKeyColumnIndex !== null
   const hasSelectedColumns = selectedSecondaryColumnCount > 0
+  const hasPrimaryOutputColumns = selectedPrimaryColumnIndexes.length > 0
   const hasRequiredSecondaryKeys = missingSecondaryKeyConfigs.length === 0
-  const canGenerate = hasEnoughFiles && hasPrimaryKey && hasSelectedColumns && hasRequiredSecondaryKeys
+  const canGenerate = hasEnoughFiles && hasPrimaryKey && hasSelectedColumns && hasPrimaryOutputColumns && hasRequiredSecondaryKeys
   const configuredSecondaryCount = activeSecondaryConfigs.length
   const stepItems = [
     { label: t('excelJoinStepFiles'), done: hasEnoughFiles },
@@ -197,8 +201,12 @@ export function ExcelJoinView() {
       setFiles((current) => {
         const nextFiles = [...current, ...loadedFiles]
         const nextPrimaryId = primaryFileId ?? nextFiles[0]?.id ?? null
+        const nextPrimaryFile = nextFiles.find((file) => file.id === nextPrimaryId) ?? nextFiles[0]
         setPrimaryFileId(nextPrimaryId)
         setPreviewFileId(nextPrimaryId)
+        if (primarySelectedColumnIndexes === null && nextPrimaryFile) {
+          setPrimarySelectedColumnIndexes(getSelectedSheet(nextPrimaryFile).headers.map((_, index) => index))
+        }
         return nextFiles
       })
       setSecondaryConfigs((current) => {
@@ -244,6 +252,8 @@ export function ExcelJoinView() {
     setFiles((current) => current.map((file) => (file.id === fileId ? { ...file, selectedSheetName: sheetName } : file)))
     if (fileId === primaryFile?.id) {
       setPrimaryKeyColumnIndex(null)
+      const nextPrimaryFile = { ...primaryFile, selectedSheetName: sheetName }
+      setPrimarySelectedColumnIndexes(getSelectedSheet(nextPrimaryFile).headers.map((_, index) => index))
       setSecondaryConfigs((current) => syncSecondaryKeyMatches(current, files, primaryFile.id, null))
     } else {
       updateSecondaryConfig(fileId, sheetName, (config) => {
@@ -265,6 +275,8 @@ export function ExcelJoinView() {
     clearResult()
     setPrimaryFileId(fileId)
     setPrimaryKeyColumnIndex(null)
+    const nextPrimaryFile = files.find((file) => file.id === fileId)
+    setPrimarySelectedColumnIndexes(nextPrimaryFile ? getSelectedSheet(nextPrimaryFile).headers.map((_, index) => index) : null)
     setPreviewFileId(fileId)
     setSecondaryConfigs((current) => syncSecondaryKeyMatches(current, files, fileId, null))
   }
@@ -274,6 +286,26 @@ export function ExcelJoinView() {
     setPrimaryKeyColumnIndex(columnIndex)
     const nextPrimaryHeader = primarySheet && columnIndex !== null ? primarySheet.headers[columnIndex] : null
     setSecondaryConfigs((current) => syncSecondaryKeyMatches(current, files, primaryFile?.id ?? null, nextPrimaryHeader))
+  }
+
+  const togglePrimaryColumn = (columnIndex: number) => {
+    clearResult()
+    setPrimarySelectedColumnIndexes((current) => {
+      const selectedColumns = current ?? allPrimaryColumnIndexes
+      return selectedColumns.includes(columnIndex)
+        ? selectedColumns.filter((index) => index !== columnIndex)
+        : [...selectedColumns, columnIndex].sort((left, right) => left - right)
+    })
+  }
+
+  const selectAllPrimaryColumns = () => {
+    clearResult()
+    setPrimarySelectedColumnIndexes(allPrimaryColumnIndexes)
+  }
+
+  const clearPrimaryColumns = () => {
+    clearResult()
+    setPrimarySelectedColumnIndexes([])
   }
 
   const toggleSecondaryColumn = (fileId: string, columnIndex: number) => {
@@ -311,6 +343,10 @@ export function ExcelJoinView() {
       return t('excelJoinMissingSelectedColumns')
     }
 
+    if (selectedPrimaryColumnIndexes.length === 0) {
+      return t('excelJoinMissingPrimaryColumns')
+    }
+
     if (missingSecondaryKeyConfigs.length > 0) {
       return `${t('excelJoinMissingAutoKey')} ${joinFileNames(missingSecondaryKeyConfigs.map((config) => {
         const file = files.find((item) => item.id === config.fileId)
@@ -339,6 +375,7 @@ export function ExcelJoinView() {
         files,
         primaryFileId: primaryFile.id,
         primaryKeyColumnIndex,
+        primarySelectedColumnIndexes: selectedPrimaryColumnIndexes,
         secondaryConfigs,
       })
       const url = URL.createObjectURL(built.blob)
@@ -365,6 +402,7 @@ export function ExcelJoinView() {
     setFiles([])
     setPrimaryFileId(null)
     setPrimaryKeyColumnIndex(null)
+    setPrimarySelectedColumnIndexes(null)
     setSecondaryConfigs([])
     setPreviewFileId(null)
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('excelJoinCardDesc') })
@@ -510,6 +548,40 @@ export function ExcelJoinView() {
                   </label>
                 </div>
               </div>
+
+              {primarySheet ? (
+                <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-950">{t('excelJoinPrimaryColumns')}</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{t('excelJoinPrimaryColumnsHelp')}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={selectAllPrimaryColumns} disabled={isGenerating}>
+                        {t('excelJoinSelectAllColumns')}
+                      </button>
+                      <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={clearPrimaryColumns} disabled={isGenerating}>
+                        {t('excelJoinClearPrimaryColumns')}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid max-h-48 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                    {primarySheet.headers.map((header, index) => (
+                      <label key={`${primaryFile?.id ?? 'primary'}-${primarySheet.name}-${index}`} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition ${selectedPrimaryColumnIndexes.includes(index) ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={selectedPrimaryColumnIndexes.includes(index)}
+                          onChange={() => togglePrimaryColumn(index)}
+                          disabled={isGenerating}
+                        />
+                        <span className="min-w-0 truncate">{header}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">{selectedPrimaryColumnIndexes.length} {t('selected')}</p>
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -626,8 +698,14 @@ export function ExcelJoinView() {
                   file={previewFile}
                   sheet={previewSheet}
                   keyColumnIndex={previewKeyColumn}
-                  selectedColumnIndexes={previewConfig?.selectedColumnIndexes ?? []}
-                  onToggleColumn={previewConfig ? (columnIndex) => toggleSecondaryColumn(previewFile.id, columnIndex) : undefined}
+                  selectedColumnIndexes={previewFile.id === primaryFile?.id ? selectedPrimaryColumnIndexes : previewConfig?.selectedColumnIndexes ?? []}
+                  onToggleColumn={
+                    previewFile.id === primaryFile?.id
+                      ? togglePrimaryColumn
+                      : previewConfig
+                        ? (columnIndex) => toggleSecondaryColumn(previewFile.id, columnIndex)
+                        : undefined
+                  }
                 />
               </div>
             </section>

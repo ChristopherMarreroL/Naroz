@@ -42,6 +42,11 @@ select {
   font: inherit;
 }
 
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
 #root {
   width: 100%;
   max-width: 100%;

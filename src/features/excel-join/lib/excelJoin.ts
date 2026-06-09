@@ -18,6 +18,7 @@ export interface BuildJoinWorkbookInput {
   files: ExcelFileData[]
   primaryFileId: string
   primaryKeyColumnIndex: number
+  primarySelectedColumnIndexes: number[]
   secondaryConfigs: SecondaryJoinConfig[]
 }
 
@@ -109,6 +110,7 @@ export function buildJoinedExcelWorkbook({
   files,
   primaryFileId,
   primaryKeyColumnIndex,
+  primarySelectedColumnIndexes,
   secondaryConfigs,
 }: BuildJoinWorkbookInput): BuildJoinWorkbookResult {
   const primaryFile = files.find((file) => file.id === primaryFileId)
@@ -117,8 +119,10 @@ export function buildJoinedExcelWorkbook({
   }
 
   const primarySheet = getSelectedSheet(primaryFile)
+  const primaryOutputColumnIndexes = primarySelectedColumnIndexes.filter((columnIndex) => columnIndex >= 0 && columnIndex < primarySheet.headers.length)
+  const primaryOutputHeaders = primaryOutputColumnIndexes.map((columnIndex) => primarySheet.headers[columnIndex] ?? `Columna ${columnIndex + 1}`)
   const activeSecondaryConfigs = secondaryConfigs.filter((config) => config.fileId !== primaryFileId && config.selectedColumnIndexes.length > 0)
-  const secondaryHeaders = createSecondaryHeaders(primarySheet.headers, files, activeSecondaryConfigs)
+  const secondaryHeaders = createSecondaryHeaders(primaryOutputHeaders, files, activeSecondaryConfigs)
   const warnings: JoinWarning[] = []
 
   const lookups = activeSecondaryConfigs.map((config) => {
@@ -154,12 +158,12 @@ export function buildJoinedExcelWorkbook({
     })
 
     return [
-      ...primarySheet.headers.map((_, columnIndex) => primaryRow[columnIndex] ?? null),
+      ...primaryOutputColumnIndexes.map((columnIndex) => primaryRow[columnIndex] ?? null),
       ...joinedValues,
     ]
   })
 
-  const worksheet = XLSX.utils.aoa_to_sheet([[...primarySheet.headers, ...secondaryHeaders], ...outputRows])
+  const worksheet = XLSX.utils.aoa_to_sheet([[...primaryOutputHeaders, ...secondaryHeaders], ...outputRows])
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Cruce')
   const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
