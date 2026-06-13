@@ -280,7 +280,7 @@ export function ImageConvertView() {
         }
       />
 
-      <div className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-4 sm:p-6 lg:p-8">
           <FileDropzone
             title={t('loadImage')}
@@ -297,151 +297,151 @@ export function ImageConvertView() {
 
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 
-          {primaryUpload ? (
-            <div className="mt-6 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
-              <div className="grid gap-4">
-                <div className="panel-subtle overflow-hidden p-3">
-                  <div className="overflow-hidden rounded-[1.2rem] bg-slate-100">
-                    <img src={primaryUpload.previewUrl} alt={primaryUpload.file.name} className="aspect-square h-full w-full object-contain sm:aspect-[4/3]" />
-                  </div>
-                </div>
+           {primaryUpload ? (
+             <div className="mt-6 grid gap-5 md:gap-6 lg:grid-cols-[1fr_340px]">
+               <div className="grid gap-5">
+                 <div className="panel-subtle overflow-hidden p-3">
+                   <div className="overflow-hidden rounded-[1.2rem] bg-slate-100">
+                     <img src={primaryUpload.previewUrl} alt={primaryUpload.file.name} className="aspect-square h-full w-full object-contain" />
+                   </div>
+                 </div>
 
-                {uploads.length > 1 ? (
-                  <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
-                    <div className="mt-3 space-y-2 text-sm text-slate-600">
-                      {uploads.slice(0, 5).map((item) => (
-                        <div key={item.file.name} className="truncate rounded-2xl bg-slate-50 px-3 py-2">{item.file.name}</div>
-                      ))}
-                      {uploads.length > 5 ? <div className="text-xs text-slate-500">+{uploads.length - 5} {t('moreFiles')}</div> : null}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+                 <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-2">
+                   <div className="panel-subtle p-3 sm:p-4">
+                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+                     <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{uploads.length}</p>
+                   </div>
+                   <div className="panel-subtle p-3 sm:p-4">
+                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p>
+                     <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{formatBytes(totalInputSize)}</p>
+                   </div>
+                   <div className="panel-subtle p-3 sm:p-4">
+                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('format')}</p>
+                     <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{sourceLabel}</p>
+                   </div>
+                   <div className="panel-subtle p-3 sm:p-4">
+                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('resolution')}</p>
+                     <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{primaryUpload.width}x{primaryUpload.height}</p>
+                   </div>
+                 </div>
 
-              <div className="grid gap-5">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{uploads.length}</p>
-                  </div>
-                  <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(totalInputSize)}</p>
-                  </div>
-                  <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('format')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{sourceLabel}</p>
-                  </div>
-                  <div className="panel-subtle p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('resolution')}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{primaryUpload.width}x{primaryUpload.height}</p>
-                  </div>
-                </div>
+                 {uploads.length > 1 ? (
+                   <div className="panel-subtle p-3 sm:p-4">
+                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+                     <div className="mt-3 space-y-2 text-xs sm:text-sm text-slate-600">
+                       {uploads.slice(0, 5).map((item) => (
+                         <div key={item.file.name} className="truncate rounded-2xl bg-slate-50 px-3 py-2">{item.file.name}</div>
+                       ))}
+                       {uploads.length > 5 ? <div className="text-xs text-slate-500">+{uploads.length - 5} {t('moreFiles')}</div> : null}
+                     </div>
+                   </div>
+                 ) : null}
+               </div>
 
-                <div className="panel-subtle p-5 sm:p-6">
-                  <label className="text-sm font-semibold text-slate-900" htmlFor="output-format">{t('outputFormat')}</label>
-                  <select
-                    id="output-format"
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                    value={outputFormat}
-                    onChange={(event) => setOutputFormat(event.target.value as ImageOutputFormat)}
-                  >
-                    {OUTPUT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
+               <div className="grid gap-5">
+                 <div className="panel-subtle p-4 sm:p-5">
+                   <label className="text-xs sm:text-sm font-semibold text-slate-900" htmlFor="output-format">{t('outputFormat')}</label>
+                   <select
+                     id="output-format"
+                     className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                     value={outputFormat}
+                     onChange={(event) => setOutputFormat(event.target.value as ImageOutputFormat)}
+                   >
+                     {OUTPUT_OPTIONS.map((option) => (
+                       <option key={option.value} value={option.value}>{option.label}</option>
+                     ))}
+                   </select>
 
-                  {outputFormat === 'jpeg' && uploads.some((item) => item.file.type === 'image/png') ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="warning" title={t('transparencyTitle')} message={t('transparencyMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'jpeg' && uploads.some((item) => item.file.type === 'image/png') ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="warning" title={t('transparencyTitle')} message={t('transparencyMessage')} />
+                     </div>
+                   ) : null}
 
-                  {outputFormat === 'gif' ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="info" title={t('staticGifTitle')} message={t('staticGifMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'gif' ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="info" title={t('staticGifTitle')} message={t('staticGifMessage')} />
+                     </div>
+                   ) : null}
 
-                  {outputFormat === 'ico' ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="info" title={t('icoTitle')} message={t('icoMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'ico' ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="info" title={t('icoTitle')} message={t('icoMessage')} />
+                     </div>
+                   ) : null}
 
-                  {outputFormat === 'avif' ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="info" title={t('avifTitle')} message={t('avifMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'avif' ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="info" title={t('avifTitle')} message={t('avifMessage')} />
+                     </div>
+                   ) : null}
 
-                  {outputFormat === 'webp' ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="info" title={t('webpTitle')} message={t('webpMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'webp' ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="info" title={t('webpTitle')} message={t('webpMessage')} />
+                     </div>
+                   ) : null}
 
-                  {outputFormat === 'svg' ? (
-                    <div className="mt-4">
-                      <AlertBanner tone="info" title={t('svgTitle')} message={t('svgMessage')} />
-                    </div>
-                  ) : null}
+                   {outputFormat === 'svg' ? (
+                     <div className="mt-3 sm:mt-4">
+                       <AlertBanner tone="info" title={t('svgTitle')} message={t('svgMessage')} />
+                     </div>
+                   ) : null}
 
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                    <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleConvert} disabled={isConverting}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-                        <path d="M4 12h10" />
-                        <path d="m10 6 6 6-6 6" />
-                        <rect x="4" y="5" width="3" height="14" rx="1" />
-                      </svg>
-                      {isConverting ? t('converting') : uploads.length > 1 ? t('convertImagesBtn') : t('convertImageBtn')}
-                    </button>
-                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isConverting}>
-                      {t('clearContent')}
-                    </button>
-                    {batchDownload ? (
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(batchDownload.url, batchDownload.fileName)}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-                          <path d="M12 4v10" />
-                          <path d="m8 10 4 4 4-4" />
-                          <path d="M5 19h14" />
+                    <div className="mt-5 sm:mt-6 flex flex-col gap-2 sm:gap-3">
+                      <button type="button" className="btn-primary w-full py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm" onClick={handleConvert} disabled={isConverting}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 sm:h-4 sm:w-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="M4 12h10" />
+                          <path d="m10 6 6 6-6 6" />
+                          <rect x="4" y="5" width="3" height="14" rx="1" />
                         </svg>
-                        {t('downloadConvertedZip')}
+                        {isConverting ? t('converting') : uploads.length > 1 ? t('convertImagesBtn') : t('convertImageBtn')}
                       </button>
-                    ) : results.length > 1 ? (
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={downloadAllResults}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-                          <path d="M12 4v10" />
-                          <path d="m8 10 4 4 4-4" />
-                          <path d="M5 19h14" />
-                        </svg>
-                        {t('downloadConvertedImages')}
+                      <button type="button" className="btn-secondary w-full py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm" onClick={clearAll} disabled={isConverting}>
+                        {t('clearContent')}
                       </button>
-                    ) : singleResult ? (
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(singleResult.url, singleResult.fileName)}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-                          <path d="M12 4v10" />
-                          <path d="m8 10 4 4 4-4" />
-                          <path d="M5 19h14" />
-                        </svg>
-                        {t('downloadConvertedImage')}
-                      </button>
+                      {batchDownload ? (
+                        <button type="button" className="btn-download w-full py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm" onClick={() => downloadFromUrl(batchDownload.url, batchDownload.fileName)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 sm:h-4 sm:w-4 fill-none stroke-current" strokeWidth="2">
+                            <path d="M12 4v10" />
+                            <path d="m8 10 4 4 4-4" />
+                            <path d="M5 19h14" />
+                          </svg>
+                          {t('downloadConvertedZip')}
+                        </button>
+                      ) : results.length > 1 ? (
+                        <button type="button" className="btn-download w-full py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm" onClick={downloadAllResults}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 sm:h-4 sm:w-4 fill-none stroke-current" strokeWidth="2">
+                            <path d="M12 4v10" />
+                            <path d="m8 10 4 4 4-4" />
+                            <path d="M5 19h14" />
+                          </svg>
+                          {t('downloadConvertedImages')}
+                        </button>
+                      ) : singleResult ? (
+                        <button type="button" className="btn-download w-full py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm" onClick={() => downloadFromUrl(singleResult.url, singleResult.fileName)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 sm:h-4 sm:w-4 fill-none stroke-current" strokeWidth="2">
+                            <path d="M12 4v10" />
+                            <path d="m8 10 4 4 4-4" />
+                            <path d="M5 19h14" />
+                          </svg>
+                          {t('downloadConvertedImage')}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {results.length > 0 && !shouldUseZip ? (
+                      <div className="mt-4 grid gap-2 sm:gap-3">
+                        {results.map((item) => (
+                          <div key={item.fileName} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-600 truncate">
+                            {item.fileName}
+                          </div>
+                        ))}
+                      </div>
                     ) : null}
-                  </div>
-
-                  {results.length > 0 && !shouldUseZip ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {results.map((item) => (
-                        <div key={item.fileName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          {item.fileName}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+                 </div>
+               </div>
+             </div>
           ) : (
             <div className="mt-6">
               <EmptyState badge={t('noImage')} title={t('emptyImageTitle')} description={t('emptyImageDesc')} />
@@ -449,43 +449,43 @@ export function ImageConvertView() {
           )}
         </section>
 
-        <section className="panel p-4 sm:p-6 lg:p-8">
-          <h2 className="text-2xl font-extrabold text-slate-950">{t('imageStatus')}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{t('imageStatusDesc')}</p>
+         <section className="panel p-4 sm:p-6 lg:p-8">
+           <h2 className="text-base sm:text-lg font-bold text-slate-950">{t('imageStatus')}</h2>
+           <p className="mt-1 text-xs leading-4 sm:leading-5 text-slate-600">{t('imageStatusDesc')}</p>
 
-          <div className="mt-6 grid gap-4">
-            <div className="panel-subtle p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('targetOutput')}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{outputInfo}</p>
-            </div>
-            <div className="panel-subtle p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{uploads.length}</p>
-            </div>
-            <div className="panel-subtle p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('compatibility')}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('compatibilityTextImage')}</p>
-            </div>
-            {batchDownload ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-700">{t('zipReady')}</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-700">{batchDownload.fileName} · {formatBytes(batchDownload.size)}</p>
-              </div>
-            ) : null}
-            {results.length > 1 && !shouldUseZip ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-700">{t('outputReady')}</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-700">{results.length} {results.length === 1 ? t('convertedFileReady') : t('convertedFilesReady')}</p>
-              </div>
-            ) : null}
-            {singleResult ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-700">{t('outputReady')}</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-700">{singleResult.fileName} · {formatBytes(singleResult.size)}</p>
-              </div>
-            ) : null}
-          </div>
-        </section>
+           <div className="mt-4 sm:mt-5 grid gap-2 sm:gap-3">
+             <div className="panel-subtle p-3 sm:p-4">
+               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('targetOutput')}</p>
+               <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{outputInfo}</p>
+             </div>
+             <div className="panel-subtle p-3 sm:p-4">
+               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
+               <p className="mt-2 text-xs sm:text-sm font-semibold text-slate-900">{uploads.length}</p>
+             </div>
+             <div className="panel-subtle p-3 sm:p-4">
+               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('compatibility')}</p>
+               <p className="mt-2 text-xs leading-4 sm:leading-5 text-slate-600">{t('compatibilityTextImage')}</p>
+             </div>
+             {batchDownload ? (
+               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                 <p className="text-xs font-semibold text-emerald-700">{t('zipReady')}</p>
+                 <p className="mt-1 text-xs leading-4 sm:leading-5 text-emerald-700 truncate">{batchDownload.fileName} · {formatBytes(batchDownload.size)}</p>
+               </div>
+             ) : null}
+             {results.length > 1 && !shouldUseZip ? (
+               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                 <p className="text-xs font-semibold text-emerald-700">{t('outputReady')}</p>
+                 <p className="mt-1 text-xs leading-4 sm:leading-5 text-emerald-700">{results.length} {results.length === 1 ? t('convertedFileReady') : t('convertedFilesReady')}</p>
+               </div>
+             ) : null}
+             {singleResult ? (
+               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                 <p className="text-xs font-semibold text-emerald-700">{t('outputReady')}</p>
+                 <p className="mt-1 text-xs leading-4 sm:leading-5 text-emerald-700 truncate">{singleResult.fileName} · {formatBytes(singleResult.size)}</p>
+               </div>
+             ) : null}
+           </div>
+         </section>
       </div>
     </>
   )
