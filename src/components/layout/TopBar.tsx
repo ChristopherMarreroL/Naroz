@@ -1,6 +1,6 @@
 import { useLocale } from '../../i18n/LocaleProvider'
 import type { Locale } from '../../i18n/LocaleProvider'
-import narozLogo from '../../assets/naroz-logo.svg'
+import narozLogo from '../../assets/naroz-logo.jpg'
 
 interface TopBarProps {
   locale: Locale
@@ -34,7 +34,7 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
                aria-label={t('goHomeReload')}
                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-slate-900 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50"
              >
-               <img src={narozLogo} alt={t('narozLogoAlt')} className="h-6 w-6 cursor-pointer rounded-full bg-white/10 object-contain" />
+               <img src={narozLogo} alt={t('narozLogoAlt')} className="h-6 w-6 cursor-pointer rounded-full bg-white/10 object-contain" decoding="async" fetchPriority="high" />
                Naroz
              </button>
            </div>

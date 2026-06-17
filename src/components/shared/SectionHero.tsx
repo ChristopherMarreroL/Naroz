@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { useLocale } from '../../i18n/LocaleProvider'
-import narozLogo from '../../assets/naroz-logo.svg'
+import narozLogo from '../../assets/naroz-logo.jpg'
 
 interface SectionHeroProps {
   badge: string
@@ -21,7 +21,7 @@ export function SectionHero({ badge, title, description, aside }: SectionHeroPro
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] border border-slate-200 bg-white p-2 shadow-[0_18px_34px_-24px_rgba(15,23,42,0.45)]">
-              <img src={narozLogo} alt={t('narozLogoAlt')} className="h-full w-full object-contain" />
+              <img src={narozLogo} alt={t('narozLogoAlt')} className="h-full w-full object-contain" decoding="async" fetchPriority="high" />
             </div>
             <div className="min-w-0">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-slate-400">Naroz</p>
