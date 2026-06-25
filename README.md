@@ -27,6 +27,10 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
   - Delete selected pages from one PDF (`beta`)
   - Merge multiple `DOCX` files into one final Word document (`beta`)
   - Convert `.MSG` or `.EML` emails to PDF through the browser print flow (`beta`)
+- Utility
+  - Generate QR codes from links or text
+  - Customize QR colors, size, and optional centered logo
+  - Download QR codes as `PNG` or `SVG`
 
 ## UX Highlights
 
@@ -50,37 +54,38 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - `jszip` for batch image ZIP downloads
 - `@imgly/background-removal` and `onnxruntime-web` for local image background removal
 - `@kenjiuno/msgreader` and `postal-mime` for email parsing
+- `qrcode` for QR code generation
 
 ## Setup
 
 Install dependencies:
 
 ```bash
-npm install
+bun install
 ```
 
 Run in development:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Build for production:
 
 ```bash
-npm run build
+bun run build
 ```
 
 Preview the production build:
 
 ```bash
-npm run preview
+bun run preview
 ```
 
 Run lint:
 
 ```bash
-npm run lint
+bun run lint
 ```
 
 ## Environment
@@ -118,6 +123,7 @@ src/
     home/
     image/
     shared/
+    qr/
     video/
   i18n/
   lib/
@@ -138,3 +144,4 @@ src/
 ## Repository
 
 `https://github.com/ChristopherMarreroL/Naroz`
+

@@ -27,3 +27,7 @@
 - [x] Remover fondo de imagen
 - [ ] Editor de PDF
 - [x] Agregar MOV en herramientas de video
+- [x] Generador de codigo QR
+- [x] Agregar logo opcional al generador de codigo QR
+
+
