@@ -93,6 +93,11 @@ const availableTools = [
     category: 'video',
     status: 'beta',
   },
+  {
+    id: 'utility-qr-generator' as const,
+    category: 'utility',
+    status: 'stable',
+  },
 ]
 
 function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
@@ -112,6 +117,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Convertir correo a PDF' : 'Convert email to PDF'
   if (id === 'document-excel-column-builder') return locale === 'es' ? 'Crear Excel desde columnas' : 'Create Excel from columns'
   if (id === 'document-excel-join') return locale === 'es' ? 'Cruzar Excel por columna clave' : 'Join Excel by key column'
+  if (id === 'utility-qr-generator') return locale === 'es' ? 'Generador de codigo QR' : 'QR code generator'
   return locale === 'es' ? 'Convertir formato' : 'Convert format'
 }
 
@@ -132,12 +138,14 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Lee correos .MSG o .EML y genera una version PDF con sus datos principales.' : 'Read .MSG or .EML emails and generate a PDF version with their main details.'
   if (id === 'document-excel-column-builder') return locale === 'es' ? 'Selecciona columnas de varios archivos Excel y genera un nuevo documento.' : 'Select columns from multiple Excel files and generate a new document.'
   if (id === 'document-excel-join') return locale === 'es' ? 'Combina archivos Excel usando una columna en comun, como ID, cedula, codigo o factura.' : 'Combine Excel files using a shared key column such as ID, code, invoice, or email.'
+  if (id === 'utility-qr-generator') return locale === 'es' ? 'Crea codigos QR desde enlaces o texto y descargalos como imagen.' : 'Create QR codes from links or text and download them as an image.'
   return locale === 'es' ? 'Transforma imagenes JPG, PNG, WebP, AVIF, GIF e ICO con vista previa y descarga inmediata.' : 'Convert JPG, PNG, WebP, AVIF, GIF, and ICO images with preview and instant download.'
 }
 
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { locale, t } = useLocale()
   const sections = [
+    { id: 'utility', label: t('utility') },
     { id: 'document', label: t('document') },
     { id: 'image', label: t('image') },
     { id: 'video', label: t('video') },
@@ -205,3 +213,8 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     </>
   )
 }
+
+
+
+
+

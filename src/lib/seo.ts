@@ -112,7 +112,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     es: { title: 'Cruzar Excel por columna clave - Naroz', description: 'Combina varios archivos Excel usando una columna en comun y genera un nuevo archivo cruzado desde el navegador con Naroz.' },
     en: { title: 'Join Excel by key column - Naroz', description: 'Combine multiple Excel files using a shared key column and generate a joined file directly in the browser with Naroz.' },
   },
-}
+  'utility-qr-generator': {
+    es: { title: 'Generador de codigo QR - Naroz', description: 'Crea codigos QR desde enlaces o texto y descargalos como PNG o SVG directamente desde el navegador con Naroz.' },
+    en: { title: 'QR code generator - Naroz', description: 'Create QR codes from links or text and download them as PNG or SVG directly in the browser with Naroz.' },
+  },}
 
 export function getSeoContent(locale: Locale, tool: AppToolId = 'home') {
   const content = seoByTool[tool] ?? seoByTool.home
@@ -125,3 +128,5 @@ export function getSeoContent(locale: Locale, tool: AppToolId = 'home') {
 export function getIndexedPaths() {
   return Object.values(TOOL_PATHS)
 }
+
+

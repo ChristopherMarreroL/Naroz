@@ -1,4 +1,4 @@
-export type AppSectionId = 'general' | 'video' | 'image' | 'document'
+export type AppSectionId = 'general' | 'video' | 'image' | 'document' | 'utility'
 export type ToolStatus = 'stable' | 'beta' | 'soon'
 
 export type AppToolId =
@@ -20,6 +20,7 @@ export type AppToolId =
   | 'document-msg-to-pdf'
   | 'document-excel-column-builder'
   | 'document-excel-join'
+  | 'utility-qr-generator'
 
 export interface SidebarItem {
   id: AppToolId
@@ -28,3 +29,5 @@ export interface SidebarItem {
   section: AppSectionId
   status?: ToolStatus
 }
+
+

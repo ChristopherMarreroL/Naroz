@@ -25,6 +25,7 @@ const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').the
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 const ExcelColumnBuilderView = lazy(() => import('./features/excel/ExcelColumnBuilderView').then((module) => ({ default: module.ExcelColumnBuilderView })))
 const ExcelJoinView = lazy(() => import('./features/excel-join/ExcelJoinView').then((module) => ({ default: module.ExcelJoinView })))
+const QrGeneratorView = lazy(() => import('./features/qr/QrGeneratorView').then((module) => ({ default: module.QrGeneratorView })))
 
 function ToolLoadingFallback() {
   const { t } = useLocale()
@@ -167,6 +168,13 @@ function App() {
         section: 'document',
         status: 'stable',
       },
+      {
+        id: 'utility-qr-generator',
+        label: t('qrGeneratorNavTitle'),
+        description: t('qrGeneratorShortDesc'),
+        section: 'utility',
+        status: 'stable',
+      },
     ],
     [t],
   )
@@ -221,9 +229,14 @@ function App() {
         {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
         {activeTool === 'document-excel-column-builder' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelColumnBuilderView /></Suspense></div> : null}
         {activeTool === 'document-excel-join' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelJoinView /></Suspense></div> : null}
+        {activeTool === 'utility-qr-generator' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><QrGeneratorView /></Suspense></div> : null}
       </AppLayout>
     </>
   )
 }
 
 export default App
+
+
+
+

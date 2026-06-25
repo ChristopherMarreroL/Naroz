@@ -19,6 +19,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-msg-to-pdf': '/msg-to-pdf',
   'document-excel-column-builder': '/excel-column-builder',
   'document-excel-join': '/excel-join',
+  'utility-qr-generator': '/qr-generator',
 }
 
 export const ROUTABLE_TOOLS = Object.keys(TOOL_PATHS) as AppToolId[]
@@ -32,3 +33,5 @@ export function getToolFromPath(pathname: string): AppToolId {
   const match = ROUTABLE_TOOLS.find((tool) => TOOL_PATHS[tool] === normalizedPath)
   return match ?? 'home'
 }
+
+
