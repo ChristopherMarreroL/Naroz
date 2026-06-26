@@ -30,6 +30,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.2",
+    "sileo": "^0.1.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

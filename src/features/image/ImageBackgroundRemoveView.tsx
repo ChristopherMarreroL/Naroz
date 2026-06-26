@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { preloadBackgroundRemoval, removeBackgroundFromImage } from './lib/backgroundRemoval'
@@ -56,7 +57,7 @@ export function ImageBackgroundRemoveView() {
   const [result, setResult] = useState<ConvertedImageResult | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('removeImageBackground'),
     message: t('removeBackgroundAutomaticHint'),
@@ -341,4 +342,3 @@ export function ImageBackgroundRemoveView() {
     </>
   )
 }
-

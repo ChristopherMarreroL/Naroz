@@ -5,6 +5,7 @@ import { FileDropzone } from '../../components/shared/FileDropzone'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes, formatDuration, formatResolution } from '../../lib/format'
 import { createVideoItem, isSupportedVideo } from './lib/media'
@@ -14,7 +15,7 @@ export function AudioExtractView() {
   const { t } = useLocale()
   const [video, setVideo] = useState<Awaited<ReturnType<typeof createVideoItem>> | null>(null)
   const [outputFormat, setOutputFormat] = useState<AudioOutputFormat>('mp3')
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('audioLocalProcessing'),
     message: t('extractAudioCardDesc'),
@@ -230,4 +231,3 @@ export function AudioExtractView() {
     </>
   )
 }
-

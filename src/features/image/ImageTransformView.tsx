@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
@@ -25,7 +26,7 @@ export function ImageTransformView() {
   const [rotation, setRotation] = useState(0)
   const [flipX, setFlipX] = useState(false)
   const [flipY, setFlipY] = useState(false)
-  const [notice, setNotice] = useState<Notice | null>({ tone: 'info', title: t('processingLocal'), message: t('transformImageCardDesc') })
+  const [notice, setNotice] = useToastNotice<Notice | null>({ tone: 'info', title: t('processingLocal'), message: t('transformImageCardDesc') })
 
   const sourceLabel = useMemo(() => (upload ? getImageExtensionLabel(upload.file) : null), [upload])
   const previewTransform = useMemo(() => `rotate(${rotation}deg) scale(${flipX ? -1 : 1}, ${flipY ? -1 : 1})`, [flipX, flipY, rotation])
@@ -247,4 +248,3 @@ export function ImageTransformView() {
     </>
   )
 }
-

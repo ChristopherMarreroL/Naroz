@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { ExcelPreviewTable } from './components/ExcelPreviewTable'
@@ -44,7 +45,7 @@ export function ExcelColumnBuilderView() {
   const [files, setFiles] = useState<ExcelFileData[]>([])
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
   const [selectedColumns, setSelectedColumns] = useState<SelectedExcelColumn[]>([])
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
     message: t('excelColumnBuilderCardDesc'),

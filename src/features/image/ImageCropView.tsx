@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
@@ -50,7 +51,7 @@ export function ImageCropView() {
   const [cropY, setCropY] = useState(10)
   const [cropWidth, setCropWidth] = useState(80)
   const [cropHeight, setCropHeight] = useState(80)
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('processingLocal'),
     message: t('cropImageCardDesc'),
@@ -452,4 +453,3 @@ export function ImageCropView() {
     </>
   )
 }
-

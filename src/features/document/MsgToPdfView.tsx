@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { formatBytes } from '../../lib/format'
 import { createDocumentItem, isSupportedEml, isSupportedMailFile, type DocumentItem } from './lib/files'
 import { parseMailFile, type ParsedMsgData } from './lib/msgToPdf'
@@ -118,7 +119,7 @@ export function MsgToPdfView() {
   const [parsed, setParsed] = useState<ParsedMsgData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [renderHtml, setRenderHtml] = useState('')
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
     message: t('msgToPdfCardDesc'),
@@ -308,5 +309,3 @@ export function MsgToPdfView() {
     </>
   )
 }
-
-

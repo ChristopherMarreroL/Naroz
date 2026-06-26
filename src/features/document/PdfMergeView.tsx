@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { DocumentQueue } from './components/DocumentQueue'
@@ -14,7 +15,7 @@ import { createDocumentItem, getTotalSize, isSupportedPdf, moveDocument, type Do
 export function PdfMergeView() {
   const { t } = useLocale()
   const [items, setItems] = useState<DocumentItem[]>([])
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
     message: t('pdfMergeCardDesc'),
@@ -186,4 +187,3 @@ export function PdfMergeView() {
     </>
   )
 }
-

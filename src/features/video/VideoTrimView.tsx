@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes, formatDuration, formatResolution } from '../../lib/format'
 import type { VideoOutputFormat } from '../../types/video'
@@ -24,7 +25,7 @@ export function VideoTrimView() {
   const [endTime, setEndTime] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false)
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('trimLocalProcessing'),
     message: t('trimInitialNotice'),
@@ -473,4 +474,3 @@ export function VideoTrimView() {
     </>
   )
 }
-
