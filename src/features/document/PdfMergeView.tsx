@@ -74,6 +74,8 @@ export function PdfMergeView() {
             title={t('pdfMergeCardTitle')}
             description={t('pdfMergeCardDesc')}
             buttonLabel={t('selectPdf')}
+            uploadLabel={t('uploadPdfDropzone')}
+            acceptedFormats="PDF"
             accept="application/pdf,.pdf"
             multiple
             disabled={isProcessing}
@@ -184,3 +186,4 @@ export function PdfMergeView() {
     </>
   )
 }
+

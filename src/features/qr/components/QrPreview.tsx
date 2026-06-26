@@ -1,9 +1,12 @@
+import { useLocale } from '../../../i18n/LocaleProvider'
+
 interface QrPreviewProps {
   pngDataUrl: string | null
   size: number
 }
 
 export function QrPreview({ pngDataUrl, size }: QrPreviewProps) {
+  const { t } = useLocale()
   const previewSize = Math.min(size, 420)
 
   return (
@@ -12,7 +15,7 @@ export function QrPreview({ pngDataUrl, size }: QrPreviewProps) {
         {pngDataUrl ? (
           <img
             src={pngDataUrl}
-            alt="Codigo QR generado"
+            alt={t('qrPreviewAlt')}
             className="rounded-2xl bg-white object-contain p-3 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.7)]"
             style={{ width: previewSize, height: previewSize }}
           />
@@ -24,8 +27,8 @@ export function QrPreview({ pngDataUrl, size }: QrPreviewProps) {
                 <path d="M14 14h2v2h-2zM18 14h2v6h-4v-2h2zM14 18h2v2h-2z" />
               </svg>
             </div>
-            <p className="mt-4 text-lg font-bold text-slate-950">Ingresa un enlace o texto para generar tu codigo QR.</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">La vista previa aparecera aqui antes de descargar PNG o SVG.</p>
+            <p className="mt-4 text-lg font-bold text-slate-950">{t('qrPreviewEmptyTitle')}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{t('qrPreviewEmptyDesc')}</p>
           </div>
         )}
       </div>

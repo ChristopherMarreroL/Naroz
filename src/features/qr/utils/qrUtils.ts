@@ -96,27 +96,6 @@ function drawLogo(context: CanvasRenderingContext2D, image: HTMLImageElement, op
   context.drawImage(image, drawX, drawY, drawWidth, drawHeight)
 }
 
-function injectLogoIntoSvg(svg: string, options: QrRenderOptions) {
-  if (!options.logo) {
-    return svg
-  }
-
-  const logoSize = options.size * (getLogoPercent(options.logo.sizePercent) / 100)
-  const logoX = (options.size - logoSize) / 2
-  const logoY = (options.size - logoSize) / 2
-  const padding = logoSize * 0.16
-  const backgroundSize = logoSize + padding * 2
-  const backgroundX = logoX - padding
-  const backgroundY = logoY - padding
-  const backgroundRadius = backgroundSize * 0.18
-  const background = options.logo.backgroundEnabled
-    ? `<rect x="${backgroundX}" y="${backgroundY}" width="${backgroundSize}" height="${backgroundSize}" rx="${backgroundRadius}" fill="${options.backgroundColor}"/>`
-    : ''
-  const image = `<image href="${options.logo.dataUrl}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`
-
-  return svg.replace('</svg>', `${background}${image}</svg>`)
-}
-
 export function normalizeQrSize(value: number) {
   if (!Number.isFinite(value)) {
     return 512
@@ -151,27 +130,5 @@ export async function generateQrPngDataUrl(content: string, options: QrRenderOpt
   drawLogo(context, logoImage, options)
 
   return canvas.toDataURL('image/png')
-}
-
-export async function generateQrSvg(content: string, options: QrRenderOptions) {
-  const svg = await QRCode.toString(content, {
-    ...getRenderOptions(options),
-    type: 'svg',
-  })
-
-  return injectLogoIntoSvg(svg, options)
-}
-
-export function downloadSvg(svg: string, fileName: string) {
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = fileName
-  anchor.rel = 'noopener'
-  document.body.appendChild(anchor)
-  anchor.click()
-  document.body.removeChild(anchor)
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 

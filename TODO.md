@@ -29,5 +29,6 @@
 - [x] Agregar MOV en herramientas de video
 - [x] Generador de codigo QR
 - [x] Agregar logo opcional al generador de codigo QR
-
+- [x] Quitar descarga SVG del generador QR y dejar solo PNG
+- [x] Actualizar textos traducibles del generador QR
 

@@ -161,6 +161,7 @@ export function ImageTransformView() {
             title={t('transformImageCardTitle')}
             description={t('transformImageCardDesc')}
             buttonLabel={t('selectImage')}
+            uploadLabel={t('uploadImageDropzone')}
             accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             disabled={isProcessing}
             aside={<span className="badge">JPG / PNG / WebP</span>}
@@ -246,3 +247,4 @@ export function ImageTransformView() {
     </>
   )
 }
+

@@ -286,6 +286,7 @@ export function ImageConvertView() {
             title={t('loadImage')}
             description={t('imageConvertDesc')}
             buttonLabel={t('selectImage')}
+            uploadLabel={t('uploadImageDropzone')}
             accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/x-icon,image/vnd.microsoft.icon,image/svg+xml,.jpg,.jpeg,.png,.webp,.avif,.gif,.ico,.svg"
             multiple
             disabled={isConverting}
@@ -490,3 +491,4 @@ export function ImageConvertView() {
     </>
   )
 }
+

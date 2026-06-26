@@ -155,6 +155,8 @@ export function PdfDeletePagesView() {
             title={t('deletePdfPagesCardTitle')}
             description={t('deletePdfPagesCardDesc')}
             buttonLabel={t('selectPdf')}
+            uploadLabel={t('uploadPdfDropzone')}
+            acceptedFormats="PDF"
             accept="application/pdf,.pdf"
             disabled={isProcessing}
             aside={<span className="badge">PDF</span>}
@@ -380,3 +382,4 @@ export function PdfDeletePagesView() {
     </>
   )
 }
+

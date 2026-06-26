@@ -30,7 +30,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - Utility
   - Generate QR codes from links or text
   - Customize QR colors, size, and optional centered logo
-  - Download QR codes as `PNG` or `SVG`
+  - Download QR codes as `PNG`
 
 ## UX Highlights
 
@@ -144,4 +144,5 @@ src/
 ## Repository
 
 `https://github.com/ChristopherMarreroL/Naroz`
+
 

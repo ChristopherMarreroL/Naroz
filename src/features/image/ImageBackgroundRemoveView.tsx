@@ -204,6 +204,7 @@ export function ImageBackgroundRemoveView() {
               title={t('removeBackgroundCardTitle')}
               description={t('removeBackgroundCardDesc')}
               buttonLabel={t('selectImage')}
+              uploadLabel={t('uploadImageDropzone')}
               accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
               disabled={isProcessing}
               aside={<span className="badge">JPG / PNG / WebP</span>}
@@ -340,3 +341,4 @@ export function ImageBackgroundRemoveView() {
     </>
   )
 }
+
