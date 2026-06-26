@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { createDocumentItem, isSupportedPdf, type DocumentItem } from './lib/files'
@@ -16,7 +17,7 @@ export function PdfDeletePagesView() {
   const [previewPage, setPreviewPage] = useState<number | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewUrlPage, setPreviewUrlPage] = useState<number | null>(null)
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
     message: t('deletePdfPagesCardDesc'),
@@ -382,4 +383,3 @@ export function PdfDeletePagesView() {
     </>
   )
 }
-

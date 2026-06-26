@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { QrOptionsPanel } from './components/QrOptionsPanel'
 import { QrPreview } from './components/QrPreview'
@@ -68,7 +69,7 @@ export function QrGeneratorView() {
   const [logo, setLogo] = useState<LogoFileState | null>(null)
   const [logoSizePercent, setLogoSizePercent] = useState(DEFAULT_QR_OPTIONS.logoSizePercent)
   const [logoBackgroundEnabled, setLogoBackgroundEnabled] = useState(DEFAULT_QR_OPTIONS.logoBackgroundEnabled)
-  const [notice, setNotice] = useState<{ tone: NoticeTone; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: NoticeTone; title: string; message: string } | null>({
     tone: 'info',
     title: t('qrInitialNoticeTitle'),
     message: t('qrInitialNoticeMessage'),
@@ -87,6 +88,7 @@ export function QrGeneratorView() {
         }
       : undefined,
   }
+
 
   const handleLogoSelect = async (file: File | null) => {
     if (!file) {
@@ -286,4 +288,3 @@ export function QrGeneratorView() {
     </>
   )
 }
-

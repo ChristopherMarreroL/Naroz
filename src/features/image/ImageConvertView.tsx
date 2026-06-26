@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import { convertImageFile, getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
@@ -67,7 +68,7 @@ export function ImageConvertView() {
   const [results, setResults] = useState<ConvertedImageResult[]>([])
   const [batchDownload, setBatchDownload] = useState<BatchDownloadResult | null>(null)
   const [isConverting, setIsConverting] = useState(false)
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('localConversion'),
     message: t('imageLocalInfo'),
@@ -491,4 +492,3 @@ export function ImageConvertView() {
     </>
   )
 }
-

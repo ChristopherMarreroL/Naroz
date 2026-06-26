@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes, formatDuration, formatResolution } from '../../lib/format'
 import { createVideoItem, isSupportedVideo } from './lib/media'
@@ -31,7 +32,7 @@ export function VideoResizeView() {
   const [targetHeight, setTargetHeight] = useState(720)
   const [keepAspectRatio, setKeepAspectRatio] = useState(true)
   const [preset, setPreset] = useState<ResizePresetValue>('1280x720')
-  const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
+  const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('localConversion'),
     message: t('resizeVideoCardDesc'),
@@ -249,4 +250,3 @@ export function VideoResizeView() {
     </>
   )
 }
-

@@ -1,3 +1,7 @@
+import { useEffect } from 'react'
+
+import { notify } from '../../lib/notifications'
+
 interface AlertBannerProps {
   tone: 'error' | 'warning' | 'success' | 'info'
   title: string
@@ -12,6 +16,18 @@ const toneStyles: Record<AlertBannerProps['tone'], string> = {
 }
 
 export function AlertBanner({ tone, title, message }: AlertBannerProps) {
+  useEffect(() => {
+    if (tone === 'info') {
+      return
+    }
+
+    notify(tone, title, message)
+  }, [message, title, tone])
+
+  if (tone !== 'info') {
+    return null
+  }
+
   return (
     <div className={`rounded-2xl border px-4 py-3 text-sm ${toneStyles[tone]}`}>
       <p className="font-semibold">{title}</p>

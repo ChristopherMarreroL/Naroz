@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
 import {
@@ -101,7 +102,7 @@ export function ExcelJoinView() {
   const [primarySelectedColumnIndexes, setPrimarySelectedColumnIndexes] = useState<number[] | null>(null)
   const [secondaryConfigs, setSecondaryConfigs] = useState<SecondaryJoinConfig[]>([])
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
     message: t('excelJoinCardDesc'),

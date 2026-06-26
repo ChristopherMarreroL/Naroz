@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 
 import { useLocale } from '../../i18n/LocaleProvider'
+import { notify } from '../../lib/notifications'
 
 interface FileDropzoneProps {
   title: string
@@ -46,7 +47,6 @@ export function FileDropzone({
   const { t } = useLocale()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [localError, setLocalError] = useState<string | null>(null)
 
   const resolvedUploadLabel = uploadLabel ?? buttonLabel ?? (multiple ? t('uploadFilesDropzone') : t('uploadFileDropzone'))
 
@@ -58,12 +58,11 @@ export function FileDropzone({
     if (maxSize) {
       const tooLarge = Array.from(files).find((file) => file.size > maxSize)
       if (tooLarge) {
-        setLocalError(`${t('invalidFile')}: ${tooLarge.name}. ${t('maximumSize')}: ${formatMaxSize(maxSize)}.`)
+        const message = `${t('invalidFile')}: ${tooLarge.name}. ${t('maximumSize')}: ${formatMaxSize(maxSize)}.`
+        notify('error', t('invalidFile'), message)
         return
       }
     }
-
-    setLocalError(null)
     onSelect(files)
   }
 
@@ -127,8 +126,6 @@ export function FileDropzone({
             <span className="text-sm font-semibold text-slate-900">{isDragging ? t('dropYourFilesHere') : resolvedUploadLabel}</span>
             <span className="max-w-xl text-xs leading-5 text-slate-500">{t('chooseOrDropFiles')}</span>
           </label>
-
-          {localError ? <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{localError}</p> : null}
         </div>
 
         <aside className="grid content-start gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">

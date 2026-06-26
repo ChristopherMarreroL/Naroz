@@ -4,6 +4,7 @@ import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { getCompatibilityWarnings, resolveMergeStrategy } from './lib/media'
 import { CompatibilityPanel } from './components/CompatibilityPanel'
@@ -26,7 +27,7 @@ export function VideoMergeView() {
   const { videos, addVideos, removeVideo, clearVideos, reorderVideo, totalDuration } = useVideoQueue()
   const { progress, isLoadingEngine, isProcessing, result, error, ensureLoaded, mergeVideos } = useVideoMerger()
   const [outputFormat, setOutputFormat] = useState<VideoOutputFormat>('mp4')
-  const [notice, setNotice] = useState<Notice | null>({
+  const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('processingLocal'),
     message: t('mergeLocalInfo'),
