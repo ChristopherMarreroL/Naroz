@@ -7,7 +7,7 @@ import { downloadFromUrl } from '../../lib/download'
 import { QrOptionsPanel } from './components/QrOptionsPanel'
 import { QrPreview } from './components/QrPreview'
 import { useQrGenerator } from './hooks/useQrGenerator'
-import { downloadSvg, normalizeLogoSizePercent, normalizeQrSize, type QrRenderOptions } from './utils/qrUtils'
+import { normalizeLogoSizePercent, normalizeQrSize, type QrRenderOptions } from './utils/qrUtils'
 
 const DEFAULT_QR_OPTIONS = {
   foregroundColor: '#000000',
@@ -173,20 +173,6 @@ export function QrGeneratorView() {
     }
   }
 
-  const handleDownloadSvg = () => {
-    if (!result) {
-      setNotice({ tone: 'error', title: t('qrDownloadErrorTitle'), message: t('qrDownloadMissingMessage') })
-      return
-    }
-
-    try {
-      downloadSvg(result.svg, 'naroz-qr-code.svg')
-      setNotice({ tone: 'success', title: t('qrDownloadReadyTitle'), message: t('qrSvgDownloadMessage') })
-    } catch (downloadError) {
-      setNotice({ tone: 'error', title: t('qrDownloadErrorTitle'), message: downloadError instanceof Error ? downloadError.message : t('qrDownloadErrorMessage') })
-    }
-  }
-
   return (
     <>
       <SectionHero
@@ -249,19 +235,14 @@ export function QrGeneratorView() {
                     {t('resetChanges')}
                   </button>
                   {result ? (
-                    <>
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={handleDownloadPng}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-                          <path d="M12 4v10" />
-                          <path d="m8 10 4 4 4-4" />
-                          <path d="M5 19h14" />
-                        </svg>
-                        {t('qrDownloadPng')}
-                      </button>
-                      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={handleDownloadSvg}>
-                        {t('qrDownloadSvg')}
-                      </button>
-                    </>
+                    <button type="button" className="btn-download w-full sm:w-auto" onClick={handleDownloadPng}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                        <path d="M12 4v10" />
+                        <path d="m8 10 4 4 4-4" />
+                        <path d="M5 19h14" />
+                      </svg>
+                      {t('qrDownloadPng')}
+                    </button>
                   ) : null}
                 </div>
               </div>
@@ -282,7 +263,7 @@ export function QrGeneratorView() {
             </div>
             <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('targetOutput')}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">PNG / SVG</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">PNG</p>
             </div>
             <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('size')}</p>
@@ -305,3 +286,4 @@ export function QrGeneratorView() {
     </>
   )
 }
+

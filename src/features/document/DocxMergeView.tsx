@@ -77,6 +77,8 @@ export function DocxMergeView() {
             title={t('docxMergeCardTitle')}
             description={t('docxMergeCardDesc')}
             buttonLabel={t('selectDocx')}
+            uploadLabel={t('uploadDocumentDropzone')}
+            acceptedFormats="DOCX"
             accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             multiple
             disabled={isProcessing}
@@ -187,3 +189,4 @@ export function DocxMergeView() {
     </>
   )
 }
+

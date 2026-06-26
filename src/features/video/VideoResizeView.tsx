@@ -163,6 +163,7 @@ export function VideoResizeView() {
             title={t('resizeVideoCardTitle')}
             description={t('resizeVideoCardDesc')}
             buttonLabel={t('selectVideo')}
+      uploadLabel={t('uploadVideoDropzone')}
             accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
             disabled={isProcessing}
             aside={<span className="badge">MP4 / MKV / MOV</span>}
@@ -248,3 +249,4 @@ export function VideoResizeView() {
     </>
   )
 }
+

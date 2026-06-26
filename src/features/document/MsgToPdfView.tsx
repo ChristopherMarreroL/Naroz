@@ -233,6 +233,8 @@ export function MsgToPdfView() {
               title={t('mailToPdfCardTitle')}
               description={t('mailToPdfCardDesc')}
               buttonLabel={t('selectMail')}
+              uploadLabel={t('uploadMailDropzone')}
+              acceptedFormats="MSG / EML"
               accept=".msg,.eml,application/vnd.ms-outlook,message/rfc822"
               aside={<span className="badge">MSG / EML</span>}
               onSelect={(files) => void handleSelectFiles(files)}
@@ -306,3 +308,5 @@ export function MsgToPdfView() {
     </>
   )
 }
+
+

@@ -238,6 +238,8 @@ export function ExcelColumnBuilderView() {
               title={t('excelColumnBuilderCardTitle')}
               description={t('excelColumnBuilderCardDesc')}
               buttonLabel={isReading ? t('readingFiles') : t('selectExcelFiles')}
+              uploadLabel={t('uploadExcelDropzone')}
+              acceptedFormats="XLSX / XLS / CSV"
               accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
               multiple
               disabled={isReading || isGenerating}
@@ -296,11 +298,17 @@ export function ExcelColumnBuilderView() {
                           }}>
                             {t('viewLarge')}
                           </button>
-                          <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={(event) => {
+                          <button type="button" className="btn-danger h-9 w-9 px-0" aria-label={t('remove')} title={t('remove')} onClick={(event) => {
                             event.stopPropagation()
                             removeFile(file.id)
                           }} disabled={isReading || isGenerating}>
-                            {t('remove')}
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+                              <path d="M4 7h16" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M6 7l1 14h10l1-14" />
+                              <path d="M9 7V4h6v3" />
+                            </svg>
                           </button>
                         </div>
                       </div>

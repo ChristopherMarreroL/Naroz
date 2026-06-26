@@ -14,6 +14,7 @@ export function FilePicker({ onSelect, disabled = false }: FilePickerProps) {
       title={t('mergeVideos')}
       description={t('mergeLocalInfo')}
       buttonLabel={t('selectVideo')}
+      uploadLabel={t('uploadVideoDropzone')}
       accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
       multiple
       disabled={disabled}
@@ -26,3 +27,4 @@ export function FilePicker({ onSelect, disabled = false }: FilePickerProps) {
     />
   )
 }
+

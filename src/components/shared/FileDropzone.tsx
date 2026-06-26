@@ -5,104 +5,148 @@ import { useLocale } from '../../i18n/LocaleProvider'
 interface FileDropzoneProps {
   title: string
   description: string
-  buttonLabel: string
+  buttonLabel?: string
+  uploadLabel?: string
   accept?: string
+  acceptedFormats?: string
+  maxSize?: number
   multiple?: boolean
   disabled?: boolean
   aside?: ReactNode
+  icon?: ReactNode
   onSelect: (files: FileList | null) => void
+}
+
+function formatMaxSize(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round(bytes / (1024 * 1024))} MB`
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+
+  return `${bytes} B`
 }
 
 export function FileDropzone({
   title,
   description,
   buttonLabel,
+  uploadLabel,
   accept,
+  acceptedFormats,
+  maxSize,
   multiple = false,
   disabled = false,
   aside,
+  icon,
   onSelect,
 }: FileDropzoneProps) {
   const { t } = useLocale()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const resolvedUploadLabel = uploadLabel ?? buttonLabel ?? (multiple ? t('uploadFilesDropzone') : t('uploadFileDropzone'))
 
   const handleFiles = (files: FileList | null) => {
     if (disabled || !files?.length) {
       return
     }
 
+    if (maxSize) {
+      const tooLarge = Array.from(files).find((file) => file.size > maxSize)
+      if (tooLarge) {
+        setLocalError(`${t('invalidFile')}: ${tooLarge.name}. ${t('maximumSize')}: ${formatMaxSize(maxSize)}.`)
+        return
+      }
+    }
+
+    setLocalError(null)
     onSelect(files)
   }
 
   return (
-    <section
-      className={`panel overflow-hidden p-6 transition sm:p-8 ${isDragging ? 'border-sky-300 shadow-[0_24px_70px_-35px_rgba(14,165,233,0.35)]' : ''}`}
-      onDragOver={(event) => {
-        event.preventDefault()
-        if (!disabled) {
-          setIsDragging(true)
-        }
-      }}
-      onDragLeave={(event) => {
-        event.preventDefault()
-        const relatedTarget = event.relatedTarget as Node | null
-        if (!event.currentTarget.contains(relatedTarget)) {
-          setIsDragging(false)
-        }
-      }}
-      onDrop={(event) => {
-        event.preventDefault()
-        setIsDragging(false)
-        handleFiles(event.dataTransfer.files)
-      }}
-    >
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-2xl">
+    <section className="panel overflow-hidden p-4 transition sm:p-6 lg:p-8">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-stretch">
+        <div>
           <h2 className="text-2xl font-extrabold text-slate-950 sm:text-3xl">{title}</h2>
           <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">{description}</p>
-          <div className={`mt-5 rounded-[1.35rem] border border-dashed px-4 py-5 transition sm:px-5 ${isDragging ? 'border-sky-400 bg-sky-50' : 'border-slate-300 bg-slate-50/80'}`}>
-            <div className="flex items-start gap-3">
-              <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${isDragging ? 'bg-sky-500 text-white' : 'bg-white text-slate-700'}`}>
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
-                  <path d="M12 16V6" />
-                  <path d="m8 10 4-4 4 4" />
-                  <path d="M5 18h14" />
+
+          <label
+            className={`mt-5 flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.5rem] border border-dashed bg-white px-4 py-7 text-center transition sm:px-6 ${
+              isDragging ? 'border-slate-950 bg-slate-50 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)]' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
+            } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+            onDragOver={(event) => {
+              if (disabled) {
+                return
+              }
+
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+              setIsDragging(true)
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault()
+              const relatedTarget = event.relatedTarget as Node | null
+              if (!event.currentTarget.contains(relatedTarget)) {
+                setIsDragging(false)
+              }
+            }}
+            onDrop={(event) => {
+              if (disabled) {
+                return
+              }
+
+              event.preventDefault()
+              setIsDragging(false)
+              handleFiles(event.dataTransfer.files)
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept={accept}
+              multiple={multiple}
+              disabled={disabled}
+              className="sr-only"
+              onChange={(event) => {
+                handleFiles(event.target.files)
+                event.currentTarget.value = ''
+              }}
+            />
+
+            <span className={`grid h-14 w-14 place-items-center rounded-2xl transition ${isDragging ? 'bg-slate-800 text-white' : 'bg-slate-950 text-white'}`}>
+              {icon ?? (
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7 fill-none stroke-current" strokeWidth="1.8">
+                  <path d="M12 5v14M5 12h14" />
                 </svg>
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{t('dragDropTitle')}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{isDragging ? t('dropNow') : t('dragDropHint')}</p>
-              </div>
+              )}
+            </span>
+            <span className="text-sm font-semibold text-slate-900">{isDragging ? t('dropYourFilesHere') : resolvedUploadLabel}</span>
+            <span className="max-w-xl text-xs leading-5 text-slate-500">{t('chooseOrDropFiles')}</span>
+          </label>
+
+          {localError ? <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{localError}</p> : null}
+        </div>
+
+        <aside className="grid content-start gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+          {acceptedFormats ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('allowedFormats')}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{acceptedFormats}</p>
             </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:min-w-72">
-          <button type="button" className="btn-primary w-full" onClick={() => inputRef.current?.click()} disabled={disabled}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-              <path d="M12 4v10" />
-              <path d="m8 10 4 4 4-4" />
-              <path d="M5 19h14" />
-            </svg>
-            {buttonLabel}
-          </button>
-          <p className="text-xs leading-5 text-slate-500">{t('chooseOrDropFiles')}</p>
+          ) : null}
+          {maxSize ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('maximumSize')}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{formatMaxSize(maxSize)}</p>
+            </div>
+          ) : null}
           {aside}
-        </div>
+        </aside>
       </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        className="hidden"
-        onChange={(event) => {
-          handleFiles(event.target.files)
-          event.target.value = ''
-        }}
-      />
     </section>
   )
 }

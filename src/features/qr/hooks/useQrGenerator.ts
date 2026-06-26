@@ -1,10 +1,9 @@
 import { useState } from 'react'
 
-import { generateQrPngDataUrl, generateQrSvg, type QrRenderOptions } from '../utils/qrUtils'
+import { generateQrPngDataUrl, type QrRenderOptions } from '../utils/qrUtils'
 
 export interface QrResult {
   pngDataUrl: string
-  svg: string
   content: string
   options: QrRenderOptions
 }
@@ -19,14 +18,10 @@ export function useQrGenerator() {
     setError(null)
 
     try {
-      const [pngDataUrl, svg] = await Promise.all([
-        generateQrPngDataUrl(content, options),
-        generateQrSvg(content, options),
-      ])
+      const pngDataUrl = await generateQrPngDataUrl(content, options)
 
       const nextResult = {
         pngDataUrl,
-        svg,
         content,
         options,
       }
