@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { AppLayout } from './components/layout/AppLayout'
@@ -181,6 +181,10 @@ function App() {
 
   const activeTool = useMemo(() => getToolFromPath(location.pathname), [location.pathname])
 
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [location.pathname])
+
   useEffect(() => {
     if (activeTool === 'home' && location.pathname !== '/') {
       navigate('/', { replace: true })
@@ -236,7 +240,4 @@ function App() {
 }
 
 export default App
-
-
-
 
