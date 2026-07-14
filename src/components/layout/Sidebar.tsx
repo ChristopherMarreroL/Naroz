@@ -22,11 +22,11 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
   }
 
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
-      <div className="border-b border-slate-100/80 px-5 py-5">
+    <aside className="app-sidebar flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="sidebar-header px-5 py-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="sidebar-brand">
               <img src={narozLogo} alt={t('narozLogoAlt')} className="h-10 w-10 rounded-2xl bg-white object-contain p-1.5 shadow-[0_12px_24px_-18px_rgba(15,23,42,0.5)]" decoding="async" />
               <div>
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-slate-400">{t('brandLabel')}</p>
@@ -55,7 +55,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
 
           return (
             <section key={section}>
-              <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <div className="sidebar-section-label">
                 {sectionLabels[section]}
               </div>
 
@@ -115,10 +115,9 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
         })}
       </div>
 
-      <div className="border-t border-slate-100/80 bg-slate-50/70 px-6 py-5 text-sm text-slate-500">
+      <div className="sidebar-footer">
         {t('sidebarFooter')}
       </div>
     </aside>
   )
 }
-

@@ -14,7 +14,7 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
 
    return (
      <div className="sticky top-3 z-30 sm:top-5 lg:top-6">
-       <header className="w-full panel px-4 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">
+       <header className="app-topbar w-full px-3 py-3 sm:px-4 lg:px-5">
          <div className="flex items-center justify-between gap-4 sm:gap-5 lg:gap-6">
            <div className="flex items-center gap-3 sm:gap-4 lg:gap-5">
              <button
@@ -32,7 +32,7 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
                type="button"
                onClick={onGoHome}
                aria-label={t('goHomeReload')}
-               className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-slate-900 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50"
+               className="brand-pill inline-flex cursor-pointer items-center gap-2 rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50 sm:px-4"
              >
                <img src={narozLogo} alt={t('narozLogoAlt')} className="h-6 w-6 cursor-pointer rounded-full bg-white/10 object-contain" decoding="async" fetchPriority="high" />
                Naroz
