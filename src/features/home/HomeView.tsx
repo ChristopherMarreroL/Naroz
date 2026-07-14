@@ -1,7 +1,9 @@
+import { useState } from 'react'
+
 import type { AppToolId } from '../../types/app'
 import { useLocale } from '../../i18n/LocaleProvider'
-import { SectionHero } from '../../components/shared/SectionHero'
 import { ToolIcon } from '../../components/shared/ToolIcon'
+import narozLogo from '../../assets/naroz-logo.jpg'
 
 interface HomeViewProps {
   onNavigate: (tool: AppToolId) => void
@@ -144,77 +146,176 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
 
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { locale, t } = useLocale()
+  const [activeCategory, setActiveCategory] = useState<'all' | 'utility' | 'document' | 'image' | 'video'>('all')
   const sections = [
     { id: 'utility', label: t('utility') },
     { id: 'document', label: t('document') },
     { id: 'image', label: t('image') },
     { id: 'video', label: t('video') },
   ] as const
+
+  const filteredTools = sections.flatMap((section) =>
+    availableTools
+      .filter((tool) => tool.category === section.id)
+      .map((tool) => ({ ...tool, categoryLabel: section.label })),
+  ).filter((tool) => activeCategory === 'all' || tool.category === activeCategory)
+
+  const categoryStyles = {
+    utility: 'tool-card-utility',
+    document: 'tool-card-document',
+    image: 'tool-card-image',
+    video: 'tool-card-video',
+  } as const
+
+  const categoryFilters = [
+    { id: 'all' as const, label: locale === 'es' ? 'Todas' : 'All' },
+    ...sections,
+  ]
+
   return (
     <>
-      <SectionHero
-        badge={t('homeHeroBadge')}
-        title={t('homeTitle')}
-        description={t('homeDescription')}
-      />
-
-      <section className="panel p-4 sm:p-6 lg:p-8">
-        <h2 className="text-2xl font-extrabold text-slate-950">{t('homeIntroTitle')}</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">{t('homeIntroDescription')}</p>
-      </section>
-
-      <section className="panel p-4 sm:p-6 lg:p-8">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-950">{t('homeAvailable')}</h2>
+      <section className="home-hero">
+        <div className="home-hero-copy">
+          <div className="home-eyebrow">
+            <span className="home-eyebrow-dot" />
+            {availableTools.length} {t('activeCount')} · {locale === 'es' ? 'Procesamiento local' : 'Local processing'}
           </div>
-          <span className="badge">{availableTools.length} {t('activeCount')}</span>
+
+          <h1>
+            {locale === 'es' ? 'Tus archivos,' : 'Your files,'}
+            <span>{locale === 'es' ? ' listos sin complicaciones.' : ' ready without the hassle.'}</span>
+          </h1>
+          <p>{t('homeDescription')} {locale === 'es' ? 'Rápido, privado y directamente en tu navegador.' : 'Fast, private, and directly in your browser.'}</p>
+
+          <div className="home-hero-actions">
+            <button type="button" className="btn-primary" onClick={() => onNavigate('image-convert')}>
+              {locale === 'es' ? 'Convertir una imagen' : 'Convert an image'}
+              <span aria-hidden="true">→</span>
+            </button>
+            <a href="#herramientas" className="btn-secondary">
+              {locale === 'es' ? 'Ver herramientas' : 'Browse tools'}
+            </a>
+          </div>
+
+          <div className="home-trust-row" aria-label={locale === 'es' ? 'Ventajas de Naroz' : 'Naroz benefits'}>
+            <span>{locale === 'es' ? 'Sin registro' : 'No sign-up'}</span>
+            <span>{locale === 'es' ? 'Archivos privados' : 'Private files'}</span>
+            <span>{locale === 'es' ? 'Descarga inmediata' : 'Instant download'}</span>
+          </div>
         </div>
 
-        <div className="mt-6 space-y-8">
-          {sections.map((section) => {
-            const tools = availableTools.filter((tool) => tool.category === section.id)
-            if (tools.length === 0) {
-              return null
-            }
+        <div className="conversion-bench" aria-hidden="true">
+          <div className="bench-windowbar">
+            <span className="bench-dots"><i /><i /><i /></span>
+            <span>Naroz / local</span>
+            <span className="bench-live"><i /> {locale === 'es' ? 'Listo' : 'Ready'}</span>
+          </div>
 
-            return (
-              <div key={section.id}>
-                <div className="mb-4 flex items-center gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{section.label}</span>
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
-
-                <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {tools.map((tool) => (
-                    <article key={tool.id} className="panel-subtle min-w-0 p-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="badge">{section.label}</span>
-                          {tool.status === 'beta' ? <span className="badge bg-sky-100 text-sky-700">{t('betaBadge')}</span> : null}
-                        </div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                          <ToolIcon toolId={tool.id} />
-                        </div>
-                      </div>
-                      <h3 className="mt-4 text-xl font-bold text-slate-950">{getToolTitle(tool.id, locale)}</h3>
-                      <p className="mt-2 break-words text-sm leading-6 text-slate-600">{getToolDescription(tool.id, locale)}</p>
-                      <button type="button" className="btn-primary mt-4 w-full sm:w-auto" onClick={() => onNavigate(tool.id)}>
-                        {t('openTool')}
-                      </button>
-                    </article>
-                  ))}
-                </div>
+          <div className="bench-workspace">
+            <div className="file-ticket file-ticket-source">
+              <span className="ticket-kicker">{locale === 'es' ? 'Entrada' : 'Input'}</span>
+              <div className="ticket-file-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" strokeWidth="1.8">
+                  <rect x="4" y="5" width="16" height="14" rx="2" />
+                  <path d="m7 15 3-3 2.5 2.5L15 12l3 3" />
+                </svg>
               </div>
-            )
-          })}
+              <div className="ticket-copy">
+                <strong>naroz-proyecto.png</strong>
+                <span>PNG · 4.2 MB</span>
+              </div>
+              <span className="ticket-status">PNG</span>
+            </div>
+
+            <div className="conversion-rail">
+              <span className="rail-line"><i /></span>
+              <div className="converter-mark">
+                <img src={narozLogo} alt="" decoding="async" fetchPriority="high" />
+              </div>
+              <span className="rail-label">{locale === 'es' ? 'Conversión local' : 'Local conversion'}</span>
+            </div>
+
+            <div className="file-ticket file-ticket-result">
+              <span className="ticket-kicker">{locale === 'es' ? 'Salida' : 'Output'}</span>
+              <div className="ticket-file-icon ticket-file-icon-result">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" strokeWidth="1.8">
+                  <path d="M5 12.5 9.2 17 19 7" />
+                </svg>
+              </div>
+              <div className="ticket-copy">
+                <strong>naroz-proyecto.webp</strong>
+                <span>WebP · 1.1 MB</span>
+              </div>
+              <span className="ticket-status ticket-status-ready">{locale === 'es' ? 'Listo' : 'Ready'}</span>
+            </div>
+
+            <div className="bench-tool-network">
+              <span className="network-title">{locale === 'es' ? 'Más flujos disponibles' : 'More available flows'}</span>
+              <div className="bench-tool-grid">
+                <span className="mini-flow"><strong>PDF</strong><i>→</i>{locale === 'es' ? 'Unir' : 'Merge'}</span>
+                <span className="mini-flow"><strong>MP4</strong><i>→</i>MP3</span>
+                <span className="mini-flow"><strong>XLSX</strong><i>→</i>JOIN</span>
+                <span className="mini-flow"><strong>URL</strong><i>→</i>QR</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bench-footer">
+            <span className="bench-shield">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" strokeWidth="1.8">
+                <path d="M12 3 5.5 6v5.5c0 4.2 2.6 7.2 6.5 9.5 3.9-2.3 6.5-5.3 6.5-9.5V6Z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            </span>
+            <span>
+              <strong>100% local</strong>
+              {locale === 'es' ? 'Tus archivos no salen del navegador' : 'Your files stay in the browser'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section id="herramientas" className="tools-showcase">
+        <div className="tools-showcase-header">
+          <div>
+            <span className="section-kicker">{locale === 'es' ? 'Elige lo que necesitas' : 'Choose what you need'}</span>
+            <h2>{t('homeAvailable')}</h2>
+            <p>{t('homeIntroDescription')}</p>
+          </div>
+          <span className="tool-count"><strong>{availableTools.length}</strong> {t('activeCount')}</span>
+        </div>
+
+        <div className="category-filters" aria-label={locale === 'es' ? 'Filtrar por categoría' : 'Filter by category'}>
+          {categoryFilters.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              className={activeCategory === category.id ? 'category-filter-active' : ''}
+              onClick={() => setActiveCategory(category.id)}
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="tools-grid">
+          {filteredTools.map((tool) => (
+            <article key={tool.id} className={`tool-card ${categoryStyles[tool.category as keyof typeof categoryStyles]}`}>
+              <div className="tool-card-topline">
+                <span className="tool-category">{tool.categoryLabel}</span>
+                {tool.status === 'beta' ? <span className="tool-beta">{t('betaBadge')}</span> : null}
+                <span className="tool-icon"><ToolIcon toolId={tool.id} /></span>
+              </div>
+              <h3>{getToolTitle(tool.id, locale)}</h3>
+              <p>{getToolDescription(tool.id, locale)}</p>
+              <button type="button" className="tool-card-action" onClick={() => onNavigate(tool.id)}>
+                {t('openTool')}
+                <span aria-hidden="true">↗</span>
+              </button>
+            </article>
+          ))}
         </div>
       </section>
     </>
   )
 }
-
-
-
-
-

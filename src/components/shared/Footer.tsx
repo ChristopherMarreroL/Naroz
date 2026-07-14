@@ -4,13 +4,13 @@ export function Footer() {
   const { locale } = useLocale()
 
   return (
-    <footer className="panel flex flex-col gap-4 overflow-hidden px-5 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-      <p>{locale === 'es' ? '© 2026 - Todos los derechos reservados.' : '© 2026 - All rights reserved.'}</p>
+    <footer className="app-footer">
+      <div><p className="app-footer-brand">Naroz</p><p>{locale === 'es' ? '© 2026 - Todos los derechos reservados.' : '© 2026 - All rights reserved.'}</p></div>
       <a
         href="https://github.com/ChristopherMarreroL/Naroz"
         target="_blank"
         rel="noreferrer"
-        className="inline-flex max-w-full items-center gap-2 break-all font-semibold text-slate-900 transition hover:text-sky-700 sm:break-normal">
+        className="app-footer-link">
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
@@ -20,5 +20,5 @@ export function Footer() {
         GitHub
       </a>
     </footer>
-  );
+  )
 }

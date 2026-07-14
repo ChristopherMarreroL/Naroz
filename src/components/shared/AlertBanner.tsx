@@ -29,7 +29,7 @@ export function AlertBanner({ tone, title, message }: AlertBannerProps) {
   }
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneStyles[tone]}`}>
+    <div className={`notice-inline rounded-2xl border px-4 py-3 text-sm ${toneStyles[tone]}`}>
       <p className="font-semibold">{title}</p>
       <p className="mt-1 leading-6">{message}</p>
     </div>
