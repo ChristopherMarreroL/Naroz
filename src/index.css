@@ -22,7 +22,17 @@
 html {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-scroll {
+  scrollbar-width: none;
 }
 
 body {
@@ -32,7 +42,7 @@ body {
   min-height: 100vh;
   background-image: radial-gradient(rgba(24, 33, 47, 0.055) 0.7px, transparent 0.7px);
   background-size: 22px 22px;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button,
@@ -730,6 +740,7 @@ svg {
   .home-hero-demo {
     display: block;
     min-height: 0;
+    margin-top: clamp(0.65rem, 1.2vw, 1rem);
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -1267,6 +1278,11 @@ svg {
     color: #ffffff;
     font-size: 1.3rem;
     font-weight: 300;
+    box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.78);
+  }
+
+  .home-product-demo[data-demo-phase='empty'] .demo-upload-plus {
+    animation: demo-plus-target 1350ms ease-in-out both;
   }
 
   .demo-input-loaded {
@@ -1411,6 +1427,117 @@ svg {
   .demo-result-ready .demo-result-check {
     background: #dffaf4;
     color: #128c7d;
+  }
+
+  .demo-download-popover {
+    position: absolute;
+    z-index: 7;
+    top: 0.8rem;
+    right: 0.8rem;
+    display: grid;
+    width: min(20rem, calc(100% - 1.6rem));
+    min-width: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.6rem;
+    overflow: hidden;
+    border: 1px solid #d9e1ec;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.97);
+    padding: 0.65rem;
+    box-shadow: 0 22px 48px -28px rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(10px);
+    animation: demo-download-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .demo-download-icon {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: 0.58rem;
+    background: rgb(var(--demo-accent-rgb) / 0.12);
+    color: var(--demo-accent);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .demo-download-icon svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.7;
+  }
+
+  .demo-download-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.08rem;
+  }
+
+  .demo-download-copy strong,
+  .demo-download-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .demo-download-copy strong {
+    color: #111827;
+    font-size: 0.64rem;
+  }
+
+  .demo-download-copy small {
+    color: #7b8799;
+    font-size: 0.52rem;
+  }
+
+  .demo-download-status {
+    color: var(--demo-accent);
+    font-size: 0.54rem;
+    font-weight: 900;
+  }
+
+  .demo-download-popover > i {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 0.22rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e8edf3;
+  }
+
+  .demo-download-popover > i::after {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 68%;
+    border-radius: inherit;
+    background: var(--demo-accent);
+    content: '';
+    animation: demo-download-progress 900ms ease-out both;
+  }
+
+  .demo-download-complete {
+    border-color: #b6e8dd;
+    background: rgba(247, 255, 252, 0.98);
+  }
+
+  .demo-download-complete .demo-download-icon {
+    background: #dffaf4;
+    color: #128c7d;
+  }
+
+  .demo-download-complete .demo-download-status {
+    color: #128c7d;
+  }
+
+  .demo-download-complete > i::after {
+    width: 100%;
+    background: #22b89f;
   }
 
   .demo-file-picker-backdrop {
@@ -1749,6 +1876,20 @@ svg {
 
   @keyframes demo-spinner {
     to { transform: rotate(360deg); }
+  }
+
+  @keyframes demo-plus-target {
+    0%, 100% { box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.78); transform: scale(1); }
+    58% { box-shadow: 0 0 0 0.28rem rgb(var(--demo-accent-rgb) / 0.13), 0 15px 26px -16px rgba(15, 23, 42, 0.82); transform: scale(1.04); }
+  }
+
+  @keyframes demo-download-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes demo-download-progress {
+    from { width: 8%; }
   }
 
   @keyframes demo-picker-backdrop-in {
@@ -2534,6 +2675,12 @@ svg {
     padding-inline: 0.55rem;
   }
 
+  .demo-download-popover {
+    top: 0.55rem;
+    right: 0.55rem;
+    width: calc(100% - 1.1rem);
+  }
+
   .demo-file-picker-backdrop {
     padding: 0.45rem;
   }
@@ -2565,7 +2712,16 @@ svg {
   }
 
   .demo-cursor {
-    display: none;
+    display: block;
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .demo-cursor i {
+    top: 0.4rem;
+    left: 0.34rem;
+    width: 0.58rem;
+    height: 0.58rem;
   }
 
   .bench-footer {
@@ -2633,6 +2789,9 @@ svg {
 
   .demo-result-processing .demo-result-check,
   .home-product-demo[data-demo-phase='selecting'] .demo-home-tool-target,
+  .home-product-demo[data-demo-phase='empty'] .demo-upload-plus,
+  .demo-download-popover,
+  .demo-download-popover > i::after,
   .demo-file-picker-backdrop,
   .demo-file-picker {
     animation: none;

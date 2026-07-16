@@ -5,7 +5,7 @@ import { ToolIcon } from '../../components/shared/ToolIcon'
 import type { AppToolId } from '../../types/app'
 
 type DemoFlowId = 'image' | 'markdown' | 'qr'
-type DemoPhase = 'home' | 'selecting' | 'empty' | 'picker' | 'pickerConfirm' | 'loaded' | 'processing' | 'complete' | 'returning'
+type DemoPhase = 'home' | 'selecting' | 'empty' | 'picker' | 'pickerConfirm' | 'loaded' | 'processing' | 'complete' | 'downloading' | 'downloaded' | 'returning'
 type LocalizedText = { es: string; en: string }
 
 interface HomeProductDemoProps {
@@ -111,7 +111,7 @@ const catalogTools: DemoCatalogTool[] = [
 ]
 
 const automaticFlowOrder: DemoFlowId[] = ['qr', 'image', 'markdown']
-const phases: DemoPhase[] = ['home', 'selecting', 'empty', 'picker', 'pickerConfirm', 'loaded', 'processing', 'complete', 'returning']
+const phases: DemoPhase[] = ['home', 'selecting', 'empty', 'picker', 'pickerConfirm', 'loaded', 'processing', 'complete', 'downloading', 'downloaded', 'returning']
 const phaseDurations: Record<DemoPhase, number> = {
   home: 900,
   selecting: 1450,
@@ -121,10 +121,12 @@ const phaseDurations: Record<DemoPhase, number> = {
   loaded: 1450,
   processing: 1000,
   complete: 1500,
+  downloading: 950,
+  downloaded: 1250,
   returning: 1300,
 }
 
-const clickingPhases: DemoPhase[] = ['selecting', 'empty', 'picker', 'pickerConfirm', 'loaded', 'returning']
+const clickingPhases: DemoPhase[] = ['selecting', 'empty', 'picker', 'pickerConfirm', 'loaded', 'complete', 'returning']
 
 export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
   const [activeFlowId, setActiveFlowId] = useState<DemoFlowId>('qr')
@@ -166,16 +168,18 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
         : phase === 'selecting'
           ? '[data-demo-flow-target="' + activeFlowId + '"]'
           : phase === 'empty'
-            ? '[data-demo-target="upload"]'
+            ? '[data-demo-target="upload-plus"]'
             : phase === 'picker'
               ? '[data-demo-target="picker-file"]'
               : phase === 'pickerConfirm'
                 ? '[data-demo-target="picker-confirm"]'
-                : phase === 'loaded'
+                : phase === 'loaded' || phase === 'complete'
                   ? '[data-demo-target="action"]'
-                  : phase === 'processing' || phase === 'complete'
+                  : phase === 'processing'
                     ? '[data-demo-target="result"]'
-                    : '[data-demo-target="back"]'
+                    : phase === 'downloading' || phase === 'downloaded'
+                      ? '[data-demo-target="download-indicator"]'
+                      : '[data-demo-target="back"]'
       const target = root.querySelector<HTMLElement>(selector)
       if (!target) {
         return
@@ -183,8 +187,9 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
 
       const rootRect = root.getBoundingClientRect()
       const targetRect = target.getBoundingClientRect()
-      root.style.setProperty('--demo-cursor-x', String(targetRect.left - rootRect.left + targetRect.width * 0.58) + 'px')
-      root.style.setProperty('--demo-cursor-y', String(targetRect.top - rootRect.top + targetRect.height * 0.54) + 'px')
+      const targetRatio = phase === 'empty' ? 0.76 : 0.58
+      root.style.setProperty('--demo-cursor-x', String(targetRect.left - rootRect.left + targetRect.width * targetRatio) + 'px')
+      root.style.setProperty('--demo-cursor-y', String(targetRect.top - rootRect.top + targetRect.height * targetRatio) + 'px')
     }
 
     const frame = window.requestAnimationFrame(updateCursor)
@@ -257,6 +262,15 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
       return
     }
     if (phase === 'complete') {
+      clearManualTimer()
+      setPhase('downloading')
+      manualTimerRef.current = window.setTimeout(() => {
+        setPhase('downloaded')
+        manualTimerRef.current = null
+      }, 700)
+      return
+    }
+    if (phase === 'downloaded') {
       onNavigate(activeFlow.toolId)
     }
   }
@@ -295,6 +309,9 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
     convert: locale === 'es' ? 'Convertir' : 'Convert',
     processing: locale === 'es' ? 'Convirtiendo...' : 'Converting...',
     openRealTool: locale === 'es' ? 'Abrir herramienta real' : 'Open real tool',
+    downloadResult: locale === 'es' ? 'Descargar resultado' : 'Download result',
+    downloadingFile: locale === 'es' ? 'Descargando archivo...' : 'Downloading file...',
+    downloadComplete: locale === 'es' ? 'Descarga completada' : 'Download complete',
     dropHint: locale === 'es' ? 'Arrastra un archivo o carga el ejemplo' : 'Drop a file or load the example',
     output: locale === 'es' ? 'Resultado' : 'Result',
     local: '100% local',
@@ -425,7 +442,7 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
               >
                 {phase === 'empty' ? (
                   <>
-                    <span className="demo-upload-plus">+</span>
+                    <span className="demo-upload-plus" data-demo-target="upload-plus">+</span>
                     <strong>{text.dropHint}</strong>
                     <small>{activeFlow.sourceFormat}</small>
                   </>
@@ -440,13 +457,13 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
 
               <div className="demo-action-row">
                 <span className="demo-output-choice">{locale === 'es' ? 'Salida' : 'Output'} <strong>{activeFlow.outputFormat}</strong></span>
-                <button type="button" data-demo-target="action" disabled={phase === 'processing'} onClick={handlePrimaryAction}>
-                  {phase === 'empty' ? text.loadExample : phase === 'loaded' ? text.convert : phase === 'processing' ? text.processing : text.openRealTool}
+                <button type="button" data-demo-target="action" disabled={phase === 'processing' || phase === 'downloading'} onClick={handlePrimaryAction}>
+                  {phase === 'empty' ? text.loadExample : phase === 'loaded' ? text.convert : phase === 'processing' ? text.processing : phase === 'complete' ? text.downloadResult : phase === 'downloading' ? text.downloadingFile : text.openRealTool}
                 </button>
               </div>
 
               <div
-                className={phase === 'processing' ? 'demo-result-card demo-result-processing' : phase === 'complete' || phase === 'returning' ? 'demo-result-card demo-result-ready' : 'demo-result-card'}
+                className={phase === 'processing' ? 'demo-result-card demo-result-processing' : phase === 'complete' || phase === 'downloading' || phase === 'downloaded' || phase === 'returning' ? 'demo-result-card demo-result-ready' : 'demo-result-card'}
                 data-demo-target="result"
               >
                 <span className="demo-result-check">{phase === 'processing' ? '' : '✓'}</span>
@@ -454,7 +471,7 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
                   <strong>{phase === 'processing' ? text.processing : activeFlow.outputName}</strong>
                   <small>{phase === 'processing' ? (locale === 'es' ? 'Procesamiento local' : 'Local processing') : activeFlow.outputMeta}</small>
                 </span>
-                <span className="demo-ready-label">{phase === 'complete' || phase === 'returning' ? (locale === 'es' ? 'Listo' : 'Ready') : text.output}</span>
+                <span className="demo-ready-label">{phase === 'complete' || phase === 'downloading' || phase === 'downloaded' || phase === 'returning' ? (locale === 'es' ? 'Listo' : 'Ready') : text.output}</span>
               </div>
             </section>
           </div>
@@ -508,6 +525,20 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
                 </button>
               </footer>
             </section>
+          </div>
+        ) : null}
+
+        {phase === 'downloading' || phase === 'downloaded' ? (
+          <div className={phase === 'downloaded' ? 'demo-download-popover demo-download-complete' : 'demo-download-popover'} data-demo-target="download-indicator">
+            <span className="demo-download-icon" aria-hidden="true">
+              {phase === 'downloaded' ? '✓' : <svg viewBox="0 0 20 20"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 16h12" /></svg>}
+            </span>
+            <span className="demo-download-copy">
+              <strong>{activeFlow.outputName}</strong>
+              <small>{phase === 'downloaded' ? text.downloadComplete : text.downloadingFile}</small>
+            </span>
+            <span className="demo-download-status">{phase === 'downloaded' ? '100%' : '68%'}</span>
+            <i aria-hidden="true" />
           </div>
         ) : null}
       </div>

@@ -20,7 +20,7 @@ export function AppLayout({ children, items, activeTool, activeSection, onNaviga
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[1500px] overflow-x-hidden px-3 py-3 sm:px-5 sm:py-5 lg:px-8 lg:py-6">
+    <div className="mx-auto min-h-screen w-full max-w-[1500px] overflow-x-clip px-3 py-3 sm:px-5 sm:py-5 lg:px-8 lg:py-6">
        <div className="flex min-h-[calc(100vh-1.5rem)] min-w-0 flex-col gap-4 sm:gap-5 lg:gap-6">
         <TopBar locale={locale} setLocale={setLocale} onOpenSidebar={() => setIsSidebarOpen(true)} onGoHome={onGoHome} />
 

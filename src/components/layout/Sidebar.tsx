@@ -49,7 +49,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-6">
+      <div className="sidebar-scroll flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-6">
         {(['general', 'utility', 'document', 'image', 'video'] as AppSectionId[]).map((section) => {
           const sectionItems = items.filter((item) => item.section === section)
 
