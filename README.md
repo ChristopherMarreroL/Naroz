@@ -27,6 +27,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
   - Delete selected pages from one PDF (`beta`)
   - Merge multiple `DOCX` files into one final Word document (`beta`)
   - Convert `.MSG` or `.EML` emails to PDF through the browser print flow (`beta`)
+  - Convert Markdown files such as `README.md` to PDF or Word with local preview (`beta`)
 - Utility
   - Generate QR codes from links or text
   - Customize QR colors, size, and optional centered logo
@@ -39,6 +40,8 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - In-browser processing progress feedback
 - Session-level state persistence when switching between tools in the same tab
 - Responsive layout for desktop and mobile
+- Automatic interactive home demo with simulated navigation, file selection, conversion, and download feedback
+- The automatic demo pauses when the user interacts with it and can be resumed at any time
 
 ## Tech Stack
 
@@ -50,6 +53,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - `pdf-lib` for PDF merging
 - `pdfjs-dist` for PDF page previews
 - `docx-merger` for DOCX merging
+- `marked`, `DOMPurify`, `jsPDF`, and `docx` for Markdown preview and export
 - `gifenc` for GIF image export
 - `jszip` for batch image ZIP downloads
 - `@imgly/background-removal` and `onnxruntime-web` for local image background removal

@@ -144,6 +144,16 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-markdown-converter') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={className + ' stroke-current'} fill="none" strokeWidth="1.9">
+        <path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M14 3v5h5" />
+        <path d="M7 16v-5l2 2 2-2v5M14 11v5M14 16l3-3M14 16l-3-3" />
+      </svg>
+    )
+  }
+
   if (toolId === 'document-excel-column-builder') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">
