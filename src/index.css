@@ -133,7 +133,8 @@ svg {
   }
 
   .tool-hero {
-    border-top: 4px solid #5b6cff;
+    border-top: 4px solid var(--section-accent, #5b6cff);
+    background: linear-gradient(145deg, #ffffff 64%, var(--section-tint, #f0f2ff));
   }
 
   .tool-hero::after {
@@ -142,7 +143,7 @@ svg {
     bottom: -4rem;
     width: 13rem;
     height: 13rem;
-    border: 2rem solid rgba(56, 214, 196, 0.08);
+    border: 2rem solid rgb(var(--section-accent-rgb, 91 108 255) / 0.08);
     border-radius: 999px;
     content: '';
     pointer-events: none;
@@ -150,6 +151,52 @@ svg {
 
   .tool-hero-grid {
     align-items: center;
+  }
+
+  .tool-hero-glow {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 7rem;
+    background: radial-gradient(circle at top, rgb(var(--section-accent-rgb, 91 108 255) / 0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  .tool-hero-orb {
+    position: absolute;
+    top: 2.5rem;
+    right: -5rem;
+    width: 14rem;
+    height: 14rem;
+    border-radius: 999px;
+    background: rgb(var(--section-accent-rgb, 91 108 255) / 0.12);
+    filter: blur(3rem);
+    pointer-events: none;
+  }
+
+  .tool-hero-logo {
+    display: flex;
+    width: 3.5rem;
+    height: 3.5rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--section-accent-rgb, 91 108 255) / 0.22);
+    border-radius: 1.4rem;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 0.5rem;
+    box-shadow: 0 18px 34px -24px rgb(var(--section-accent-rgb, 91 108 255) / 0.65);
+  }
+
+  .tool-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.5rem;
+    border: 1px solid rgb(var(--section-accent-rgb, 91 108 255) / 0.18);
+    border-radius: 999px;
+    background: var(--section-tint, #f0f2ff);
+    padding: 0.28rem 0.65rem;
+    color: var(--section-accent-ink, #4353d8);
+    font-size: 0.7rem;
+    font-weight: 800;
   }
 
   .tool-hero-title {
@@ -173,24 +220,40 @@ svg {
   }
 
   [data-tool-section='document'] {
+    --section-accent: #5b6cff;
+    --section-accent-rgb: 91 108 255;
+    --section-accent-ink: #4353d8;
+    --section-tint: #f0f2ff;
     --upload-accent: #5b6cff;
     --upload-accent-rgb: 91 108 255;
     --upload-tint: #f0f2ff;
   }
 
   [data-tool-section='image'] {
+    --section-accent: #e86655;
+    --section-accent-rgb: 232 102 85;
+    --section-accent-ink: #b94334;
+    --section-tint: #fff0ed;
     --upload-accent: #e86655;
     --upload-accent-rgb: 232 102 85;
     --upload-tint: #fff0ed;
   }
 
   [data-tool-section='video'] {
+    --section-accent: #0d9488;
+    --section-accent-rgb: 13 148 136;
+    --section-accent-ink: #087269;
+    --section-tint: #e7faf6;
     --upload-accent: #0d9488;
     --upload-accent-rgb: 13 148 136;
     --upload-tint: #e7faf6;
   }
 
   [data-tool-section='utility'] {
+    --section-accent: #8a9b16;
+    --section-accent-rgb: 138 155 22;
+    --section-accent-ink: #65720d;
+    --section-tint: #f7f9de;
     --upload-accent: #8a9b16;
     --upload-accent-rgb: 138 155 22;
     --upload-tint: #f7f9de;
@@ -2344,6 +2407,46 @@ svg {
     font-size: 0.82rem;
     font-style: italic;
   }}
+
+/* Category-aware scope cards override the legacy dark utility classes passed by each tool. */
+.tool-hero-aside > * {
+  border-color: rgb(var(--section-accent-rgb, 91 108 255) / 0.24);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), var(--section-tint, #f0f2ff));
+  color: #172033;
+  box-shadow: 0 24px 60px -38px rgb(var(--section-accent-rgb, 91 108 255) / 0.62);
+}
+
+.tool-hero-aside > * > p {
+  color: var(--section-accent-ink, #4353d8);
+}
+
+.tool-hero-aside > * > div {
+  color: #475569;
+}
+
+.tool-hero-aside > * > ul,
+.tool-hero-aside > * > ol {
+  display: grid;
+  gap: 0.5rem;
+  color: #475569;
+}
+
+.tool-hero-aside > * > ul > li,
+.tool-hero-aside > * > ol > li {
+  border: 1px solid rgb(var(--section-accent-rgb, 91 108 255) / 0.15);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0.7rem 0.9rem;
+  color: #1e293b;
+}
+
+.tool-hero-aside > * > div > div {
+  border: 1px solid rgb(var(--section-accent-rgb, 91 108 255) / 0.15);
+  background: rgba(255, 255, 255, 0.76);
+  color: #1e293b;
+  box-shadow: 0 10px 26px -24px rgb(var(--section-accent-rgb, 91 108 255) / 0.72);
+}
 
 @keyframes drawer-enter {
   from {
