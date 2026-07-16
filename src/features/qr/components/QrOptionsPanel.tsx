@@ -139,7 +139,7 @@ export function QrOptionsPanel({
         </div>
 
         <label
-          className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-4 py-5 text-center transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 ${isLogoDragging ? 'border-slate-950 bg-slate-50 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)]' : 'border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}
+          className={`qr-logo-dropzone ${isLogoDragging ? 'qr-logo-dropzone-active' : ''}`}
           onDragOver={(event) => {
             if (disabled) {
               return
@@ -179,7 +179,7 @@ export function QrOptionsPanel({
           {logoPreviewUrl ? (
             <img src={logoPreviewUrl} alt={t('qrLogoAlt')} className="h-16 w-16 rounded-2xl object-contain ring-1 ring-slate-200" />
           ) : (
-            <span className={`grid h-14 w-14 place-items-center rounded-2xl text-white transition ${isLogoDragging ? 'bg-slate-800' : 'bg-slate-950'}`}>
+            <span className={`qr-logo-icon ${isLogoDragging ? 'qr-logo-icon-active' : ''}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7 fill-none stroke-current" strokeWidth="1.8">
                 <path d="M12 5v14M5 12h14" />
               </svg>

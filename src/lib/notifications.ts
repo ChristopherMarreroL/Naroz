@@ -12,6 +12,13 @@ const durations: Record<NotificationTone, number> = {
   info: 4200,
 }
 
+const fills: Record<NotificationTone, string> = {
+  error: '#4a1f2a',
+  warning: '#493713',
+  success: '#123a35',
+  info: '#172b4d',
+}
+
 export function notify(tone: NotificationTone, title: string, message: string) {
   const normalizedMessage = message.trim()
   const key = `${tone}:${title}:${normalizedMessage}`
@@ -28,5 +35,6 @@ export function notify(tone: NotificationTone, title: string, message: string) {
     title,
     description: normalizedMessage,
     duration: durations[tone],
+    fill: fills[tone],
   })
 }

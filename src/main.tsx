@@ -11,7 +11,19 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <LocaleProvider>
-        <Toaster position="top-center" offset={{ top: 18 }} theme="light" options={{ fill: '#020617', roundness: 18, styles: { title: 'font-semibold text-white', description: 'text-slate-300' } }} />
+        <Toaster
+          position="top-center"
+          offset={{ top: 18 }}
+          theme="light"
+          options={{
+            fill: '#172b4d',
+            roundness: 16,
+            styles: {
+              title: 'naroz-toast-title',
+              description: 'naroz-toast-description',
+            },
+          }}
+        />
         <App />
       </LocaleProvider>
     </BrowserRouter>

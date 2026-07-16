@@ -104,6 +104,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     es: { title: 'Convertir correo a PDF - Naroz', description: 'Convierte correos MSG o EML a PDF desde el navegador.' },
     en: { title: 'Convert email to PDF - Naroz', description: 'Convert MSG or EML emails to PDF directly in the browser.' },
   },
+  'document-markdown-converter': {
+    es: { title: 'Convertir Markdown a PDF o Word - Naroz', description: 'Convierte archivos Markdown MD a PDF o documentos Word DOCX directamente en el navegador.' },
+    en: { title: 'Convert Markdown to PDF or Word - Naroz', description: 'Convert Markdown MD files to PDF or Word DOCX documents directly in the browser.' },
+  },
   'document-excel-column-builder': {
     es: { title: 'Crear Excel desde columnas - Naroz', description: 'Sube varios archivos Excel, selecciona columnas especificas y genera un nuevo archivo Excel desde el navegador con Naroz.' },
     en: { title: 'Create Excel from columns - Naroz', description: 'Upload multiple Excel files, select specific columns, and generate a new Excel file directly in the browser with Naroz.' },

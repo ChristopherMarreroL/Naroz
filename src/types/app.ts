@@ -18,6 +18,7 @@ export type AppToolId =
   | 'document-delete-pages'
   | 'document-merge-docx'
   | 'document-msg-to-pdf'
+  | 'document-markdown-converter'
   | 'document-excel-column-builder'
   | 'document-excel-join'
   | 'utility-qr-generator'

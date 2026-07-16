@@ -17,6 +17,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-delete-pages': '/document-delete-pages',
   'document-merge-docx': '/document-merge-docx',
   'document-msg-to-pdf': '/msg-to-pdf',
+  'document-markdown-converter': '/markdown-converter',
   'document-excel-column-builder': '/excel-column-builder',
   'document-excel-join': '/excel-join',
   'utility-qr-generator': '/qr-generator',
