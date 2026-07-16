@@ -15,17 +15,17 @@ export function SectionHero({ badge, title, description, aside }: SectionHeroPro
 
   return (
     <section className="panel tool-hero relative z-0 min-w-0 overflow-hidden px-4 py-5 sm:px-7 sm:py-6 lg:px-8 lg:py-7">
-      <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.08),transparent_70%)] sm:h-28" />
-      <div className="absolute -right-20 top-10 h-44 w-44 rounded-full bg-sky-100/45 blur-3xl sm:h-56 sm:w-56" />
+      <div className="tool-hero-glow" />
+      <div className="tool-hero-orb" />
       <div className={`tool-hero-grid relative grid min-w-0 max-w-full gap-5 sm:gap-6 ${aside ? 'lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]' : ''}`}>
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] border border-slate-200 bg-white p-2 shadow-[0_18px_34px_-24px_rgba(15,23,42,0.45)]">
+            <div className="tool-hero-logo">
               <img src={narozLogo} alt={t('narozLogoAlt')} className="h-full w-full object-contain" decoding="async" fetchPriority="high" />
             </div>
             <div className="min-w-0">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-slate-400">Naroz</p>
-              <span className="badge mt-2 bg-slate-900 text-slate-50">{badge}</span>
+              <span className="tool-hero-badge">{badge}</span>
             </div>
           </div>
           <h1 className={`tool-hero-title ${aside ? 'max-w-[18ch]' : 'max-w-[26ch]'}`}>
