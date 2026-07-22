@@ -259,7 +259,7 @@ function App() {
     })()
 
     lastBetaNoticeRef.current = noticeKey
-    notify('warning', t('pdfOfficeBetaTitle'), message)
+    notify('warning', t('pdfOfficeBetaTitle'), message, 9000)
   }, [activeItem.status, activeTool, locale, t])
   const activeSection: AppSectionId = activeItem.section
 

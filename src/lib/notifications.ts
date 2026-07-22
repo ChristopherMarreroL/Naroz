@@ -19,7 +19,7 @@ const fills: Record<NotificationTone, string> = {
   info: '#172b4d',
 }
 
-export function notify(tone: NotificationTone, title: string, message: string) {
+export function notify(tone: NotificationTone, title: string, message: string, duration?: number) {
   const normalizedMessage = message.trim()
   const key = `${tone}:${title}:${normalizedMessage}`
   const now = Date.now()
@@ -34,7 +34,7 @@ export function notify(tone: NotificationTone, title: string, message: string) {
   sileo[tone]({
     title,
     description: normalizedMessage,
-    duration: durations[tone],
+    duration: duration ?? durations[tone],
     fill: fills[tone],
   })
 }
