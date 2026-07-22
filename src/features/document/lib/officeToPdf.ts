@@ -1,6 +1,5 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
 
 export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
@@ -8,18 +7,6 @@ export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
 export const OFFICE_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
 const MAX_EXCEL_ROWS = 10_000
 const MAX_EXCEL_COLUMNS = 100
-const EMU_PER_INCH = 914_400
-const PPTX_PAGE_WIDTH = 13.333
-const PPTX_PAGE_HEIGHT = 7.5
-
-const MIME_BY_EXTENSION: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-}
-
 function getExtension(name: string) {
   return name.split('.').pop()?.toLowerCase() ?? ''
 }
@@ -36,19 +23,15 @@ export function getOfficePdfFileName(fileName: string) {
   return `${fileName.replace(/\.(docx|xlsx?|pptx)$/i, '') || 'documento'}-convertido.pdf`
 }
 
-function createPdfFromCanvas(canvas: HTMLCanvasElement, pdf?: jsPDF) {
-  const pageWidth = 210
-  const pageHeight = 297
-  const imageHeight = (canvas.height * pageWidth) / canvas.width
-  const document = pdf ?? new jsPDF({ unit: 'mm', format: 'a4', orientation: imageHeight > pageHeight ? 'portrait' : 'portrait' })
-  const totalPages = Math.max(1, Math.ceil(imageHeight / pageHeight))
+function getPdfPageFormat(width: number, height: number) {
+  const orientation = width >= height ? 'landscape' : 'portrait'
+  const pageHeight = orientation === 'landscape' ? 190.5 : 297
 
-  for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
-    if (pdf || pageIndex > 0) document.addPage('a4', 'portrait')
-    document.addImage(canvas, 'JPEG', 0, -pageIndex * pageHeight, pageWidth, imageHeight, undefined, 'FAST')
-  }
-
-  return document
+  return {
+    orientation,
+    pageHeight,
+    pageWidth: pageHeight * (width / height),
+  } as const
 }
 
 async function convertDocxToPdf(file: File, onProgress: (value: number) => void) {
@@ -73,23 +56,54 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
       className: 'naroz-docx-preview',
       inWrapper: true,
       breakPages: true,
+      ignoreLastRenderedPageBreak: false,
       ignoreWidth: false,
       ignoreHeight: false,
       useBase64URL: true,
     })
 
-    const renderedPages = Array.from(container.querySelectorAll<HTMLElement>('.naroz-docx-preview'))
-    const pages = renderedPages.length ? renderedPages : [container]
-    let pdf: jsPDF | undefined
+    const pages = Array.from(container.querySelectorAll<HTMLElement>('section.naroz-docx-preview'))
+    if (!pages.length) throw new Error('DOCX_EMPTY')
+
+    await waitForElementAssets(container)
+    let pdf: jsPDF | null = null
 
     for (let index = 0; index < pages.length; index += 1) {
-      const canvas = await html2canvas(pages[index], {
+      const page = pages[index]
+      const pageRect = page.getBoundingClientRect()
+      const pageWidth = Math.max(1, pageRect.width)
+      const pageHeight = Math.max(1, pageRect.height)
+      const canvas = await html2canvas(page, {
         backgroundColor: '#ffffff',
         scale: 1.5,
         logging: false,
         useCORS: true,
+        width: pageWidth,
+        height: pageHeight,
+        windowWidth: pageWidth,
+        windowHeight: pageHeight,
       })
-      pdf = createPdfFromCanvas(canvas, pdf)
+
+      const format = getPdfPageFormat(pageWidth, pageHeight)
+      if (!pdf) {
+        pdf = new jsPDF({
+          unit: 'mm',
+          format: [format.pageWidth, format.pageHeight],
+          orientation: format.orientation,
+        })
+      } else {
+        pdf.addPage([format.pageWidth, format.pageHeight], format.orientation)
+      }
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.95),
+        'JPEG',
+        0,
+        0,
+        format.pageWidth,
+        format.pageHeight,
+        undefined,
+        'FAST',
+      )
       canvas.width = 1
       canvas.height = 1
       onProgress(Math.round(((index + 1) / pages.length) * 100))
@@ -140,124 +154,108 @@ async function convertSpreadsheetToPdf(file: File, onProgress: (value: number) =
   return pdf.output('blob')
 }
 
-function parseXml(text: string) {
-  const xml = new DOMParser().parseFromString(text, 'application/xml')
-  if (xml.querySelector('parsererror')) throw new Error('PPTX_XML')
-  return xml
-}
+async function waitForElementAssets(element: HTMLElement) {
+  await document.fonts.ready
 
-function getElements(parent: ParentNode, name: string) {
-  return Array.from((parent as Document | Element).getElementsByTagName(name))
-}
+  const images = Array.from(element.querySelectorAll('img'))
+  await Promise.all(images.map(async (image) => {
+    if (image.complete) return
 
-function getFirst(parent: ParentNode, name: string) {
-  return getElements(parent, name)[0]
-}
+    await new Promise<void>((resolve) => {
+      const finish = () => {
+        image.removeEventListener('load', finish)
+        image.removeEventListener('error', finish)
+        resolve()
+      }
+      image.addEventListener('load', finish, { once: true })
+      image.addEventListener('error', finish, { once: true })
+      window.setTimeout(finish, 5000)
+    })
+  }))
 
-function emuToInches(value: string | null, fallback = 0) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number / EMU_PER_INCH : fallback
-}
-
-function readTransform(parent: ParentNode) {
-  const transform = getFirst(parent, 'a:xfrm') ?? getFirst(parent, 'p:xfrm')
-  const offset = transform ? getFirst(transform, 'a:off') : undefined
-  const extent = transform ? getFirst(transform, 'a:ext') : undefined
-  return {
-    x: emuToInches(offset?.getAttribute('x') ?? null),
-    y: emuToInches(offset?.getAttribute('y') ?? null),
-    width: Math.max(0.1, emuToInches(extent?.getAttribute('cx') ?? null, 1)),
-    height: Math.max(0.1, emuToInches(extent?.getAttribute('cy') ?? null, 0.5)),
-  }
-}
-
-function getSlideNumber(path: string) {
-  return Number(path.match(/slide(\d+)\.xml$/)?.[1] ?? 0)
-}
-
-async function bytesToDataUrl(bytes: Uint8Array, mime: string) {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], { type: mime }))
-  })
-}
-
-function resolveZipPath(base: string, target: string) {
-  const segments = `${base}/${target}`.split('/')
-  const output: string[] = []
-  for (const segment of segments) {
-    if (!segment || segment === '.') continue
-    if (segment === '..') output.pop()
-    else output.push(segment)
-  }
-  return output.join('/')
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 }
 
 async function convertPresentationToPdf(file: File, onProgress: (value: number) => void) {
-  const zip = await new JSZip().loadAsync(await file.arrayBuffer())
-  const slidePaths = Object.keys(zip.files)
-    .filter((path) => /^ppt\/slides\/slide\d+\.xml$/.test(path))
-    .sort((left, right) => getSlideNumber(left) - getSlideNumber(right))
-  if (!slidePaths.length) throw new Error('PPTX_EMPTY')
+  const [{ PptxViewer, RECOMMENDED_ZIP_LIMITS }, { default: html2canvas }] = await Promise.all([
+    import('@aiden0z/pptx-renderer'),
+    import('html2canvas'),
+  ])
+  const viewerHost = document.createElement('div')
+  const exportHost = document.createElement('div')
+  let destroyViewer: () => void = () => {}
 
-  const pdf = new jsPDF({ unit: 'in', format: [PPTX_PAGE_WIDTH, PPTX_PAGE_HEIGHT], orientation: 'landscape' })
-
-  for (let index = 0; index < slidePaths.length; index += 1) {
-    if (index > 0) pdf.addPage([PPTX_PAGE_WIDTH, PPTX_PAGE_HEIGHT], 'landscape')
-    const slidePath = slidePaths[index]
-    const slideFile = zip.file(slidePath)
-    if (!slideFile) continue
-    const slideXml = parseXml(await slideFile.async('text'))
-    const slideNumber = getSlideNumber(slidePath)
-    const relationshipsPath = `ppt/slides/_rels/slide${slideNumber}.xml.rels`
-    const relationshipsFile = zip.file(relationshipsPath)
-    const relationships = new Map<string, string>()
-
-    if (relationshipsFile) {
-      const relationshipsXml = parseXml(await relationshipsFile.async('text'))
-      getElements(relationshipsXml, 'Relationship').forEach((relationship) => {
-        const id = relationship.getAttribute('Id')
-        const target = relationship.getAttribute('Target')
-        if (id && target) relationships.set(id, resolveZipPath('ppt/slides', target))
-      })
-    }
-
-    for (const shape of getElements(slideXml, 'p:sp')) {
-      const text = getElements(shape, 'a:t').map((node) => node.textContent ?? '').join(' ').trim()
-      if (!text) continue
-      const box = readTransform(shape)
-      const sizeValue = getFirst(shape, 'a:rPr')?.getAttribute('sz') ?? getFirst(shape, 'a:defRPr')?.getAttribute('sz')
-      const fontSize = Math.min(44, Math.max(8, Number(sizeValue ?? 1800) / 100))
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(fontSize)
-      pdf.setTextColor(15, 23, 42)
-      pdf.text(pdf.splitTextToSize(text, box.width), box.x, box.y + Math.min(box.height, fontSize / 72), {
-        baseline: 'top',
-        maxWidth: box.width,
-      })
-    }
-
-    for (const picture of getElements(slideXml, 'p:pic')) {
-      const blip = getFirst(picture, 'a:blip')
-      const relationshipId = blip?.getAttribute('r:embed')
-      const imagePath = relationshipId ? relationships.get(relationshipId) : undefined
-      const imageFile = imagePath ? zip.file(imagePath) : null
-      const extension = imagePath ? getExtension(imagePath) : ''
-      const mime = MIME_BY_EXTENSION[extension]
-      if (!imageFile || !mime) continue
-      const dataUrl = await bytesToDataUrl(await imageFile.async('uint8array'), mime)
-      const box = readTransform(picture)
-      pdf.addImage(dataUrl, extension === 'jpg' || extension === 'jpeg' ? 'JPEG' : extension.toUpperCase(), box.x, box.y, box.width, box.height, undefined, 'FAST')
-    }
-
-    onProgress(Math.round(((index + 1) / slidePaths.length) * 100))
+  for (const host of [viewerHost, exportHost]) {
+    host.setAttribute('aria-hidden', 'true')
+    Object.assign(host.style, {
+      position: 'fixed',
+      left: '-100000px',
+      top: '0',
+      overflow: 'hidden',
+      background: '#ffffff',
+      zIndex: '-1',
+    })
+    document.body.appendChild(host)
   }
 
-  return pdf.output('blob')
-}
+  try {
+    const viewer = await PptxViewer.open(await file.arrayBuffer(), viewerHost, {
+      renderMode: 'slide',
+      fitMode: 'none',
+      zipLimits: RECOMMENDED_ZIP_LIMITS,
+      pdfjs: false,
+    })
+    destroyViewer = () => viewer.destroy()
 
+    if (!viewer.slideCount || !viewer.slideWidth || !viewer.slideHeight) {
+      throw new Error('PPTX_EMPTY')
+    }
+
+    exportHost.style.width = `${viewer.slideWidth}px`
+    exportHost.style.height = `${viewer.slideHeight}px`
+    const isLandscape = viewer.slideWidth >= viewer.slideHeight
+    const pageHeight = isLandscape ? 190.5 : 297
+    const pageWidth = pageHeight * (viewer.slideWidth / viewer.slideHeight)
+    const orientation = isLandscape ? 'landscape' : 'portrait'
+    const pdf = new jsPDF({ unit: 'mm', format: [pageWidth, pageHeight], orientation })
+
+    for (let index = 0; index < viewer.slideCount; index += 1) {
+      exportHost.replaceChildren()
+      const handle = viewer.renderSlideToContainer(index, exportHost)
+      if (!handle) throw new Error('PPTX_SLIDE')
+
+      try {
+        await handle.ready
+        await waitForElementAssets(handle.element)
+        const canvas = await html2canvas(handle.element, {
+          backgroundColor: '#ffffff',
+          scale: 1.5,
+          logging: false,
+          useCORS: true,
+          width: viewer.slideWidth,
+          height: viewer.slideHeight,
+          windowWidth: viewer.slideWidth,
+          windowHeight: viewer.slideHeight,
+        })
+
+        if (index > 0) pdf.addPage([pageWidth, pageHeight], orientation)
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+        canvas.width = 1
+        canvas.height = 1
+      } finally {
+        handle.dispose()
+      }
+
+      onProgress(Math.round(((index + 1) / viewer.slideCount) * 100))
+    }
+
+    return pdf.output('blob')
+  } finally {
+    destroyViewer()
+    viewerHost.remove()
+    exportHost.remove()
+  }
+}
 export async function convertOfficeToPdf(file: File, kind: OfficeFileKind, onProgress: (value: number) => void) {
   if (kind === 'docx') return convertDocxToPdf(file, onProgress)
   if (kind === 'xlsx') return convertSpreadsheetToPdf(file, onProgress)

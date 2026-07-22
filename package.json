@@ -12,6 +12,7 @@
     "preview:prod": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "^1.2.4",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@imgly/background-removal": "^1.7.0",

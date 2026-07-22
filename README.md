@@ -55,7 +55,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - `pdf-lib` for PDF merging
 - `pdfjs-dist` for PDF page previews and text extraction
 - `docx`, `xlsx`, and `pptxgenjs` for PDF-to-Office reconstruction
-- `docx-preview`, `jspdf-autotable`, and `jszip` for Office-to-PDF reconstruction
+- `docx-preview`, `jspdf-autotable`, and `@aiden0z/pptx-renderer` for higher-fidelity Office-to-PDF reconstruction
 - `docx-merger` for DOCX merging
 - `marked`, `DOMPurify`, `jsPDF`, and `docx` for Markdown preview and export
 - `gifenc` for GIF image export
