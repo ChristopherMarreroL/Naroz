@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { autoTable } from 'jspdf-autotable'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
 
@@ -146,60 +146,146 @@ function applyDocxAnchorLayouts(pages: HTMLElement[], layouts: DocxAnchorLayout[
   })
 }
 
-function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | null) {
-  const result = [...pages]
-  const pagesToAdd = Math.min(Math.max((expectedPageCount ?? result.length) - result.length, 0), 20)
+interface DocxPageOverflow {
+  article: HTMLElement
+  children: HTMLElement[]
+  clippedOverflow: number
+  page: HTMLElement
+  pageBottom: number
+  printableBottom: number
+  printableOverflow: number
+}
 
-  for (let iteration = 0; iteration < pagesToAdd; iteration += 1) {
-    const candidate = result
-      .map((page) => {
-        const article = page.querySelector<HTMLElement>(':scope > article')
-        if (!article) return null
+function getDocxPageOverflow(page: HTMLElement): DocxPageOverflow | null {
+  const article = page.querySelector<HTMLElement>(':scope > article')
+  if (!article) return null
 
-        const pageRect = page.getBoundingClientRect()
-        const pageStyle = getComputedStyle(page)
-        const pageHeight = Number.parseFloat(pageStyle.minHeight) || pageRect.height
-        const contentBottom = pageRect.top + pageHeight - Number.parseFloat(pageStyle.paddingBottom)
-        return {
-          article,
-          contentBottom,
-          overflow: article.getBoundingClientRect().bottom - contentBottom,
-          page,
-        }
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-      .sort((left, right) => right.overflow - left.overflow)[0]
+  const pageRect = page.getBoundingClientRect()
+  const pageStyle = getComputedStyle(page)
+  const pageHeight = Number.parseFloat(pageStyle.minHeight) || pageRect.height
+  const pageBottom = pageRect.top + pageHeight
+  const paddingBottom = Number.parseFloat(pageStyle.paddingBottom) || 0
+  const printableBottom = pageRect.top + pageHeight - paddingBottom
+  const children = Array.from(article.children).filter(
+    (child): child is HTMLElement => child instanceof HTMLElement,
+  )
+  const meaningfulChildren = children.filter(
+    (child) => child.textContent?.trim() || child.querySelector('img, svg, table'),
+  )
+  const visibleContentBottom = meaningfulChildren.reduce(
+    (bottom, child) => Math.max(bottom, child.getBoundingClientRect().bottom),
+    article.getBoundingClientRect().top,
+  )
 
-    if (!candidate || candidate.overflow <= 4) break
+  return {
+    article,
+    children,
+    clippedOverflow: visibleContentBottom - pageBottom,
+    page,
+    pageBottom,
+    printableBottom,
+    printableOverflow: article.getBoundingClientRect().bottom - printableBottom,
+  }
+}
 
-    const children = Array.from(candidate.article.children).filter(
-      (child): child is HTMLElement => child instanceof HTMLElement,
-    )
-    const firstContent = children.find((child) => child.textContent?.trim() || child.querySelector('img'))
-    if (!firstContent) break
+function splitDocxPage(
+  pages: HTMLElement[],
+  candidate: DocxPageOverflow,
+  preserveWordPagination: boolean,
+) {
+  const firstContent = candidate.children.find(
+    (child) => child.textContent?.trim() || child.querySelector('img, svg, table'),
+  )
+  if (!firstContent) return false
 
-    const semanticThreshold = firstContent.getBoundingClientRect().top
-      + (candidate.contentBottom - firstContent.getBoundingClientRect().top) * 0.8
-    let splitIndex = children.findIndex((child, index) =>
+  let splitIndex = -1
+  if (preserveWordPagination) {
+    const firstContentTop = firstContent.getBoundingClientRect().top
+    const semanticThreshold = firstContentTop
+      + (candidate.printableBottom - firstContentTop) * 0.8
+    splitIndex = candidate.children.findIndex((child, index) =>
       index > 0
-      && Boolean(child.textContent?.trim() || child.querySelector('img'))
+      && Boolean(child.textContent?.trim() || child.querySelector('img, svg, table'))
       && child.getBoundingClientRect().top >= semanticThreshold)
 
     if (splitIndex < 1) {
-      splitIndex = children.findIndex((child, index) =>
-        index > 0 && child.getBoundingClientRect().bottom > candidate.contentBottom)
+      splitIndex = candidate.children.findIndex((child, index) =>
+        index > 0 && child.getBoundingClientRect().bottom > candidate.printableBottom)
     }
-    if (splitIndex < 1 || splitIndex >= children.length) break
+  } else {
+    const firstContentTop = firstContent.getBoundingClientRect().top
+    const semanticThreshold = firstContentTop
+      + (candidate.pageBottom - firstContentTop) * 0.8
+    splitIndex = candidate.children.findIndex((child, index) =>
+      index > 0
+      && Boolean(child.textContent?.trim() || child.querySelector('img, svg, table'))
+      && child.getBoundingClientRect().top >= semanticThreshold)
 
-    const continuation = candidate.page.cloneNode(true)
-    if (!(continuation instanceof HTMLElement)) break
-    const continuationArticle = continuation.querySelector<HTMLElement>(':scope > article')
-    if (!continuationArticle) break
+    if (splitIndex < 1) {
+      splitIndex = candidate.children.findIndex((child, index) =>
+        index > 0
+        && Boolean(child.textContent?.trim() || child.querySelector('img, svg, table'))
+        && child.getBoundingClientRect().bottom > candidate.pageBottom)
+    }
+  }
 
-    continuationArticle.replaceChildren(...children.slice(splitIndex))
-    candidate.page.insertAdjacentElement('afterend', continuation)
-    const pageIndex = result.indexOf(candidate.page)
-    result.splice(pageIndex + 1, 0, continuation)
+  if (splitIndex < 1 || splitIndex >= candidate.children.length) return false
+
+  const continuation = candidate.page.cloneNode(true)
+  if (!(continuation instanceof HTMLElement)) return false
+  const continuationArticle = continuation.querySelector<HTMLElement>(':scope > article')
+  if (!continuationArticle) return false
+
+  continuationArticle.replaceChildren(...candidate.children.slice(splitIndex))
+  candidate.page.insertAdjacentElement('afterend', continuation)
+  const pageIndex = pages.indexOf(candidate.page)
+  pages.splice(pageIndex + 1, 0, continuation)
+  return true
+}
+
+function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | null) {
+  const result = [...pages]
+  const maxAdditionalPages = 20
+  const expectedPagesToAdd = Math.min(
+    Math.max((expectedPageCount ?? result.length) - result.length, 0),
+    maxAdditionalPages,
+  )
+  let addedPages = 0
+
+  while (addedPages < expectedPagesToAdd) {
+    const candidates = result
+      .map(getDocxPageOverflow)
+      .filter((entry): entry is DocxPageOverflow => Boolean(entry))
+      .sort((left, right) => right.printableOverflow - left.printableOverflow)
+    let didSplit = false
+
+    for (const candidate of candidates) {
+      if (candidate.printableOverflow <= 4) break
+      if (splitDocxPage(result, candidate, true)) {
+        addedPages += 1
+        didSplit = true
+        break
+      }
+    }
+    if (!didSplit) break
+  }
+
+  while (addedPages < maxAdditionalPages) {
+    const candidates = result
+      .map(getDocxPageOverflow)
+      .filter((entry): entry is DocxPageOverflow => Boolean(entry))
+      .sort((left, right) => right.clippedOverflow - left.clippedOverflow)
+    let didSplit = false
+
+    for (const candidate of candidates) {
+      if (candidate.clippedOverflow <= 2) break
+      if (splitDocxPage(result, candidate, false)) {
+        addedPages += 1
+        didSplit = true
+        break
+      }
+    }
+    if (!didSplit) break
   }
 
   return result
