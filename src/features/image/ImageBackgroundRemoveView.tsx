@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
-import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -198,7 +197,6 @@ export function ImageBackgroundRemoveView() {
 
       <div className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-4 sm:p-6 lg:p-8">
-          <BetaNotice message={t('removeBackgroundBetaMessage')} />
 
           <div className="mt-6">
             <FileDropzone

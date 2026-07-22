@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
-import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -227,7 +226,6 @@ export function MsgToPdfView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <BetaNotice message={t('mailToPdfBetaMessage')} />
 
           <div className="mt-6">
             <FileDropzone

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
-import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -122,9 +121,7 @@ export function MarkdownConverterView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel min-w-0 p-6 sm:p-8">
-          <BetaNotice />
-          <div className="mt-6">
-            <FileDropzone
+          <FileDropzone
             title={t('markdownUploadTitle')}
             description={t('markdownUploadDescription')}
             uploadLabel={t('markdownUploadLabel')}
@@ -134,7 +131,6 @@ export function MarkdownConverterView() {
             aside={<span className="badge">MD</span>}
             onSelect={(files) => void handleSelectFiles(files)}
           />
-          </div>
 
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 

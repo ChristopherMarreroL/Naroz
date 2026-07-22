@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -135,10 +134,6 @@ export function OfficeToPdfView() {
             aside={<span className="badge">OFFICE</span>}
             onSelect={handleSelectFiles}
           />
-
-          <div className="mt-6">
-            <BetaNotice message={t('officePdfBetaMessage')} />
-          </div>
 
           {file && kind ? (
             <div className="mt-6 grid gap-6">

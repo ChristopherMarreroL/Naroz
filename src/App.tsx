@@ -1,10 +1,11 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
 import { HomeView } from './features/home/HomeView'
 import { useLocale } from './i18n/LocaleProvider'
+import { notify } from './lib/notifications'
 import { getToolFromPath, getToolPath } from './lib/routes'
 import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 
@@ -40,7 +41,7 @@ function getToolViewClassName(isActive: boolean) {
 }
 
 function App() {
-  const { t } = useLocale()
+  const { locale, t } = useLocale()
   const location = useLocation()
   const navigate = useNavigate()
   const sidebarItems: SidebarItem[] = useMemo(
@@ -236,6 +237,30 @@ function App() {
 
   const activeItem = sidebarItems.find((item) => item.id === activeTool) ?? sidebarItems[0]
 
+  const lastBetaNoticeRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (activeItem.status !== 'beta') {
+      lastBetaNoticeRef.current = null
+      return
+    }
+
+    const noticeKey = activeTool + ':' + locale
+    if (lastBetaNoticeRef.current === noticeKey) return
+
+    const message = (() => {
+      if (activeTool === 'video-trim') return t('betaTrimMessage')
+      if (activeTool === 'image-remove-background') return t('removeBackgroundBetaMessage')
+      if (activeTool === 'document-merge-docx') return t('betaWordMessage')
+      if (activeTool === 'document-msg-to-pdf') return t('mailToPdfBetaMessage')
+      if (activeTool === 'document-pdf-to-office') return t('pdfOfficeBetaMessage')
+      if (activeTool === 'document-office-to-pdf') return t('officePdfBetaMessage')
+      return t('betaDefaultMessage')
+    })()
+
+    lastBetaNoticeRef.current = noticeKey
+    notify('warning', t('pdfOfficeBetaTitle'), message)
+  }, [activeItem.status, activeTool, locale, t])
   const activeSection: AppSectionId = activeItem.section
 
   return (
