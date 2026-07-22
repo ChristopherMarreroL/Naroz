@@ -1,10 +1,11 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
 import { HomeView } from './features/home/HomeView'
 import { useLocale } from './i18n/LocaleProvider'
+import { notify } from './lib/notifications'
 import { getToolFromPath, getToolPath } from './lib/routes'
 import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 
@@ -24,6 +25,8 @@ const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePages
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 const MarkdownConverterView = lazy(() => import('./features/document/MarkdownConverterView').then((module) => ({ default: module.MarkdownConverterView })))
+const PdfToOfficeView = lazy(() => import('./features/document/PdfToOfficeView').then((module) => ({ default: module.PdfToOfficeView })))
+const OfficeToPdfView = lazy(() => import('./features/document/OfficeToPdfView').then((module) => ({ default: module.OfficeToPdfView })))
 const ExcelColumnBuilderView = lazy(() => import('./features/excel/ExcelColumnBuilderView').then((module) => ({ default: module.ExcelColumnBuilderView })))
 const ExcelJoinView = lazy(() => import('./features/excel-join/ExcelJoinView').then((module) => ({ default: module.ExcelJoinView })))
 const QrGeneratorView = lazy(() => import('./features/qr/QrGeneratorView').then((module) => ({ default: module.QrGeneratorView })))
@@ -38,7 +41,7 @@ function getToolViewClassName(isActive: boolean) {
 }
 
 function App() {
-  const { t } = useLocale()
+  const { locale, t } = useLocale()
   const location = useLocation()
   const navigate = useNavigate()
   const sidebarItems: SidebarItem[] = useMemo(
@@ -163,6 +166,20 @@ function App() {
         status: 'beta',
       },
       {
+        id: 'document-pdf-to-office',
+        label: t('pdfOfficeNavTitle'),
+        description: t('pdfOfficeShortDescription'),
+        section: 'document',
+        status: 'beta',
+      },
+      {
+        id: 'document-office-to-pdf',
+        label: t('officePdfNavTitle'),
+        description: t('officePdfShortDescription'),
+        section: 'document',
+        status: 'beta',
+      },
+      {
         id: 'document-excel-column-builder',
         label: t('excelColumnBuilderNavTitle'),
         description: t('excelColumnBuilderShortDesc'),
@@ -206,23 +223,50 @@ function App() {
     }
   }
 
-  const handleReloadHome = () => {
-    if (location.pathname === '/') {
-      window.location.reload()
-      return
-    }
+  const handleGoHome = () => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: location.pathname === '/' ? 'smooth' : 'auto',
+    })
 
-    window.location.assign('/')
+    if (location.pathname !== '/') {
+      navigate('/')
+    }
   }
 
   const activeItem = sidebarItems.find((item) => item.id === activeTool) ?? sidebarItems[0]
 
+  const lastBetaNoticeRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (activeItem.status !== 'beta') {
+      lastBetaNoticeRef.current = null
+      return
+    }
+
+    const noticeKey = activeTool + ':' + locale
+    if (lastBetaNoticeRef.current === noticeKey) return
+
+    const message = (() => {
+      if (activeTool === 'video-trim') return t('betaTrimMessage')
+      if (activeTool === 'image-remove-background') return t('removeBackgroundBetaMessage')
+      if (activeTool === 'document-merge-docx') return t('betaWordMessage')
+      if (activeTool === 'document-msg-to-pdf') return t('mailToPdfBetaMessage')
+      if (activeTool === 'document-pdf-to-office') return t('pdfOfficeBetaMessage')
+      if (activeTool === 'document-office-to-pdf') return t('officePdfBetaMessage')
+      return t('betaDefaultMessage')
+    })()
+
+    lastBetaNoticeRef.current = noticeKey
+    notify('warning', t('pdfOfficeBetaTitle'), message, 9000)
+  }, [activeItem.status, activeTool, locale, t])
   const activeSection: AppSectionId = activeItem.section
 
   return (
     <>
       <SeoHead />
-      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={handleReloadHome}>
+      <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={handleGoHome}>
         {activeTool === 'home' ? <div className={getToolViewClassName(true)}><HomeView onNavigate={handleNavigate} /></div> : null}
         {activeTool === 'video-merge' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense></div> : null}
         {activeTool === 'video-convert' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}
@@ -240,6 +284,8 @@ function App() {
         {activeTool === 'document-merge-docx' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
         {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
         {activeTool === 'document-markdown-converter' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MarkdownConverterView /></Suspense></div> : null}
+        {activeTool === 'document-pdf-to-office' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfToOfficeView /></Suspense></div> : null}
+        {activeTool === 'document-office-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><OfficeToPdfView /></Suspense></div> : null}
         {activeTool === 'document-excel-column-builder' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelColumnBuilderView /></Suspense></div> : null}
         {activeTool === 'document-excel-join' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelJoinView /></Suspense></div> : null}
         {activeTool === 'utility-qr-generator' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><QrGeneratorView /></Suspense></div> : null}
@@ -249,4 +295,3 @@ function App() {
 }
 
 export default App
-
