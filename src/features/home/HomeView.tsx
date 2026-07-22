@@ -91,6 +91,11 @@ const availableTools = [
     status: 'beta',
   },
   {
+    id: 'document-office-to-pdf' as const,
+    category: 'document',
+    status: 'beta',
+  },
+  {
     id: 'document-excel-column-builder' as const,
     category: 'document',
     status: 'stable',
@@ -129,6 +134,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Convertir correo a PDF' : 'Convert email to PDF'
   if (id === 'document-markdown-converter') return locale === 'es' ? 'Markdown a PDF o Word' : 'Markdown to PDF or Word'
   if (id === 'document-pdf-to-office') return locale === 'es' ? 'PDF a Word, Excel o PowerPoint' : 'PDF to Word, Excel, or PowerPoint'
+  if (id === 'document-office-to-pdf') return locale === 'es' ? 'Word, Excel o PowerPoint a PDF' : 'Word, Excel, or PowerPoint to PDF'
   if (id === 'document-excel-column-builder') return locale === 'es' ? 'Crear Excel desde columnas' : 'Create Excel from columns'
   if (id === 'document-excel-join') return locale === 'es' ? 'Cruzar Excel por columna clave' : 'Join Excel by key column'
   if (id === 'utility-qr-generator') return locale === 'es' ? 'Generador de codigo QR' : 'QR code generator'
@@ -152,6 +158,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Lee correos .MSG o .EML y genera una version PDF con sus datos principales.' : 'Read .MSG or .EML emails and generate a PDF version with their main details.'
   if (id === 'document-markdown-converter') return locale === 'es' ? 'Convierte archivos .md, como un README, a PDF o Word con vista previa y procesamiento local.' : 'Convert .md files, such as a README, to PDF or Word with preview and local processing.'
   if (id === 'document-pdf-to-office') return locale === 'es' ? 'Convierte un PDF a Word, Excel o PowerPoint directamente en el navegador.' : 'Convert a PDF to Word, Excel, or PowerPoint directly in the browser.'
+  if (id === 'document-office-to-pdf') return locale === 'es' ? 'Convierte documentos Word, Excel o PowerPoint a PDF sin salir del navegador.' : 'Convert Word, Excel, or PowerPoint documents to PDF without leaving the browser.'
   if (id === 'document-excel-column-builder') return locale === 'es' ? 'Selecciona columnas de varios archivos Excel y genera un nuevo documento.' : 'Select columns from multiple Excel files and generate a new document.'
   if (id === 'document-excel-join') return locale === 'es' ? 'Combina archivos Excel usando una columna en comun, como ID, cedula, codigo o factura.' : 'Combine Excel files using a shared key column such as ID, code, invoice, or email.'
   if (id === 'utility-qr-generator') return locale === 'es' ? 'Crea codigos QR desde enlaces o texto y descargalos como imagen.' : 'Create QR codes from links or text and download them as an image.'

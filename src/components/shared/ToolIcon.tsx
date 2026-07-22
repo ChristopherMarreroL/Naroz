@@ -163,6 +163,15 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
       </svg>
     )
   }
+  if (toolId === 'document-office-to-pdf') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={className + ' stroke-current'} fill="none" strokeWidth="1.9">
+        <path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M14 3v5h5M8 12h8M8 16h5" />
+        <path d="m11 14-3 3 3 3M8 17h5" />
+      </svg>
+    )
+  }
   if (toolId === 'document-excel-column-builder') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">

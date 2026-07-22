@@ -25,6 +25,7 @@ const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').the
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 const MarkdownConverterView = lazy(() => import('./features/document/MarkdownConverterView').then((module) => ({ default: module.MarkdownConverterView })))
 const PdfToOfficeView = lazy(() => import('./features/document/PdfToOfficeView').then((module) => ({ default: module.PdfToOfficeView })))
+const OfficeToPdfView = lazy(() => import('./features/document/OfficeToPdfView').then((module) => ({ default: module.OfficeToPdfView })))
 const ExcelColumnBuilderView = lazy(() => import('./features/excel/ExcelColumnBuilderView').then((module) => ({ default: module.ExcelColumnBuilderView })))
 const ExcelJoinView = lazy(() => import('./features/excel-join/ExcelJoinView').then((module) => ({ default: module.ExcelJoinView })))
 const QrGeneratorView = lazy(() => import('./features/qr/QrGeneratorView').then((module) => ({ default: module.QrGeneratorView })))
@@ -171,6 +172,13 @@ function App() {
         status: 'beta',
       },
       {
+        id: 'document-office-to-pdf',
+        label: t('officePdfNavTitle'),
+        description: t('officePdfShortDescription'),
+        section: 'document',
+        status: 'beta',
+      },
+      {
         id: 'document-excel-column-builder',
         label: t('excelColumnBuilderNavTitle'),
         description: t('excelColumnBuilderShortDesc'),
@@ -252,6 +260,7 @@ function App() {
         {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}
         {activeTool === 'document-markdown-converter' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MarkdownConverterView /></Suspense></div> : null}
         {activeTool === 'document-pdf-to-office' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfToOfficeView /></Suspense></div> : null}
+        {activeTool === 'document-office-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><OfficeToPdfView /></Suspense></div> : null}
         {activeTool === 'document-excel-column-builder' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelColumnBuilderView /></Suspense></div> : null}
         {activeTool === 'document-excel-join' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ExcelJoinView /></Suspense></div> : null}
         {activeTool === 'utility-qr-generator' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><QrGeneratorView /></Suspense></div> : null}

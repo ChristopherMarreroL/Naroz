@@ -112,7 +112,10 @@ const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: 
     es: { title: 'Convertir PDF a Word, Excel o PowerPoint - Naroz', description: 'Convierte archivos PDF a DOCX, XLSX o PPTX directamente en el navegador.' },
     en: { title: 'Convert PDF to Word, Excel, or PowerPoint - Naroz', description: 'Convert PDF files to DOCX, XLSX, or PPTX directly in the browser.' },
   },
-  'document-excel-column-builder': {
+  'document-office-to-pdf': {
+    es: { title: 'Convertir Word, Excel o PowerPoint a PDF - Naroz', description: 'Convierte archivos DOCX, XLS, XLSX o PPTX a PDF directamente en el navegador.' },
+    en: { title: 'Convert Word, Excel, or PowerPoint to PDF - Naroz', description: 'Convert DOCX, XLS, XLSX, or PPTX files to PDF directly in the browser.' },
+  },  'document-excel-column-builder': {
     es: { title: 'Crear Excel desde columnas - Naroz', description: 'Sube varios archivos Excel, selecciona columnas especificas y genera un nuevo archivo Excel desde el navegador con Naroz.' },
     en: { title: 'Create Excel from columns - Naroz', description: 'Upload multiple Excel files, select specific columns, and generate a new Excel file directly in the browser with Naroz.' },
   },

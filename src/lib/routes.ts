@@ -19,6 +19,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-msg-to-pdf': '/msg-to-pdf',
   'document-markdown-converter': '/markdown-converter',
   'document-pdf-to-office': '/pdf-to-office',
+  'document-office-to-pdf': '/office-to-pdf',
   'document-excel-column-builder': '/excel-column-builder',
   'document-excel-join': '/excel-join',
   'utility-qr-generator': '/qr-generator',

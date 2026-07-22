@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
+import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -120,7 +121,9 @@ export function VideoSpeedView() {
 
       <div className="grid gap-6 min-[1700px]:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel p-6 sm:p-8">
-          <FileDropzone
+          <BetaNotice />
+          <div className="mt-6">
+            <FileDropzone
             title={t('changeSpeedCardTitle')}
             description={t('changeSpeedCardDesc')}
             buttonLabel={t('selectVideo')}
@@ -130,6 +133,7 @@ export function VideoSpeedView() {
             aside={<span className="badge">MP4 / MKV / MOV</span>}
             onSelect={(files) => void handleSelectFile(files)}
           />
+          </div>
 
           {error ? <div className="mt-6"><AlertBanner tone="error" title={t('speedVideoError')} message={error} /></div> : null}
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}

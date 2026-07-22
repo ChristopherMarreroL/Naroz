@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { AlertBanner } from '../../components/shared/AlertBanner'
+import { BetaNotice } from '../../components/shared/BetaNotice'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -195,7 +195,7 @@ export function PdfToOfficeView() {
           />
 
           <div className="mt-6">
-            <AlertBanner tone="warning" title={t('pdfOfficeBetaTitle')} message={t('pdfOfficeBetaMessage')} />
+            <BetaNotice message={t('pdfOfficeBetaMessage')} />
           </div>
 
           {file ? (

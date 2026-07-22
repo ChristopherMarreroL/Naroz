@@ -96,6 +96,7 @@ const catalogTools: DemoCatalogTool[] = [
   { toolId: 'document-markdown-converter', category: { es: 'Documento', en: 'Document' }, title: { es: 'Markdown a PDF', en: 'Markdown to PDF' }, flowId: 'markdown' },
   { toolId: 'document-msg-to-pdf', category: { es: 'Documento', en: 'Document' }, title: { es: 'Correo a PDF', en: 'Email to PDF' } },
   { toolId: 'document-pdf-to-office', category: { es: 'Documento', en: 'Document' }, title: { es: 'PDF a Office', en: 'PDF to Office' } },
+  { toolId: 'document-office-to-pdf', category: { es: 'Documento', en: 'Document' }, title: { es: 'Office a PDF', en: 'Office to PDF' } },
   { toolId: 'document-excel-column-builder', category: { es: 'Excel', en: 'Excel' }, title: { es: 'Elegir columnas', en: 'Select columns' } },
   { toolId: 'document-excel-join', category: { es: 'Excel', en: 'Excel' }, title: { es: 'Cruzar Excel', en: 'Join Excel' } },
   { toolId: 'image-convert', category: { es: 'Imagen', en: 'Image' }, title: { es: 'Convertir imagen', en: 'Convert image' }, flowId: 'image' },
