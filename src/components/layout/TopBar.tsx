@@ -32,9 +32,9 @@ export function TopBar({ locale, setLocale, onOpenSidebar, onGoHome }: TopBarPro
                type="button"
                onClick={onGoHome}
                aria-label={t('goHomeReload')}
-               className="brand-pill inline-flex cursor-pointer items-center gap-2 rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-50 sm:px-4"
+               className="topbar-brand-button"
              >
-               <img src={narozLogo} alt={t('narozLogoAlt')} className="h-6 w-6 cursor-pointer rounded-full bg-white/10 object-contain" decoding="async" fetchPriority="high" />
+               <img src={narozLogo} alt={t('narozLogoAlt')} decoding="async" fetchPriority="high" />
                Naroz
              </button>
            </div>

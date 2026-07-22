@@ -28,6 +28,7 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
   - Merge multiple `DOCX` files into one final Word document (`beta`)
   - Convert `.MSG` or `.EML` emails to PDF through the browser print flow (`beta`)
   - Convert Markdown files such as `README.md` to PDF or Word with local preview (`beta`)
+  - Convert PDF files to Word, Excel, or PowerPoint locally (`beta`)
 - Utility
   - Generate QR codes from links or text
   - Customize QR colors, size, and optional centered logo
@@ -51,7 +52,8 @@ The app is built with React, Vite, TypeScript, and Tailwind CSS, and keeps proce
 - Tailwind CSS
 - `ffmpeg.wasm` for in-browser video processing
 - `pdf-lib` for PDF merging
-- `pdfjs-dist` for PDF page previews
+- `pdfjs-dist` for PDF page previews and text extraction
+- `docx`, `xlsx`, and `pptxgenjs` for PDF-to-Office reconstruction
 - `docx-merger` for DOCX merging
 - `marked`, `DOMPurify`, `jsPDF`, and `docx` for Markdown preview and export
 - `gifenc` for GIF image export
@@ -142,11 +144,10 @@ src/
 - Video trimming currently runs as a first beta version and may vary depending on codec/container combinations.
 - DOCX merging is currently marked as beta for complex Word documents with advanced formatting.
 - Email-to-PDF uses the browser print/save PDF flow because it preserves remote images and selectable text more reliably than canvas-based PDF export.
+- PDF-to-Word and PDF-to-Excel reconstruct detected text, while PDF-to-PowerPoint preserves each page as an image; complex layouts may differ from the source.
 - Some image export formats such as `AVIF` or `WebP` may depend on browser or device support.
 - If the browser cannot generate the requested format correctly, Naroz shows an error instead of downloading an invalid file.
 
 ## Repository
 
 `https://github.com/ChristopherMarreroL/Naroz`
-
-

@@ -18,6 +18,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'document-merge-docx': '/document-merge-docx',
   'document-msg-to-pdf': '/msg-to-pdf',
   'document-markdown-converter': '/markdown-converter',
+  'document-pdf-to-office': '/pdf-to-office',
   'document-excel-column-builder': '/excel-column-builder',
   'document-excel-join': '/excel-join',
   'utility-qr-generator': '/qr-generator',
@@ -34,5 +35,3 @@ export function getToolFromPath(pathname: string): AppToolId {
   const match = ROUTABLE_TOOLS.find((tool) => TOOL_PATHS[tool] === normalizedPath)
   return match ?? 'home'
 }
-
-

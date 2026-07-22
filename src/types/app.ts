@@ -19,6 +19,7 @@ export type AppToolId =
   | 'document-merge-docx'
   | 'document-msg-to-pdf'
   | 'document-markdown-converter'
+  | 'document-pdf-to-office'
   | 'document-excel-column-builder'
   | 'document-excel-join'
   | 'utility-qr-generator'
@@ -30,5 +31,3 @@ export interface SidebarItem {
   section: AppSectionId
   status?: ToolStatus
 }
-
-
