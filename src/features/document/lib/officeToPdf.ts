@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
 
 export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
@@ -7,6 +8,9 @@ export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
 export const OFFICE_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
 const MAX_EXCEL_ROWS = 10_000
 const MAX_EXCEL_COLUMNS = 100
+const CSS_PIXELS_PER_INCH = 96
+const MILLIMETERS_PER_INCH = 25.4
+const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
 function getExtension(name: string) {
   return name.split('.').pop()?.toLowerCase() ?? ''
 }
@@ -25,15 +29,106 @@ export function getOfficePdfFileName(fileName: string) {
 
 function getPdfPageFormat(width: number, height: number) {
   const orientation = width >= height ? 'landscape' : 'portrait'
-  const pageHeight = orientation === 'landscape' ? 190.5 : 297
+  const pageWidth = (width / CSS_PIXELS_PER_INCH) * MILLIMETERS_PER_INCH
+  const pageHeight = (height / CSS_PIXELS_PER_INCH) * MILLIMETERS_PER_INCH
 
   return {
     orientation,
     pageHeight,
-    pageWidth: pageHeight * (width / height),
+    pageWidth,
   } as const
 }
 
+interface DocxAnchorLayout {
+  height: number
+  horizontalRelativeFrom: string
+  verticalRelativeFrom: string
+  width: number
+  x: number
+  y: number
+}
+
+function emuToCssPixels(value: string | null) {
+  return (Number(value ?? 0) / 914_400) * CSS_PIXELS_PER_INCH
+}
+
+async function readDocxAnchorLayouts(buffer: ArrayBuffer) {
+  const zip = await new JSZip().loadAsync(buffer)
+  const documentPart = zip.file('word/document.xml')
+  if (!documentPart) return []
+
+  const xml = new DOMParser().parseFromString(await documentPart.async('text'), 'application/xml')
+  if (xml.querySelector('parsererror')) return []
+
+  return Array.from(xml.getElementsByTagNameNS(WORDPROCESSING_DRAWING_NS, 'anchor')).flatMap((anchor) => {
+    const children = Array.from(anchor.children)
+    if (!children.some((element) => element.localName === 'wrapTopAndBottom')) return []
+
+    const positionH = children.find((element) => element.localName === 'positionH')
+    const positionV = children.find((element) => element.localName === 'positionV')
+    const extent = children.find((element) => element.localName === 'extent')
+    const x = Array.from(positionH?.children ?? []).find((element) => element.localName === 'posOffset')
+    const y = Array.from(positionV?.children ?? []).find((element) => element.localName === 'posOffset')
+    if (!extent || !x || !y) return []
+
+    return [{
+      height: emuToCssPixels(extent.getAttribute('cy')),
+      horizontalRelativeFrom: positionH?.getAttribute('relativeFrom') ?? 'column',
+      verticalRelativeFrom: positionV?.getAttribute('relativeFrom') ?? 'paragraph',
+      width: emuToCssPixels(extent.getAttribute('cx')),
+      x: emuToCssPixels(x.textContent),
+      y: emuToCssPixels(y.textContent),
+    } satisfies DocxAnchorLayout]
+  })
+}
+
+function applyDocxAnchorLayouts(pages: HTMLElement[], layouts: DocxAnchorLayout[]) {
+  const wrappers = pages.flatMap((page) => Array.from(page.querySelectorAll<HTMLDivElement>('div')).filter((wrapper) =>
+    wrapper.style.width === '100%'
+    && wrapper.firstElementChild instanceof HTMLImageElement))
+
+  wrappers.forEach((wrapper, index) => {
+    const layout = layouts[index]
+    const image = wrapper.firstElementChild
+    const page = wrapper.closest<HTMLElement>('section.naroz-docx-preview')
+    const paragraph = wrapper.closest<HTMLElement>('p')
+    if (!layout || !(image instanceof HTMLImageElement) || !page || !paragraph) return
+
+    const pageRect = page.getBoundingClientRect()
+    const paragraphRect = paragraph.getBoundingClientRect()
+    const pageStyle = getComputedStyle(page)
+    const paddingLeft = Number.parseFloat(pageStyle.paddingLeft)
+    const paddingTop = Number.parseFloat(pageStyle.paddingTop)
+    const paragraphX = paragraphRect.left - pageRect.left
+    const paragraphY = paragraphRect.top - pageRect.top
+    const left = layout.horizontalRelativeFrom === 'page' ? layout.x :
+      layout.horizontalRelativeFrom === 'paragraph' || layout.horizontalRelativeFrom === 'character'
+        ? paragraphX + layout.x
+        : paddingLeft + layout.x
+    const top = layout.verticalRelativeFrom === 'page' ? layout.y :
+      layout.verticalRelativeFrom === 'paragraph' || layout.verticalRelativeFrom === 'line'
+        ? paragraphY + layout.y
+        : paddingTop + layout.y
+
+    page.appendChild(wrapper)
+    wrapper.style.position = 'absolute'
+    wrapper.style.display = 'block'
+    wrapper.style.left = left + 'px'
+    wrapper.style.top = top + 'px'
+    wrapper.style.width = layout.width + 'px'
+    wrapper.style.height = layout.height + 'px'
+    wrapper.style.textAlign = 'initial'
+    wrapper.style.zIndex = '2'
+    image.style.position = 'static'
+    image.style.width = '100%'
+    image.style.height = '100%'
+
+    if (layout.verticalRelativeFrom === 'paragraph' || layout.verticalRelativeFrom === 'line') {
+      const currentMinHeight = Number.parseFloat(getComputedStyle(paragraph).minHeight) || 0
+      paragraph.style.minHeight = Math.max(currentMinHeight, layout.y + layout.height) + 'px'
+    }
+  })
+}
 async function convertDocxToPdf(file: File, onProgress: (value: number) => void) {
   const [{ renderAsync }, { default: html2canvas }] = await Promise.all([
     import('docx-preview'),
@@ -52,7 +147,9 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
   document.body.appendChild(container)
 
   try {
-    await renderAsync(await file.arrayBuffer(), container, undefined, {
+    const documentBuffer = await file.arrayBuffer()
+    const anchorLayouts = await readDocxAnchorLayouts(documentBuffer)
+    await renderAsync(documentBuffer, container, undefined, {
       className: 'naroz-docx-preview',
       inWrapper: true,
       breakPages: true,
@@ -65,14 +162,33 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
     const pages = Array.from(container.querySelectorAll<HTMLElement>('section.naroz-docx-preview'))
     if (!pages.length) throw new Error('DOCX_EMPTY')
 
+    const wrapper = container.querySelector<HTMLElement>('.naroz-docx-preview-wrapper')
+    if (wrapper) {
+      wrapper.style.width = 'max-content'
+      wrapper.style.alignItems = 'flex-start'
+    }
+    pages.forEach((page) => {
+      page.style.flex = 'none'
+    })
+    await waitForElementAssets(container)
+    pages.forEach((page) => {
+      const computedPage = getComputedStyle(page)
+      const pageWidth = Math.max(1, Number.parseFloat(computedPage.width))
+      const pageHeight = Math.max(1, Number.parseFloat(computedPage.minHeight))
+      page.style.width = pageWidth + 'px'
+      page.style.height = pageHeight + 'px'
+      page.style.minWidth = pageWidth + 'px'
+      page.style.minHeight = pageHeight + 'px'
+    })
+    applyDocxAnchorLayouts(pages, anchorLayouts)
     await waitForElementAssets(container)
     let pdf: jsPDF | null = null
 
     for (let index = 0; index < pages.length; index += 1) {
       const page = pages[index]
-      const pageRect = page.getBoundingClientRect()
-      const pageWidth = Math.max(1, pageRect.width)
-      const pageHeight = Math.max(1, pageRect.height)
+      const computedPage = getComputedStyle(page)
+      const pageWidth = Math.max(1, Number.parseFloat(computedPage.width))
+      const pageHeight = Math.max(1, Number.parseFloat(computedPage.height))
       const canvas = await html2canvas(page, {
         backgroundColor: '#ffffff',
         scale: 1.5,
