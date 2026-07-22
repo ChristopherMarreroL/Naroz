@@ -52,15 +52,21 @@ function emuToCssPixels(value: string | null) {
   return (Number(value ?? 0) / 914_400) * CSS_PIXELS_PER_INCH
 }
 
-async function readDocxAnchorLayouts(buffer: ArrayBuffer) {
+interface DocxLayoutMetadata {
+  anchorLayouts: DocxAnchorLayout[]
+  expectedPageCount: number | null
+}
+
+async function readDocxLayoutMetadata(buffer: ArrayBuffer): Promise<DocxLayoutMetadata> {
   const zip = await new JSZip().loadAsync(buffer)
   const documentPart = zip.file('word/document.xml')
-  if (!documentPart) return []
+  const appPart = zip.file('docProps/app.xml')
+  if (!documentPart) return { anchorLayouts: [], expectedPageCount: null }
 
   const xml = new DOMParser().parseFromString(await documentPart.async('text'), 'application/xml')
-  if (xml.querySelector('parsererror')) return []
+  if (xml.querySelector('parsererror')) return { anchorLayouts: [], expectedPageCount: null }
 
-  return Array.from(xml.getElementsByTagNameNS(WORDPROCESSING_DRAWING_NS, 'anchor')).flatMap((anchor) => {
+  const anchorLayouts = Array.from(xml.getElementsByTagNameNS(WORDPROCESSING_DRAWING_NS, 'anchor')).flatMap((anchor) => {
     const children = Array.from(anchor.children)
     if (!children.some((element) => element.localName === 'wrapTopAndBottom')) return []
 
@@ -80,6 +86,16 @@ async function readDocxAnchorLayouts(buffer: ArrayBuffer) {
       y: emuToCssPixels(y.textContent),
     } satisfies DocxAnchorLayout]
   })
+
+  let expectedPageCount: number | null = null
+  if (appPart) {
+    const appXml = new DOMParser().parseFromString(await appPart.async('text'), 'application/xml')
+    const pages = Array.from(appXml.getElementsByTagName('*')).find((element) => element.localName === 'Pages')
+    const parsedPages = Number.parseInt(pages?.textContent ?? '', 10)
+    if (Number.isFinite(parsedPages) && parsedPages > 0) expectedPageCount = parsedPages
+  }
+
+  return { anchorLayouts, expectedPageCount }
 }
 
 function applyDocxAnchorLayouts(pages: HTMLElement[], layouts: DocxAnchorLayout[]) {
@@ -129,6 +145,89 @@ function applyDocxAnchorLayouts(pages: HTMLElement[], layouts: DocxAnchorLayout[
     }
   })
 }
+
+function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | null) {
+  const result = [...pages]
+  const pagesToAdd = Math.min(Math.max((expectedPageCount ?? result.length) - result.length, 0), 20)
+
+  for (let iteration = 0; iteration < pagesToAdd; iteration += 1) {
+    const candidate = result
+      .map((page) => {
+        const article = page.querySelector<HTMLElement>(':scope > article')
+        if (!article) return null
+
+        const pageRect = page.getBoundingClientRect()
+        const pageStyle = getComputedStyle(page)
+        const pageHeight = Number.parseFloat(pageStyle.minHeight) || pageRect.height
+        const contentBottom = pageRect.top + pageHeight - Number.parseFloat(pageStyle.paddingBottom)
+        return {
+          article,
+          contentBottom,
+          overflow: article.getBoundingClientRect().bottom - contentBottom,
+          page,
+        }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .sort((left, right) => right.overflow - left.overflow)[0]
+
+    if (!candidate || candidate.overflow <= 4) break
+
+    const children = Array.from(candidate.article.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement,
+    )
+    const firstContent = children.find((child) => child.textContent?.trim() || child.querySelector('img'))
+    if (!firstContent) break
+
+    const semanticThreshold = firstContent.getBoundingClientRect().top
+      + (candidate.contentBottom - firstContent.getBoundingClientRect().top) * 0.8
+    let splitIndex = children.findIndex((child, index) =>
+      index > 0
+      && Boolean(child.textContent?.trim() || child.querySelector('img'))
+      && child.getBoundingClientRect().top >= semanticThreshold)
+
+    if (splitIndex < 1) {
+      splitIndex = children.findIndex((child, index) =>
+        index > 0 && child.getBoundingClientRect().bottom > candidate.contentBottom)
+    }
+    if (splitIndex < 1 || splitIndex >= children.length) break
+
+    const continuation = candidate.page.cloneNode(true)
+    if (!(continuation instanceof HTMLElement)) break
+    const continuationArticle = continuation.querySelector<HTMLElement>(':scope > article')
+    if (!continuationArticle) break
+
+    continuationArticle.replaceChildren(...children.slice(splitIndex))
+    candidate.page.insertAdjacentElement('afterend', continuation)
+    const pageIndex = result.indexOf(candidate.page)
+    result.splice(pageIndex + 1, 0, continuation)
+  }
+
+  return result
+}
+
+function normalizeDocxPages(pages: HTMLElement[]) {
+  pages.forEach((page) => {
+    const style = getComputedStyle(page)
+    for (const variable of ['--docx-majorHAnsi-font', '--docx-minorHAnsi-font']) {
+      const officeFont = style.getPropertyValue(variable).trim()
+      if (officeFont) page.style.setProperty(variable, officeFont + ', Arial, sans-serif')
+    }
+
+    page.querySelectorAll<HTMLElement>('[style*="font-family"]').forEach((element) => {
+      const officeFont = element.style.fontFamily.trim()
+      if (officeFont && !/(?:^|,)\s*(?:sans-serif|serif|monospace)\s*$/i.test(officeFont)) {
+        element.style.fontFamily = officeFont + ', Arial, sans-serif'
+      }
+    })
+
+    page.querySelectorAll<HTMLParagraphElement>('p').forEach((paragraph) => {
+      const isNumbered = Array.from(paragraph.classList).some((name) => name.includes('-num-'))
+      const hasContent = Boolean(paragraph.textContent?.trim() || paragraph.querySelector('img, svg, table'))
+      if (isNumbered && !hasContent) paragraph.remove()
+    })
+  })
+}
+
 async function convertDocxToPdf(file: File, onProgress: (value: number) => void) {
   const [{ renderAsync }, { default: html2canvas }] = await Promise.all([
     import('docx-preview'),
@@ -148,7 +247,7 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
 
   try {
     const documentBuffer = await file.arrayBuffer()
-    const anchorLayouts = await readDocxAnchorLayouts(documentBuffer)
+    const { anchorLayouts, expectedPageCount } = await readDocxLayoutMetadata(documentBuffer)
     await renderAsync(documentBuffer, container, undefined, {
       className: 'naroz-docx-preview',
       inWrapper: true,
@@ -159,7 +258,7 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
       useBase64URL: true,
     })
 
-    const pages = Array.from(container.querySelectorAll<HTMLElement>('section.naroz-docx-preview'))
+    let pages = Array.from(container.querySelectorAll<HTMLElement>('section.naroz-docx-preview'))
     if (!pages.length) throw new Error('DOCX_EMPTY')
 
     const wrapper = container.querySelector<HTMLElement>('.naroz-docx-preview-wrapper')
@@ -170,7 +269,9 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
     pages.forEach((page) => {
       page.style.flex = 'none'
     })
+    normalizeDocxPages(pages)
     await waitForElementAssets(container)
+    pages = paginateDocxOverflow(pages, expectedPageCount)
     pages.forEach((page) => {
       const computedPage = getComputedStyle(page)
       const pageWidth = Math.max(1, Number.parseFloat(computedPage.width))
