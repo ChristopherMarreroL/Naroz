@@ -26,7 +26,7 @@ const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').the
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
 const MarkdownConverterView = lazy(() => import('./features/document/MarkdownConverterView').then((module) => ({ default: module.MarkdownConverterView })))
 const PdfToOfficeView = lazy(() => import('./features/document/PdfToOfficeView').then((module) => ({ default: module.PdfToOfficeView })))
-const OfficeToPdfView = lazy(() => import('./features/document/OfficeToPdfView').then((module) => ({ default: module.OfficeToPdfView })))
+const OfficeToPdfView = lazy(() => import('./features/document/OfficeToPdfBatchView').then((module) => ({ default: module.OfficeToPdfBatchView })))
 const ExcelColumnBuilderView = lazy(() => import('./features/excel/ExcelColumnBuilderView').then((module) => ({ default: module.ExcelColumnBuilderView })))
 const ExcelJoinView = lazy(() => import('./features/excel-join/ExcelJoinView').then((module) => ({ default: module.ExcelJoinView })))
 const QrGeneratorView = lazy(() => import('./features/qr/QrGeneratorView').then((module) => ({ default: module.QrGeneratorView })))

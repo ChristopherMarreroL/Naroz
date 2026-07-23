@@ -11,6 +11,7 @@ interface FileDropzoneProps {
   accept?: string
   acceptedFormats?: string
   maxSize?: number
+  enforceMaxSize?: boolean
   multiple?: boolean
   disabled?: boolean
   aside?: ReactNode
@@ -38,6 +39,7 @@ export function FileDropzone({
   accept,
   acceptedFormats,
   maxSize,
+  enforceMaxSize = true,
   multiple = false,
   disabled = false,
   aside,
@@ -55,7 +57,7 @@ export function FileDropzone({
       return
     }
 
-    if (maxSize) {
+    if (maxSize && enforceMaxSize) {
       const tooLarge = Array.from(files).find((file) => file.size > maxSize)
       if (tooLarge) {
         const message = `${t('invalidFile')}: ${tooLarge.name}. ${t('maximumSize')}: ${formatMaxSize(maxSize)}.`

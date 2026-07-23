@@ -472,17 +472,18 @@ export function ExcelJoinView() {
 
             {files.length > 0 ? (
               <div className="mt-6 grid gap-3">
-                {files.map((file) => (
+                {files.map((file, index) => (
                   <article
                     key={file.id}
-                    className={`rounded-3xl border p-4 transition ${file.id === primaryFile?.id ? 'border-slate-950 bg-slate-950 text-white shadow-[0_22px_48px_-36px_rgba(15,23,42,0.9)]' : 'border-slate-200 bg-white text-slate-950'}`}
+                    className={`rounded-2xl border bg-white p-4 text-slate-950 transition ${file.id === primaryFile?.id ? 'border-blue-600 shadow-[0_18px_40px_-30px_rgba(37,99,235,0.65)]' : 'border-slate-200'}`}
                   >
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-center">
+                    <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_220px_auto] lg:items-center">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">{index + 1}</div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            className={`rounded-full px-3 py-1 text-xs font-bold ${file.id === primaryFile?.id ? 'bg-emerald-400 text-slate-950' : 'bg-slate-100 text-slate-600'}`}
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${file.id === primaryFile?.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                             onClick={() => changePrimaryFile(file.id)}
                             disabled={isGenerating}
                           >
@@ -490,14 +491,14 @@ export function ExcelJoinView() {
                           </button>
                           <button
                             type="button"
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${previewFile?.id === file.id ? 'bg-sky-100 text-sky-700' : file.id === primaryFile?.id ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-500'}`}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${previewFile?.id === file.id ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}
                             onClick={() => setPreviewFileId(file.id)}
                           >
                             {t('excelJoinViewData')}
                           </button>
                         </div>
-                        <p className={`mt-3 break-words text-sm font-bold ${file.id === primaryFile?.id ? 'text-white' : 'text-slate-950'}`}>{file.name}</p>
-                        <p className={`mt-1 text-xs ${file.id === primaryFile?.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                        <p className="mt-3 break-words text-sm font-bold text-slate-950">{file.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
                           {formatBytes(file.size)} · {file.sheets.length} {t('sheets')}
                         </p>
                       </div>
@@ -516,7 +517,10 @@ export function ExcelJoinView() {
                         </select>
                       </label>
 
-                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                        <span className={`badge ${result ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : isGenerating ? 'border-blue-200 bg-blue-50 text-blue-700' : ''}`}>
+                          {result ? t('officePdfStatusSuccess') : isGenerating ? t('officePdfStatusConverting') : t('officePdfStatusQueued')}
+                        </span>
                         <button type="button" className="btn-danger h-9 w-9 px-0" aria-label={t('remove')} title={t('remove')} onClick={() => removeFile(file.id)} disabled={isReading || isGenerating}>
                           <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                             <path d="M4 7h16" />

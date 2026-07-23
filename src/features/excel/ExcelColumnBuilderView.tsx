@@ -252,7 +252,7 @@ export function ExcelColumnBuilderView() {
 
             {files.length > 0 ? (
               <div className="mt-6 grid gap-3">
-                {files.map((file) => {
+                {files.map((file, index) => {
                   const isActive = file.id === activeFile?.id
                   return (
                     <article
@@ -267,18 +267,19 @@ export function ExcelColumnBuilderView() {
                           setActiveFileId(file.id)
                         }
                       }}
-                      className={`rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-slate-900/20 ${isActive ? 'border-slate-900 bg-slate-950 text-white' : 'cursor-pointer border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50'}`}
+                      className={`rounded-2xl border bg-white p-4 text-left text-slate-900 transition focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${isActive ? 'border-blue-600 shadow-[0_18px_40px_-30px_rgba(37,99,235,0.65)]' : 'cursor-pointer border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
                     >
-                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center">
+                      <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_220px_auto] xl:items-center">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">{index + 1}</div>
                         <div className="min-w-0">
                           <p className="break-words text-sm font-bold">{file.name}</p>
-                          <p className={`mt-1 text-xs ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                          <p className="mt-1 text-xs text-slate-500">
                             {formatBytes(file.size)} · {file.sheets.length} {t('sheets')}
                           </p>
                         </div>
 
                         <label className="block">
-                          <span className={`text-xs font-semibold uppercase tracking-[0.16em] ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{t('sheet')}</span>
+                          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('sheet')}</span>
                           <select
                             value={file.selectedSheetName}
                             onChange={(event) => changeSelectedSheet(file.id, event.target.value)}
@@ -292,7 +293,10 @@ export function ExcelColumnBuilderView() {
                           </select>
                         </label>
 
-                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                          <span className={`badge ${result ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : isGenerating ? 'border-blue-200 bg-blue-50 text-blue-700' : ''}`}>
+                            {result ? t('officePdfStatusSuccess') : isGenerating ? t('officePdfStatusConverting') : t('officePdfStatusQueued')}
+                          </span>
                           <button type="button" className={isActive ? 'btn-download px-3 py-2 text-xs' : 'btn-secondary px-3 py-2 text-xs'} onClick={(event) => {
                             event.stopPropagation()
                             setActiveFileId(file.id)

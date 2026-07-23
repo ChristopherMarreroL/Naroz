@@ -54,6 +54,17 @@ export function usePdfMerger() {
     })
   }, [])
 
+  const resetMergeState = useCallback(() => {
+    resetResult()
+    setError(null)
+    setProgress({
+      stage: 'idle',
+      percent: 0,
+      message: locale === 'es' ? 'Listo para unir PDFs.' : 'Ready to merge PDFs.',
+      detail: locale === 'es' ? 'Agrega dos o mas archivos PDF.' : 'Add two or more PDF files.',
+    })
+  }, [locale, resetResult])
+
   const mergePdfFiles = useCallback(async (files: File[]) => {
     setError(null)
     resetResult()
@@ -120,5 +131,5 @@ export function usePdfMerger() {
     }
   }, [locale, resetResult, t])
 
-  return { progress, isProcessing, result, error, mergePdfFiles }
+  return { progress, isProcessing, result, error, mergePdfFiles, resetMergeState }
 }

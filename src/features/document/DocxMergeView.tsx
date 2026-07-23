@@ -20,7 +20,7 @@ export function DocxMergeView() {
     title: t('documentLocalProcessing'),
     message: t('docxMergeCardDesc'),
   })
-  const { progress, isProcessing, result, error, mergeDocxFiles } = useDocxMerger()
+  const { progress, isProcessing, result, error, mergeDocxFiles, resetMergeState } = useDocxMerger()
 
   const totalSize = useMemo(() => getTotalSize(items), [items])
 
@@ -36,6 +36,7 @@ export function DocxMergeView() {
       return
     }
 
+    resetMergeState()
     setItems(files.map((file) => createDocumentItem(file, 'docx')))
     setNotice({ tone: 'success', title: t('documentsAdded'), message: t('docxListUpdated') })
   }
@@ -108,13 +109,21 @@ export function DocxMergeView() {
               <DocumentQueue
                 items={items}
                 emptyMessage={t('emptyDocxQueue')}
-                onReorder={(sourceId, targetId) => setItems((current) => {
-                  const sourceIndex = current.findIndex((item) => item.id === sourceId)
-                  const targetIndex = current.findIndex((item) => item.id === targetId)
-                  return moveDocument(current, sourceIndex, targetIndex)
-                })}
-                onRemove={(id) => setItems((current) => current.filter((item) => item.id !== id))}
+                onReorder={(sourceId, targetId) => {
+                  resetMergeState()
+                  setItems((current) => {
+                    const sourceIndex = current.findIndex((item) => item.id === sourceId)
+                    const targetIndex = current.findIndex((item) => item.id === targetId)
+                    return moveDocument(current, sourceIndex, targetIndex)
+                  })
+                }}
+                onRemove={(id) => {
+                  resetMergeState()
+                  setItems((current) => current.filter((item) => item.id !== id))
+                }}
                 disabled={isProcessing}
+                status={isProcessing ? 'processing' : result ? 'success' : error ? 'error' : 'queued'}
+                progress={isProcessing || result ? progress.percent : 0}
               />
             ) : (
               <EmptyState badge={t('noDocuments')} title={t('emptyDocxTitle')} description={t('emptyDocxDesc')} />
@@ -136,6 +145,7 @@ export function DocxMergeView() {
                 type="button"
                 className="btn-secondary w-full sm:w-auto"
                 onClick={() => {
+                  resetMergeState()
                   setItems([])
                   setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: t('docxListCleared') })
                 }}

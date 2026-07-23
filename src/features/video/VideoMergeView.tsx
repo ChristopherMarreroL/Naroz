@@ -25,7 +25,7 @@ interface Notice {
 export function VideoMergeView() {
   const { locale, t } = useLocale()
   const { videos, addVideos, removeVideo, clearVideos, reorderVideo, totalDuration } = useVideoQueue()
-  const { progress, isLoadingEngine, isProcessing, result, error, ensureLoaded, mergeVideos } = useVideoMerger()
+  const { progress, isLoadingEngine, isProcessing, result, error, ensureLoaded, mergeVideos, resetMergeState } = useVideoMerger()
   const [outputFormat, setOutputFormat] = useState<VideoOutputFormat>('mp4')
   const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
@@ -42,6 +42,10 @@ export function VideoMergeView() {
 
   const handleSelectVideos = async (files: FileList) => {
     const { addedCount, rejectedFiles } = await addVideos(files)
+
+    if (addedCount > 0) {
+      resetMergeState()
+    }
 
     if (rejectedFiles.length > 0) {
       setNotice({
@@ -122,9 +126,18 @@ export function VideoMergeView() {
             videos={videos}
             totalDuration={totalDuration}
             disabled={isProcessing}
-            onReorder={reorderVideo}
-            onRemove={removeVideo}
+            onReorder={(sourceId, targetId) => {
+              resetMergeState()
+              reorderVideo(sourceId, targetId)
+            }}
+            onRemove={(id) => {
+              resetMergeState()
+              removeVideo(id)
+            }}
+            status={isProcessing ? 'processing' : result ? 'success' : error ? 'error' : 'queued'}
+            progress={isProcessing || result ? progress.percent : 0}
             onClear={() => {
+              resetMergeState()
               clearVideos()
               setNotice({
                 tone: 'info',
