@@ -1,5 +1,7 @@
 import { useRef, useState, type PointerEvent } from 'react'
 
+import type { BatchFileStatus } from '../../../components/shared/BatchFileCard'
+
 import { formatDuration } from '../../../lib/format'
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { VideoItem } from '../../../types/video'
@@ -12,9 +14,12 @@ interface VideoListProps {
   onReorder: (sourceId: string, targetId: string) => void
   onRemove: (videoId: string) => void
   onClear: () => void
+  status?: BatchFileStatus
+  statusLabel?: string
+  progress?: number
 }
 
-export function VideoList({ videos, totalDuration, disabled = false, onReorder, onRemove, onClear }: VideoListProps) {
+export function VideoList({ videos, totalDuration, disabled = false, onReorder, onRemove, onClear, status = 'queued', statusLabel, progress = 0 }: VideoListProps) {
   const { t } = useLocale()
   const draggingIdRef = useRef<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -79,6 +84,9 @@ export function VideoList({ videos, totalDuration, disabled = false, onReorder, 
             onDragMove={handleDragMove}
             onDragEnd={finishDragging}
             onRemove={() => onRemove(video.id)}
+            status={status}
+            statusLabel={statusLabel}
+            progress={progress}
           />
         ))}
       </div>

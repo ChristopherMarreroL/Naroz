@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import JSZip from 'jszip'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
+import { BatchFileCard, type BatchFileStatus } from '../../components/shared/BatchFileCard'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -31,6 +32,13 @@ interface BatchDownloadResult {
 interface ConversionFailure {
   fileName: string
   reason: string
+}
+
+interface ImageBatchState {
+  status: BatchFileStatus
+  progress: number
+  result: ConvertedImageResult | null
+  error: string | null
 }
 
 const OUTPUT_OPTIONS: Array<{ value: ImageOutputFormat; label: string }> = [
@@ -66,6 +74,7 @@ export function ImageConvertView() {
   const [uploads, setUploads] = useState<ImageUploadState[]>([])
   const [outputFormat, setOutputFormat] = useState<ImageOutputFormat>('webp')
   const [results, setResults] = useState<ConvertedImageResult[]>([])
+  const [batchStates, setBatchStates] = useState<Record<string, ImageBatchState>>({})
   const [batchDownload, setBatchDownload] = useState<BatchDownloadResult | null>(null)
   const [isConverting, setIsConverting] = useState(false)
   const [notice, setNotice] = useToastNotice<Notice | null>({
@@ -109,6 +118,7 @@ export function ImageConvertView() {
 
       return null
     })
+    setBatchStates((current) => Object.fromEntries(Object.keys(current).map((key) => [key, { status: 'queued', progress: 0, result: null, error: null }])))
   }
 
   const clearAll = () => {
@@ -117,6 +127,7 @@ export function ImageConvertView() {
       current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
       return []
     })
+    setBatchStates({})
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('imageConvertDesc') })
   }
 
@@ -157,6 +168,7 @@ export function ImageConvertView() {
       }
 
       setUploads(nextUploads)
+      setBatchStates(Object.fromEntries(nextUploads.map((item) => [item.previewUrl, { status: 'queued', progress: 0, result: null, error: null }])))
 
       if (skippedFiles.length > 0) {
         setNotice({
@@ -180,6 +192,20 @@ export function ImageConvertView() {
     }
   }
 
+  const removeUpload = (previewUrl: string) => {
+    clearResults()
+    setUploads((current) => {
+      const target = current.find((item) => item.previewUrl === previewUrl)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return current.filter((item) => item.previewUrl !== previewUrl)
+    })
+    setBatchStates((current) => {
+      const next = { ...current }
+      delete next[previewUrl]
+      return next
+    })
+  }
+
   const handleConvert = async () => {
     if (uploads.length === 0) {
       setNotice({ tone: 'error', title: t('imageMissing'), message: t('selectImageFirst') })
@@ -194,35 +220,31 @@ export function ImageConvertView() {
       const convertedItems: ConvertedImageResult[] = []
       const failedItems: ConversionFailure[] = []
       const zip = shouldPackageAsZip ? new JSZip() : null
-      let zipEntryCount = 0
-
       for (const upload of uploads) {
+        setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'processing', progress: 15, result: null, error: null } }))
         try {
           const convertedItem = await convertImageFile(upload.file, outputFormat)
+          convertedItems.push(convertedItem)
           if (zip) {
             zip.file(convertedItem.fileName, await convertedItem.blob.arrayBuffer())
-            zipEntryCount += 1
-            URL.revokeObjectURL(convertedItem.url)
-          } else {
-            convertedItems.push(convertedItem)
           }
+          setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'success', progress: 100, result: convertedItem, error: null } }))
         } catch (error) {
-          failedItems.push({
-            fileName: upload.file.name,
-            reason: error instanceof Error ? error.message : t('imageConvertErrorMessage'),
-          })
+          const reason = error instanceof Error ? error.message : t('imageConvertErrorMessage')
+          failedItems.push({ fileName: upload.file.name, reason })
+          setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'error', progress: 0, result: null, error: reason } }))
         }
       }
 
-      const successfulCount = zip ? zipEntryCount : convertedItems.length
+      const successfulCount = convertedItems.length
 
       if (successfulCount === 0) {
         throw new Error(failedItems[0]?.reason ?? t('imageConvertErrorMessage'))
       }
 
-      if (zip) {
-        setResults([])
+      setResults(convertedItems)
 
+      if (zip) {
         const zipBlob = await generateZipBlob(zip)
         const zipUrl = URL.createObjectURL(zipBlob)
         setBatchDownload({
@@ -327,17 +349,37 @@ export function ImageConvertView() {
                    </div>
                  </div>
 
-                 {uploads.length > 1 ? (
-                   <div className="panel-subtle p-3 sm:p-4">
-                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('filesLoaded')}</p>
-                     <div className="mt-3 space-y-2 text-xs sm:text-sm text-slate-600">
-                       {uploads.slice(0, 5).map((item) => (
-                         <div key={item.file.name} className="truncate rounded-2xl bg-slate-50 px-3 py-2">{item.file.name}</div>
-                       ))}
-                       {uploads.length > 5 ? <div className="text-xs text-slate-500">+{uploads.length - 5} {t('moreFiles')}</div> : null}
-                     </div>
-                   </div>
-                 ) : null}
+                 <div className="max-h-[30rem] space-y-3 overflow-y-auto pr-1">
+                   {uploads.map((item, index) => {
+                     const state = batchStates[item.previewUrl] ?? { status: 'queued' as const, progress: 0, result: null, error: null }
+                     const statusLabel = state.status === 'processing'
+                       ? t('officePdfStatusConverting')
+                       : state.status === 'success'
+                         ? t('officePdfStatusSuccess')
+                         : state.status === 'error'
+                           ? t('officePdfStatusError')
+                           : t('officePdfStatusQueued')
+
+                     return (
+                       <BatchFileCard
+                         key={item.previewUrl}
+                         index={index}
+                         name={item.file.name}
+                         meta={`${getImageExtensionLabel(item.file)} · ${formatBytes(item.file.size)} · ${item.width}x${item.height}`}
+                         status={state.status}
+                         statusLabel={statusLabel}
+                         progress={state.progress}
+                         error={state.error}
+                         result={state.result ? { name: state.result.fileName, meta: formatBytes(state.result.size) } : null}
+                         onDownload={state.result ? () => downloadFromUrl(state.result!.url, state.result!.fileName) : undefined}
+                         downloadLabel={t('download')}
+                         onRemove={() => removeUpload(item.previewUrl)}
+                         removeLabel={t('remove')}
+                         disabled={isConverting}
+                       />
+                     )
+                   })}
+                 </div>
                </div>
 
                <div className="grid gap-5">
@@ -432,15 +474,7 @@ export function ImageConvertView() {
                       ) : null}
                     </div>
 
-                    {results.length > 0 && !shouldUseZip ? (
-                      <div className="mt-4 grid gap-2 sm:gap-3">
-                        {results.map((item) => (
-                          <div key={item.fileName} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-600 truncate">
-                            {item.fileName}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
+
                  </div>
                </div>
              </div>

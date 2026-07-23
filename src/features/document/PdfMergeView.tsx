@@ -114,6 +114,8 @@ export function PdfMergeView() {
                 })}
                 onRemove={(id) => setItems((current) => current.filter((item) => item.id !== id))}
                 disabled={isProcessing}
+                status={isProcessing ? 'processing' : result ? 'success' : error ? 'error' : 'queued'}
+                progress={isProcessing || result ? progress.percent : 0}
               />
             ) : (
               <EmptyState badge={t('noDocuments')} title={t('emptyPdfTitle')} description={t('emptyPdfDesc')} />

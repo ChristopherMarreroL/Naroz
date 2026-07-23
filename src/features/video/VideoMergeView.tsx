@@ -124,6 +124,8 @@ export function VideoMergeView() {
             disabled={isProcessing}
             onReorder={reorderVideo}
             onRemove={removeVideo}
+            status={isProcessing ? 'processing' : result ? 'success' : error ? 'error' : 'queued'}
+            progress={isProcessing || result ? progress.percent : 0}
             onClear={() => {
               clearVideos()
               setNotice({
