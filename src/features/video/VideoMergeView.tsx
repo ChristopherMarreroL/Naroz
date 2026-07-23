@@ -43,6 +43,10 @@ export function VideoMergeView() {
   const handleSelectVideos = async (files: FileList) => {
     const { addedCount, rejectedFiles } = await addVideos(files)
 
+    if (addedCount > 0) {
+      resetMergeState()
+    }
+
     if (rejectedFiles.length > 0) {
       setNotice({
         tone: 'warning',
@@ -53,7 +57,6 @@ export function VideoMergeView() {
     }
 
     if (addedCount > 0) {
-      resetMergeState()
       setNotice({
         tone: 'success',
         title: t('videoAdded'),
