@@ -217,6 +217,18 @@ export function useVideoMerger() {
     })
   }, [])
 
+  const resetMergeState = useCallback(() => {
+    resetResult()
+    setError(null)
+    setProgressPhase({
+      stage: 'idle',
+      start: 0,
+      end: 0,
+      message: locale === 'es' ? 'Listo para unir tus videos.' : 'Ready to merge your videos.',
+      detail: locale === 'es' ? 'Elige tus archivos y el formato de salida.' : 'Choose your files and the output format.',
+    })
+  }, [locale, resetResult, setProgressPhase])
+
   const mergeVideos = useCallback(
     async (videos: VideoItem[], strategy: MergeStrategy, outputFormat: VideoOutputFormat) => {
       if (videos.length === 0) {
@@ -561,5 +573,6 @@ export function useVideoMerger() {
     ensureLoaded,
     mergeVideos,
     resetResult,
+    resetMergeState,
   }
 }

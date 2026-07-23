@@ -20,7 +20,7 @@ export function PdfMergeView() {
     title: t('documentLocalProcessing'),
     message: t('pdfMergeCardDesc'),
   })
-  const { progress, isProcessing, result, error, mergePdfFiles } = usePdfMerger()
+  const { progress, isProcessing, result, error, mergePdfFiles, resetMergeState } = usePdfMerger()
 
   const totalSize = useMemo(() => getTotalSize(items), [items])
 
@@ -36,6 +36,7 @@ export function PdfMergeView() {
       return
     }
 
+    resetMergeState()
     setItems(files.map((file) => createDocumentItem(file, 'pdf')))
     setNotice({ tone: 'success', title: t('documentsAdded'), message: t('pdfListUpdated') })
   }
@@ -107,12 +108,18 @@ export function PdfMergeView() {
               <DocumentQueue
                 items={items}
                 emptyMessage={t('emptyPdfQueue')}
-                onReorder={(sourceId, targetId) => setItems((current) => {
-                  const sourceIndex = current.findIndex((item) => item.id === sourceId)
-                  const targetIndex = current.findIndex((item) => item.id === targetId)
-                  return moveDocument(current, sourceIndex, targetIndex)
-                })}
-                onRemove={(id) => setItems((current) => current.filter((item) => item.id !== id))}
+                onReorder={(sourceId, targetId) => {
+                  resetMergeState()
+                  setItems((current) => {
+                    const sourceIndex = current.findIndex((item) => item.id === sourceId)
+                    const targetIndex = current.findIndex((item) => item.id === targetId)
+                    return moveDocument(current, sourceIndex, targetIndex)
+                  })
+                }}
+                onRemove={(id) => {
+                  resetMergeState()
+                  setItems((current) => current.filter((item) => item.id !== id))
+                }}
                 disabled={isProcessing}
                 status={isProcessing ? 'processing' : result ? 'success' : error ? 'error' : 'queued'}
                 progress={isProcessing || result ? progress.percent : 0}
@@ -137,6 +144,7 @@ export function PdfMergeView() {
                 type="button"
                 className="btn-secondary w-full sm:w-auto"
                 onClick={() => {
+                  resetMergeState()
                   setItems([])
                   setNotice({ tone: 'info', title: t('documentLocalProcessing'), message: t('pdfListCleared') })
                 }}

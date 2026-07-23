@@ -67,6 +67,17 @@ export function useDocxMerger() {
     })
   }, [])
 
+  const resetMergeState = useCallback(() => {
+    resetResult()
+    setError(null)
+    setProgress({
+      stage: 'idle',
+      percent: 0,
+      message: locale === 'es' ? 'Listo para unir documentos Word.' : 'Ready to merge Word documents.',
+      detail: locale === 'es' ? 'Agrega dos o mas archivos DOCX.' : 'Add two or more DOCX files.',
+    })
+  }, [locale, resetResult])
+
   const mergeDocxFiles = useCallback(async (files: File[]) => {
     setError(null)
     resetResult()
@@ -133,5 +144,5 @@ export function useDocxMerger() {
     }
   }, [locale, resetResult, t])
 
-  return { progress, isProcessing, result, error, mergeDocxFiles }
+  return { progress, isProcessing, result, error, mergeDocxFiles, resetMergeState }
 }

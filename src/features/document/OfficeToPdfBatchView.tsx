@@ -184,8 +184,14 @@ export function OfficeToPdfBatchView() {
 
     const candidates: Array<Pick<OfficeUpload, 'id' | 'file' | 'kind'>> = []
     let invalidCount = 0
+    let oversizedCount = 0
 
     incomingFiles.forEach((file) => {
+      if (file.size > OFFICE_TO_PDF_MAX_SIZE) {
+        oversizedCount += 1
+        return
+      }
+
       const kind = getOfficeFileKind(file)
       if (!kind) invalidCount += 1
       else candidates.push({ id: createUploadId(), file, kind })
@@ -209,7 +215,7 @@ export function OfficeToPdfBatchView() {
       nextTotalSize += candidate.file.size
     }
     if (accepted.length === 0) {
-      const limitReached = skippedByLimit > 0
+      const limitReached = oversizedCount + skippedByLimit > 0
       setNotice({
         tone: 'error',
         title: limitReached ? t('officePdfBatchLimitTitle') : t('officePdfInvalidTitle'),
@@ -220,7 +226,7 @@ export function OfficeToPdfBatchView() {
 
     resetOutputs()
     setUploads((current) => [...current, ...accepted])
-    const skippedCount = invalidCount + skippedByLimit
+    const skippedCount = invalidCount + oversizedCount + skippedByLimit
     setNotice({
       tone: skippedCount > 0 ? 'warning' : 'success',
       title: t('officePdfLoadedTitle'),
@@ -341,6 +347,7 @@ export function OfficeToPdfBatchView() {
             acceptedFormats="DOCX, XLSX, XLS, PPTX"
             accept=".docx,.xlsx,.xls,.pptx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             maxSize={OFFICE_TO_PDF_MAX_SIZE}
+            enforceMaxSize={false}
             multiple
             disabled={isConverting || uploads.length >= MAX_FILES}
             aside={<span className="badge">{MAX_FILES} MAX</span>}
