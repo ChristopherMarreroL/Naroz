@@ -32,7 +32,7 @@ interface OfficeUpload {
   status: ConversionStatus
   progress: number
   result: ConversionResult | null
-  error: string | null
+  errorKey: string | null
 }
 
 interface BatchDownload {
@@ -57,8 +57,23 @@ const statusKeys: Record<ConversionStatus, string> = {
   error: 'officePdfStatusError',
 }
 
-function createUploadId(file: File) {
-  return `${file.name}-${file.size}-${file.lastModified}`
+let fallbackUploadId = 0
+
+function createUploadId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  fallbackUploadId += 1
+  return `office-upload-${Date.now()}-${fallbackUploadId}-${Math.random().toString(36).slice(2)}`
+}
+
+function getOfficeErrorKey(error: unknown) {
+  if (!(error instanceof Error)) return 'officePdfConvertErrorMessage'
+  if (error.message === 'DOCX_EMPTY') return 'officePdfDocxEmptyError'
+  if (error.message === 'XLSX_EMPTY') return 'officePdfXlsxEmptyError'
+  if (error.message === 'PPTX_EMPTY') return 'officePdfPptxEmptyError'
+  return 'officePdfConvertErrorMessage'
 }
 
 function getUniqueFileName(fileName: string, usedNames: Set<string>) {
@@ -154,7 +169,7 @@ export function OfficeToPdfBatchView() {
       status: 'queued',
       progress: 0,
       result: null,
-      error: null,
+      errorKey: null,
     })))
   }
 
@@ -167,29 +182,32 @@ export function OfficeToPdfBatchView() {
     const incomingFiles = Array.from(fileList ?? [])
     if (incomingFiles.length === 0) return
 
-    const currentIds = new Set(uploads.map((item) => item.id))
     const candidates: Array<Pick<OfficeUpload, 'id' | 'file' | 'kind'>> = []
     let invalidCount = 0
-    let duplicateCount = 0
 
     incomingFiles.forEach((file) => {
       const kind = getOfficeFileKind(file)
-      const id = createUploadId(file)
       if (!kind) invalidCount += 1
-      else if (currentIds.has(id)) duplicateCount += 1
-      else candidates.push({ id, file, kind })
+      else candidates.push({ id: createUploadId(), file, kind })
     })
 
     const accepted: OfficeUpload[] = []
     let nextTotalSize = totalInputSize
+    let skippedByLimit = 0
     for (const candidate of candidates) {
-      if (uploads.length + accepted.length >= MAX_FILES) break
-      if (nextTotalSize + candidate.file.size > MAX_BATCH_SIZE) break
-      accepted.push({ ...candidate, status: 'queued', progress: 0, result: null, error: null })
+      if (uploads.length + accepted.length >= MAX_FILES) {
+        skippedByLimit += 1
+        continue
+      }
+
+      if (nextTotalSize + candidate.file.size > MAX_BATCH_SIZE) {
+        skippedByLimit += 1
+        continue
+      }
+
+      accepted.push({ ...candidate, status: 'queued', progress: 0, result: null, errorKey: null })
       nextTotalSize += candidate.file.size
     }
-
-    const skippedByLimit = candidates.length - accepted.length
     if (accepted.length === 0) {
       const limitReached = skippedByLimit > 0
       setNotice({
@@ -202,7 +220,7 @@ export function OfficeToPdfBatchView() {
 
     resetOutputs()
     setUploads((current) => [...current, ...accepted])
-    const skippedCount = invalidCount + duplicateCount + skippedByLimit
+    const skippedCount = invalidCount + skippedByLimit
     setNotice({
       tone: skippedCount > 0 ? 'warning' : 'success',
       title: t('officePdfLoadedTitle'),
@@ -236,29 +254,29 @@ export function OfficeToPdfBatchView() {
     let zipFailed = false
 
     for (const upload of queue) {
+      if (!mountedRef.current) return
       updateUpload(upload.id, { status: 'converting', progress: 4 })
 
       try {
         const blob = await convertOfficeToPdf(upload.file, upload.kind, (progress) => {
           updateUpload(upload.id, { progress })
         })
+        if (!mountedRef.current) return
+
         const fileName = getUniqueFileName(getOfficePdfFileName(upload.file.name), usedFileNames)
         const result = { url: URL.createObjectURL(blob), fileName, size: blob.size }
 
-        if (!mountedRef.current) {
-          URL.revokeObjectURL(result.url)
-          continue
-        }
-
         resultUrlsRef.current.add(result.url)
         converted.push({ blob, result })
-        updateUpload(upload.id, { status: 'success', progress: 100, result, error: null })
+        updateUpload(upload.id, { status: 'success', progress: 100, result, errorKey: null })
       } catch (error) {
+        if (!mountedRef.current) return
+        console.error('Office to PDF conversion failed', error)
         conversionFailures += 1
         updateUpload(upload.id, {
           status: 'error',
           progress: 0,
-          error: error instanceof Error ? error.message : t('officePdfConvertErrorMessage'),
+          errorKey: getOfficeErrorKey(error),
         })
       }
     }
@@ -268,6 +286,7 @@ export function OfficeToPdfBatchView() {
         const zip = new JSZip()
         converted.forEach((item) => zip.file(item.result.fileName, item.blob))
         const zipBlob = await generateZipBlob(zip)
+        if (!mountedRef.current) return
         const url = URL.createObjectURL(zipBlob)
         batchUrlRef.current = url
         setBatchDownload({ url, fileName: 'documentos-office-convertidos.zip', size: zipBlob.size })
@@ -368,7 +387,7 @@ export function OfficeToPdfBatchView() {
                           </div>
                         ) : null}
 
-                        {upload.error ? <p className="mt-3 text-xs leading-5 text-rose-700">{upload.error}</p> : null}
+                        {upload.errorKey ? <p className="mt-3 text-xs leading-5 text-rose-700">{t(upload.errorKey)}</p> : null}
                         {upload.result ? (
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                             <span className="min-w-0 truncate">{upload.result.fileName} · {formatBytes(upload.result.size)}</span>

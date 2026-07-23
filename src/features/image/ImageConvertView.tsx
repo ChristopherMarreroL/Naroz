@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import JSZip from 'jszip'
 
@@ -77,11 +77,30 @@ export function ImageConvertView() {
   const [batchStates, setBatchStates] = useState<Record<string, ImageBatchState>>({})
   const [batchDownload, setBatchDownload] = useState<BatchDownloadResult | null>(null)
   const [isConverting, setIsConverting] = useState(false)
+  const previewUrlsRef = useRef(new Set<string>())
+  const resultUrlsRef = useRef(new Set<string>())
+  const batchUrlRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
   const [notice, setNotice] = useToastNotice<Notice | null>({
     tone: 'info',
     title: t('localConversion'),
     message: t('imageLocalInfo'),
   })
+
+  useEffect(() => {
+    const previewUrls = previewUrlsRef.current
+    const resultUrls = resultUrlsRef.current
+    mountedRef.current = true
+
+    return () => {
+      mountedRef.current = false
+      previewUrls.forEach((url) => URL.revokeObjectURL(url))
+      previewUrls.clear()
+      resultUrls.forEach((url) => URL.revokeObjectURL(url))
+      resultUrls.clear()
+      if (batchUrlRef.current) URL.revokeObjectURL(batchUrlRef.current)
+    }
+  }, [])
 
   const primaryUpload = uploads[0] ?? null
   const sourceLabel = useMemo(() => {
@@ -94,7 +113,7 @@ export function ImageConvertView() {
 
   const totalInputSize = useMemo(() => uploads.reduce((sum, item) => sum + item.file.size, 0), [uploads])
   const outputInfo = useMemo(() => outputFormat.toUpperCase(), [outputFormat])
-  const shouldUseZip = results.length >= ZIP_THRESHOLD
+  const shouldUseZip = Boolean(batchDownload)
   const singleResult = results.length === 1 ? results[0] : null
 
   const downloadAllResults = () => {
@@ -106,27 +125,23 @@ export function ImageConvertView() {
   }
 
   const clearResults = () => {
-    setResults((current) => {
-      current.forEach((item) => URL.revokeObjectURL(item.url))
-      return []
-    })
+    resultUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    resultUrlsRef.current.clear()
+    setResults([])
 
-    setBatchDownload((current) => {
-      if (current?.url) {
-        URL.revokeObjectURL(current.url)
-      }
-
-      return null
-    })
+    if (batchUrlRef.current) {
+      URL.revokeObjectURL(batchUrlRef.current)
+      batchUrlRef.current = null
+    }
+    setBatchDownload(null)
     setBatchStates((current) => Object.fromEntries(Object.keys(current).map((key) => [key, { status: 'queued', progress: 0, result: null, error: null }])))
   }
 
   const clearAll = () => {
     clearResults()
-    setUploads((current) => {
-      current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
-      return []
-    })
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    previewUrlsRef.current.clear()
+    setUploads([])
     setBatchStates({})
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('imageConvertDesc') })
   }
@@ -148,15 +163,19 @@ export function ImageConvertView() {
     }
 
     try {
-      setUploads((current) => {
-        current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
-        return current
-      })
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+      previewUrlsRef.current.clear()
+      setUploads([])
 
       const previewResults = await Promise.allSettled(validFiles.map((file) => loadImagePreview(file)))
       const nextUploads = previewResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
       const unreadableFiles = previewResults.flatMap((result, index) => (result.status === 'rejected' ? [validFiles[index].name] : []))
       const skippedFiles = [...invalidFiles.map((file) => file.name), ...unreadableFiles]
+
+      if (!mountedRef.current) {
+        nextUploads.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+        return
+      }
 
       if (nextUploads.length === 0) {
         setNotice({
@@ -167,6 +186,7 @@ export function ImageConvertView() {
         return
       }
 
+      nextUploads.forEach((item) => previewUrlsRef.current.add(item.previewUrl))
       setUploads(nextUploads)
       setBatchStates(Object.fromEntries(nextUploads.map((item) => [item.previewUrl, { status: 'queued', progress: 0, result: null, error: null }])))
 
@@ -196,7 +216,10 @@ export function ImageConvertView() {
     clearResults()
     setUploads((current) => {
       const target = current.find((item) => item.previewUrl === previewUrl)
-      if (target) URL.revokeObjectURL(target.previewUrl)
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl)
+        previewUrlsRef.current.delete(target.previewUrl)
+      }
       return current.filter((item) => item.previewUrl !== previewUrl)
     })
     setBatchStates((current) => {
@@ -220,16 +243,24 @@ export function ImageConvertView() {
       const convertedItems: ConvertedImageResult[] = []
       const failedItems: ConversionFailure[] = []
       const zip = shouldPackageAsZip ? new JSZip() : null
+
       for (const upload of uploads) {
+        if (!mountedRef.current) return
         setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'processing', progress: 15, result: null, error: null } }))
+
         try {
           const convertedItem = await convertImageFile(upload.file, outputFormat)
-          convertedItems.push(convertedItem)
-          if (zip) {
-            zip.file(convertedItem.fileName, await convertedItem.blob.arrayBuffer())
+          if (!mountedRef.current) {
+            URL.revokeObjectURL(convertedItem.url)
+            return
           }
+
+          convertedItems.push(convertedItem)
+          resultUrlsRef.current.add(convertedItem.url)
+          if (zip) zip.file(convertedItem.fileName, convertedItem.blob)
           setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'success', progress: 100, result: convertedItem, error: null } }))
         } catch (error) {
+          if (!mountedRef.current) return
           const reason = error instanceof Error ? error.message : t('imageConvertErrorMessage')
           failedItems.push({ fileName: upload.file.name, reason })
           setBatchStates((current) => ({ ...current, [upload.previewUrl]: { status: 'error', progress: 0, result: null, error: reason } }))
@@ -237,54 +268,66 @@ export function ImageConvertView() {
       }
 
       const successfulCount = convertedItems.length
-
       if (successfulCount === 0) {
         throw new Error(failedItems[0]?.reason ?? t('imageConvertErrorMessage'))
       }
 
-      setResults(convertedItems)
-
       if (zip) {
-        const zipBlob = await generateZipBlob(zip)
-        const zipUrl = URL.createObjectURL(zipBlob)
-        setBatchDownload({
-          url: zipUrl,
-          fileName: createZipName(outputFormat),
-          size: zipBlob.size,
-        })
-        setNotice({
-          tone: failedItems.length > 0 ? 'warning' : 'success',
-          title: failedItems.length > 0 ? t('imageConvertErrorTitle') : t('conversionCompleted'),
-          message:
-            failedItems.length > 0
+        try {
+          const zipBlob = await generateZipBlob(zip)
+          if (!mountedRef.current) return
+
+          const zipUrl = URL.createObjectURL(zipBlob)
+          batchUrlRef.current = zipUrl
+          setBatchDownload({ url: zipUrl, fileName: createZipName(outputFormat), size: zipBlob.size })
+
+          convertedItems.forEach((item) => {
+            URL.revokeObjectURL(item.url)
+            resultUrlsRef.current.delete(item.url)
+          })
+          setResults([])
+          setBatchStates((current) => Object.fromEntries(Object.entries(current).map(([key, state]) => [
+            key,
+            state.status === 'success' ? { ...state, result: null } : state,
+          ])))
+
+          setNotice({
+            tone: failedItems.length > 0 ? 'warning' : 'success',
+            title: failedItems.length > 0 ? t('imageConvertErrorTitle') : t('conversionCompleted'),
+            message: failedItems.length > 0
               ? `${t('imageBatchZipReady')} ${successfulCount}. ${t('imageBatchSkipped')} ${joinFileNames(failedItems.map((item) => item.fileName))}`
               : `${t('imageBatchZipReady')} ${successfulCount}.`,
-        })
-      } else {
-        setResults(convertedItems)
-
-        setNotice({
-          tone: failedItems.length > 0 ? 'warning' : 'success',
-          title: failedItems.length > 0 ? t('imageConvertErrorTitle') : t('conversionCompleted'),
-          message:
-            failedItems.length > 0
-              ? `${successfulCount === 1 ? `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.` : `${t('imageBatchDirectReady')} ${successfulCount}.`} ${t('imageBatchSkipped')} ${joinFileNames(failedItems.map((item) => item.fileName))}`
-              : successfulCount === 1
-                ? `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.`
-                : `${t('imageBatchDirectReady')} ${successfulCount}.`,
-        })
+          })
+          return
+        } catch (error) {
+          if (!mountedRef.current) return
+          console.error('Image ZIP generation failed', error)
+        }
       }
+
+      setResults(convertedItems)
+      setNotice({
+        tone: failedItems.length > 0 || shouldPackageAsZip ? 'warning' : 'success',
+        title: failedItems.length > 0 || shouldPackageAsZip ? t('imageConvertErrorTitle') : t('conversionCompleted'),
+        message: shouldPackageAsZip
+          ? `${t('imageBatchDirectReady')} ${successfulCount}.`
+          : failedItems.length > 0
+            ? `${successfulCount === 1 ? `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.` : `${t('imageBatchDirectReady')} ${successfulCount}.`} ${t('imageBatchSkipped')} ${joinFileNames(failedItems.map((item) => item.fileName))}`
+            : successfulCount === 1
+              ? `${t('imageReadyFormat')} ${outputFormat.toUpperCase()}.`
+              : `${t('imageBatchDirectReady')} ${successfulCount}.`,
+      })
     } catch (error) {
+      if (!mountedRef.current) return
       setNotice({
         tone: 'error',
         title: t('imageConvertErrorTitle'),
         message: error instanceof Error ? error.message : t('imageConvertErrorMessage'),
       })
     } finally {
-      setIsConverting(false)
+      if (mountedRef.current) setIsConverting(false)
     }
   }
-
   return (
     <>
       <SectionHero

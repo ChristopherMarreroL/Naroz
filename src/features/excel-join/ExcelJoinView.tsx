@@ -497,8 +497,8 @@ export function ExcelJoinView() {
                             {t('excelJoinViewData')}
                           </button>
                         </div>
-                        <p className={`mt-3 break-words text-sm font-bold ${file.id === primaryFile?.id ? 'text-white' : 'text-slate-950'}`}>{file.name}</p>
-                        <p className={`mt-1 text-xs ${file.id === primaryFile?.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                        <p className="mt-3 break-words text-sm font-bold text-slate-950">{file.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
                           {formatBytes(file.size)} · {file.sheets.length} {t('sheets')}
                         </p>
                       </div>
