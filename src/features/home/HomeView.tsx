@@ -224,20 +224,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
         <div className="tools-grid">
           {filteredTools.map((tool) => (
-            <article
-              key={tool.id}
-              className={`tool-card ${categoryStyles[tool.category as keyof typeof categoryStyles]}`}
-              role="button"
-              tabIndex={0}
-              aria-label={`${t('openTool')}: ${getToolTitle(tool.id, locale)}`}
-              onClick={() => onNavigate(tool.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  onNavigate(tool.id)
-                }
-              }}
-            >
+            <article key={tool.id} className={`tool-card ${categoryStyles[tool.category as keyof typeof categoryStyles]}`}>
+              <button
+                type="button"
+                className="tool-card-link"
+                aria-label={`${t('openTool')}: ${getToolTitle(tool.id, locale)}`}
+                onClick={() => onNavigate(tool.id)}
+              />
               <div className="tool-card-topline">
                 <span className="tool-category">{tool.categoryLabel}</span>
                 {tool.status === 'beta' ? <span className="tool-beta">{t('betaBadge')}</span> : null}
