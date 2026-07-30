@@ -225,6 +225,12 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         <div className="tools-grid">
           {filteredTools.map((tool) => (
             <article key={tool.id} className={`tool-card ${categoryStyles[tool.category as keyof typeof categoryStyles]}`}>
+              <button
+                type="button"
+                className="tool-card-link"
+                aria-label={`${t('openTool')}: ${getToolTitle(tool.id, locale)}`}
+                onClick={() => onNavigate(tool.id)}
+              />
               <div className="tool-card-topline">
                 <span className="tool-category">{tool.categoryLabel}</span>
                 {tool.status === 'beta' ? <span className="tool-beta">{t('betaBadge')}</span> : null}
@@ -232,10 +238,10 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               </div>
               <h3>{getToolTitle(tool.id, locale)}</h3>
               <p>{getToolDescription(tool.id, locale)}</p>
-              <button type="button" className="tool-card-action" onClick={() => onNavigate(tool.id)}>
+              <span className="tool-card-action" aria-hidden="true">
                 {t('openTool')}
-                <span aria-hidden="true">↗</span>
-              </button>
+                <span>↗</span>
+              </span>
             </article>
           ))}
         </div>
