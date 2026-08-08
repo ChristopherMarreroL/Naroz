@@ -1,5 +1,14 @@
-import { Document, Packer, Paragraph, TextRun } from 'docx'
+import {
+  Document,
+  LineRuleType,
+  Packer,
+  Paragraph,
+  SectionType,
+  TabStopType,
+  TextRun,
+} from 'docx'
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
+import type { PDFPageProxy } from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import PptxGenJS from 'pptxgenjs'
 import * as XLSX from 'xlsx'
@@ -11,12 +20,23 @@ export const PDF_TO_OFFICE_MAX_PAGES = 100
 
 export type PdfOfficeFormat = 'docx' | 'xlsx' | 'pptx'
 
-interface PositionedText {
+export interface PdfTextSpan {
   text: string
   x: number
   y: number
   width: number
   height: number
+  fontFamily: string
+  fontSize: number
+  bold: boolean
+  italics: boolean
+  ascent: number
+}
+
+export interface PdfTextLine {
+  y: number
+  height: number
+  spans: PdfTextSpan[]
 }
 
 export interface PdfPageStructure {
@@ -24,6 +44,7 @@ export interface PdfPageStructure {
   width: number
   height: number
   rows: string[][]
+  lines: PdfTextLine[]
 }
 
 export interface PdfStructure {
@@ -46,7 +67,7 @@ export function isSupportedPdf(file: File) {
   return file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
 }
 
-function mergeNearbyItems(items: PositionedText[]) {
+function mergeNearbyItems(items: PdfTextSpan[]) {
   if (!items.length) {
     return []
   }
@@ -73,9 +94,9 @@ function mergeNearbyItems(items: PositionedText[]) {
   return cells
 }
 
-function groupIntoRows(items: PositionedText[]) {
+function groupIntoLines(items: PdfTextSpan[]) {
   const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x)
-  const rows: Array<{ y: number; items: PositionedText[] }> = []
+  const rows: Array<{ y: number; items: PdfTextSpan[] }> = []
 
   for (const item of sorted) {
     const tolerance = Math.max(2.5, item.height * 0.35)
@@ -91,8 +112,85 @@ function groupIntoRows(items: PositionedText[]) {
 
   return rows
     .sort((a, b) => b.y - a.y)
-    .map((row) => mergeNearbyItems(row.items.sort((a, b) => a.x - b.x)))
-    .filter((row) => row.some(Boolean))
+    .map((row) => ({
+      y: row.y,
+      height: Math.max(...row.items.map((item) => item.height), 1),
+      spans: row.items.sort((a, b) => a.x - b.x),
+    }))
+}
+
+interface PdfFontMetadata {
+  bold?: boolean
+  black?: boolean
+  italic?: boolean
+  name?: string
+  fallbackName?: string
+  cssFontInfo?: {
+    fontFamily?: string
+    fontWeight?: string | number
+    italicAngle?: number
+  } | null
+  systemFontInfo?: {
+    css?: string
+  } | null
+}
+
+function resolveFontMetadata(page: PDFPageProxy, fontName: string) {
+  return new Promise<PdfFontMetadata | null>((resolve) => {
+    let settled = false
+    const finish = (metadata: PdfFontMetadata | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutId)
+      resolve(metadata)
+    }
+    const timeoutId = setTimeout(() => finish(null), 40)
+
+    try {
+      if (page.commonObjs.has(fontName)) {
+        finish(page.commonObjs.get(fontName) as PdfFontMetadata)
+      } else {
+        page.commonObjs.get(fontName, (font: unknown) => finish(font as PdfFontMetadata))
+      }
+    } catch {
+      finish(null)
+    }
+  })
+}
+
+function normalizeFontFamily(...candidates: Array<string | null | undefined>) {
+  const candidate = candidates.find((value) => value?.trim())
+  if (!candidate) {
+    return 'Aptos'
+  }
+
+  const family = candidate
+    .split(',')[0]
+    .replace(/["']/g, '')
+    .replace(/^[A-Z]{6}\+/i, '')
+    .replace(/[-_ ]?(bold|black|heavy|semibold|demi|italic|oblique)+$/i, '')
+    .trim()
+
+  if (/^(helvetica|arialmt)$/i.test(family)) return 'Arial'
+  if (/^(times|timesroman|timesnewromanpsmt)$/i.test(family)) return 'Times New Roman'
+  if (/^(courier|couriernewpsmt)$/i.test(family)) return 'Courier New'
+  return family || 'Aptos'
+}
+
+function hasBoldStyle(metadata: PdfFontMetadata | null, ...names: Array<string | null | undefined>) {
+  if (metadata?.bold || metadata?.black) return true
+  if (metadata?.cssFontInfo?.fontWeight) {
+    const weight = Number(metadata.cssFontInfo.fontWeight)
+    if ((!Number.isNaN(weight) && weight >= 600) || /bold|semibold|black|heavy/i.test(String(metadata.cssFontInfo.fontWeight))) {
+      return true
+    }
+  }
+  return names.some((name) => /bold|black|heavy|semibold|demi/i.test(name ?? ''))
+}
+
+function hasItalicStyle(metadata: PdfFontMetadata | null, ...names: Array<string | null | undefined>) {
+  if (metadata?.italic || metadata?.cssFontInfo?.italicAngle) return true
+  return names.some((name) => /italic|oblique/i.test(name ?? ''))
 }
 
 export async function readPdfStructure(file: File, onProgress?: PdfConversionProgress): Promise<PdfStructure> {
@@ -113,13 +211,28 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     }
 
     const pages: PdfPageStructure[] = []
+    const fontMetadataCache = new Map<string, Promise<PdfFontMetadata | null>>()
     let textItems = 0
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber)
       const viewport = page.getViewport({ scale: 1 })
       const content = await page.getTextContent()
-      const items: PositionedText[] = []
+      const items: PdfTextSpan[] = []
+
+      const fontNames = new Set(
+        content.items
+          .filter((item) => 'str' in item)
+          .map((item) => item.fontName),
+      )
+      await Promise.all([...fontNames].map((fontName) => {
+        let metadataPromise = fontMetadataCache.get(fontName)
+        if (!metadataPromise) {
+          metadataPromise = resolveFontMetadata(page, fontName)
+          fontMetadataCache.set(fontName, metadataPromise)
+        }
+        return metadataPromise
+      }))
 
       for (const item of content.items) {
         if (!('str' in item)) {
@@ -131,21 +244,34 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
           continue
         }
 
+        const style = content.styles[item.fontName]
+        const metadata = await fontMetadataCache.get(item.fontName) ?? null
+        const fontSize = Math.max(1, Math.hypot(item.transform[0], item.transform[1]), item.height)
+        const metadataName = metadata?.name
+        const cssFamily = metadata?.cssFontInfo?.fontFamily
+
         items.push({
           text,
           x: item.transform[4],
           y: item.transform[5],
           width: item.width,
-          height: item.height,
+          height: Math.max(item.height, fontSize * ((style?.ascent ?? 0.8) - (style?.descent ?? -0.2))),
+          fontFamily: normalizeFontFamily(cssFamily, metadataName, metadata?.systemFontInfo?.css, style?.fontFamily, metadata?.fallbackName),
+          fontSize,
+          bold: hasBoldStyle(metadata, metadataName, cssFamily, style?.fontFamily),
+          italics: hasItalicStyle(metadata, metadataName, cssFamily, style?.fontFamily),
+          ascent: style?.ascent ?? 0.8,
         })
       }
 
+      const lines = groupIntoLines(items)
       textItems += items.length
       pages.push({
         pageNumber,
         width: viewport.width,
         height: viewport.height,
-        rows: groupIntoRows(items),
+        rows: lines.map((line) => mergeNearbyItems(line.spans)).filter((row) => row.some(Boolean)),
+        lines,
       })
       page.cleanup()
       onProgress?.(pageNumber, pdf.numPages)
@@ -159,18 +285,68 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
 }
 
 export async function convertPdfStructureToDocx(structure: PdfStructure, title: string) {
-  const children: Paragraph[] = []
+  const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
+  const toHalfPoints = (points: number) => Math.max(2, Math.round(points * 2))
 
-  structure.pages.forEach((page, pageIndex) => {
-    const lines = page.rows.length ? page.rows : [['']]
+  const sections = structure.pages.map((page) => {
+    let previousBottom = 0
+    const children = page.lines.length ? page.lines.map((line) => {
+      const sortedSpans = [...line.spans].sort((a, b) => a.x - b.x)
+      const maxAscent = Math.max(...sortedSpans.map((span) => span.fontSize * span.ascent), line.height * 0.8)
+      const top = Math.max(0, page.height - line.y - maxAscent)
+      const lineHeight = Math.max(line.height, ...sortedSpans.map((span) => span.fontSize * 1.08))
+      const before = Math.max(0, top - previousBottom)
+      previousBottom = Math.max(previousBottom, top + lineHeight)
 
-    lines.forEach((cells, lineIndex) => {
-      children.push(new Paragraph({
-        pageBreakBefore: pageIndex > 0 && lineIndex === 0,
-        children: [new TextRun({ text: cells.join('\t') || ' ' })],
-        spacing: { after: 80, line: 276 },
-      }))
-    })
+      const tabPositions: number[] = []
+      const runs: TextRun[] = []
+      let previousEnd = 0
+
+      sortedSpans.forEach((span, spanIndex) => {
+        const gap = span.x - previousEnd
+        const needsTab = spanIndex === 0 ? span.x > 1 : gap > Math.max(4, span.fontSize * 0.75)
+
+        if (needsTab) {
+          const position = toTwips(Math.min(page.width - 1, Math.max(1, span.x)))
+          if (!tabPositions.includes(position)) tabPositions.push(position)
+          runs.push(new TextRun({ text: '\t' }))
+        } else if (spanIndex > 0 && gap > span.fontSize * 0.12) {
+          runs.push(new TextRun({ text: ' ', size: toHalfPoints(span.fontSize), font: span.fontFamily }))
+        }
+
+        runs.push(new TextRun({
+          text: span.text,
+          font: span.fontFamily,
+          size: toHalfPoints(span.fontSize),
+          bold: span.bold,
+          italics: span.italics,
+        }))
+        previousEnd = Math.max(previousEnd, span.x + span.width)
+      })
+
+      return new Paragraph({
+        children: runs.length ? runs : [new TextRun({ text: ' ' })],
+        tabStops: tabPositions.map((position) => ({ type: TabStopType.LEFT, position })),
+        spacing: {
+          before: toTwips(before),
+          after: 0,
+          line: Math.max(20, toTwips(lineHeight)),
+          lineRule: LineRuleType.EXACT,
+        },
+        widowControl: false,
+      })
+    }) : [new Paragraph({ children: [new TextRun({ text: ' ' })] })]
+
+    return {
+      properties: {
+        type: SectionType.NEXT_PAGE,
+        page: {
+          size: { width: toTwips(page.width), height: toTwips(page.height) },
+          margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0, gutter: 0 },
+        },
+      },
+      children,
+    }
   })
 
   const document = new Document({
@@ -181,11 +357,11 @@ export async function convertPdfStructureToDocx(structure: PdfStructure, title: 
       default: {
         document: {
           run: { font: 'Aptos', size: 22, color: '172033' },
-          paragraph: { spacing: { line: 276 } },
+          paragraph: { spacing: { after: 0 } },
         },
       },
     },
-    sections: [{ properties: {}, children }],
+    sections,
   })
 
   return Packer.toBlob(document)
