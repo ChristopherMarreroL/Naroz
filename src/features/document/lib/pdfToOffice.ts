@@ -17,6 +17,7 @@ GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
 export const PDF_TO_OFFICE_MAX_SIZE = 25 * 1024 * 1024
 export const PDF_TO_OFFICE_MAX_PAGES = 100
+export const PDF_TO_OFFICE_MAX_TEXT_ITEMS = 100_000
 const PDF_COLOR_CANVAS_MAX_DIMENSION = 4096
 const PDF_COLOR_CANVAS_MAX_PIXELS = 16_000_000
 const WORD_MAX_PAGE_POINTS = 22 * 72
@@ -201,7 +202,7 @@ function hasItalicStyle(metadata: PdfFontMetadata | null, ...names: Array<string
   return names.some((name) => /italic|oblique/i.test(name ?? ''))
 }
 
-export async function readPdfStructure(file: File, onProgress?: PdfConversionProgress): Promise<PdfStructure> {
+export async function readPdfStructure(file: File, onProgress?: PdfConversionProgress, signal?: AbortSignal): Promise<PdfStructure> {
   const data = await file.arrayBuffer()
   const loadingTask = getDocument({
     data,
@@ -223,9 +224,11 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     let textItems = 0
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      signal?.throwIfAborted()
       const page = await pdf.getPage(pageNumber)
       const viewport = page.getViewport({ scale: 1 })
       const content = await page.getTextContent()
+      signal?.throwIfAborted()
       const items: PdfTextSpan[] = []
 
       const fontNames = new Set(
@@ -247,6 +250,9 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         const text = item.str.replace(/\s+/g, ' ')
         if (!text.trim()) {
           continue
+        }
+        if (textItems + items.length >= PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
+          throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
         }
 
         const style = content.styles[item.fontName]
@@ -332,10 +338,16 @@ function sampleTextColor(
   span: PdfTextSpan,
   renderScale: number,
 ) {
-  const left = Math.max(0, Math.floor(span.x * renderScale))
-  const top = Math.max(0, Math.floor((pageHeight - span.y - span.height) * renderScale))
-  const width = Math.min(context.canvas.width - left, Math.max(1, Math.ceil(span.width * renderScale)))
-  const height = Math.min(context.canvas.height - top, Math.max(1, Math.ceil(span.height * 1.2 * renderScale)))
+  const padding = Math.max(1, Math.ceil(renderScale * 2))
+  const left = Math.max(0, Math.floor(span.x * renderScale) - padding)
+  const top = Math.max(0, Math.floor((pageHeight - span.y - span.height) * renderScale) - padding)
+  const right = Math.min(context.canvas.width, Math.ceil((span.x + span.width) * renderScale) + padding)
+  const bottom = Math.min(
+    context.canvas.height,
+    Math.ceil((pageHeight - span.y + span.height * 0.2) * renderScale) + padding,
+  )
+  const width = right - left
+  const height = bottom - top
   if (width <= 0 || height <= 0) return null
 
   const pixels = context.getImageData(left, top, width, height).data
@@ -346,6 +358,7 @@ function sampleTextColor(
     green: number
     blue: number
   }>()
+  const borderCounts = new Map<string, number>()
 
   for (let index = 0; index < pixels.length; index += 4) {
     if (pixels[index + 3] < 32) continue
@@ -355,6 +368,12 @@ function sampleTextColor(
       quantizeColorChannel(pixels[index + 2]),
     ]
     const key = color.join(',')
+    const pixelIndex = index / 4
+    const pixelX = pixelIndex % width
+    const pixelY = Math.floor(pixelIndex / width)
+    if (pixelX === 0 || pixelY === 0 || pixelX === width - 1 || pixelY === height - 1) {
+      borderCounts.set(key, (borderCounts.get(key) ?? 0) + 1)
+    }
     const cluster = clusters.get(key)
     if (cluster) {
       cluster.count += 1
@@ -373,7 +392,8 @@ function sampleTextColor(
   }
 
   const sorted = [...clusters.values()].sort((a, b) => b.count - a.count)
-  const background = sorted[0]
+  const backgroundKey = [...borderCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+  const background = (backgroundKey ? clusters.get(backgroundKey) : null) ?? sorted[0]
   if (!background) return null
 
   const foregroundCandidates = sorted
@@ -392,7 +412,12 @@ function sampleTextColor(
     : null
 }
 
-async function readPdfTextColors(file: File, structure: PdfStructure, onProgress?: PdfConversionProgress) {
+async function readPdfTextColors(
+  file: File,
+  structure: PdfStructure,
+  onProgress?: PdfConversionProgress,
+  signal?: AbortSignal,
+) {
   const loadingTask = getDocument({
     data: await file.arrayBuffer(),
     useWorkerFetch: true,
@@ -406,6 +431,7 @@ async function readPdfTextColors(file: File, structure: PdfStructure, onProgress
 
   try {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      signal?.throwIfAborted()
       const page = await pdf.getPage(pageNumber)
       const canvas = document.createElement('canvas')
 
@@ -422,7 +448,15 @@ async function readPdfTextColors(file: File, structure: PdfStructure, onProgress
         canvas.height = Math.max(1, Math.ceil(viewport.height))
         context.fillStyle = '#ffffff'
         context.fillRect(0, 0, canvas.width, canvas.height)
-        await page.render({ canvasContext: context, viewport, canvas }).promise
+        const renderTask = page.render({ canvasContext: context, viewport, canvas })
+        const cancelRender = () => renderTask.cancel()
+        signal?.addEventListener('abort', cancelRender, { once: true })
+        try {
+          await renderTask.promise
+        } finally {
+          signal?.removeEventListener('abort', cancelRender)
+        }
+        signal?.throwIfAborted()
 
         const colors = new Map<number, string>()
         pageStructure.lines.forEach((line) => line.spans.forEach((span) => {
@@ -430,7 +464,8 @@ async function readPdfTextColors(file: File, structure: PdfStructure, onProgress
           if (color) colors.set(span.sourceIndex, color)
         }))
         pageColors.set(pageNumber, colors)
-      } catch {
+      } catch (error) {
+        if (signal?.aborted) throw error
         pageColors.set(pageNumber, new Map())
       } finally {
         canvas.width = 1
@@ -452,12 +487,17 @@ export async function convertPdfStructureToDocx(
   title: string,
   sourceFile?: File,
   onProgress?: PdfConversionProgress,
+  signal?: AbortSignal,
 ) {
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
   const toHalfPoints = (points: number) => Math.min(WORD_MAX_FONT_POINTS * 2, Math.max(2, Math.round(points * 2)))
   const pageColors: Map<number, Map<number, string>> = sourceFile
-    ? await readPdfTextColors(sourceFile, structure, onProgress).catch(() => new Map())
+    ? await readPdfTextColors(sourceFile, structure, onProgress, signal).catch((error) => {
+        if (signal?.aborted) throw error
+        return new Map()
+      })
     : new Map()
+  signal?.throwIfAborted()
 
   const sections = structure.pages.map((page) => {
     const layoutScale = Math.min(1, WORD_MAX_PAGE_POINTS / page.width, WORD_MAX_PAGE_POINTS / page.height)

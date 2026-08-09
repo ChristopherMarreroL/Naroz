@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
@@ -40,11 +40,20 @@ export function PdfToOfficeView() {
   const [isConverting, setIsConverting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<ConversionResult | null>(null)
+  const readControllerRef = useRef<AbortController | null>(null)
+  const conversionControllerRef = useRef<AbortController | null>(null)
   const [, setNotice] = useToastNotice<{
     tone: 'info' | 'success' | 'error' | 'warning'
     title: string
     message: string
   } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      readControllerRef.current?.abort()
+      conversionControllerRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -64,10 +73,16 @@ export function PdfToOfficeView() {
   }
 
   const clearContent = () => {
+    readControllerRef.current?.abort()
+    conversionControllerRef.current?.abort()
+    readControllerRef.current = null
+    conversionControllerRef.current = null
     clearResult()
     setFile(null)
     setStructure(null)
     setOutputFormat('docx')
+    setIsReading(false)
+    setIsConverting(false)
     setProgress(0)
   }
 
@@ -82,6 +97,12 @@ export function PdfToOfficeView() {
       return
     }
 
+    readControllerRef.current?.abort()
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    readControllerRef.current = controller
+    conversionControllerRef.current = null
+    setIsConverting(false)
     clearResult()
     setFile(selectedFile)
     setStructure(null)
@@ -89,9 +110,14 @@ export function PdfToOfficeView() {
     setIsReading(true)
 
     try {
-      const nextStructure = await readPdfStructure(selectedFile, (completed, total) => {
-        setProgress(Math.round((completed / total) * 100))
-      })
+      const nextStructure = await readPdfStructure(
+        selectedFile,
+        (completed, total) => {
+          if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
+        },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
       setStructure(nextStructure)
 
       if (!nextStructure.textItems) {
@@ -101,6 +127,7 @@ export function PdfToOfficeView() {
         setNotice({ tone: 'success', title: t('pdfOfficeLoadedTitle'), message: t('pdfOfficeLoadedMessage') })
       }
     } catch (error) {
+      if (controller.signal.aborted) return
       setFile(null)
       const isPageLimit = error instanceof Error && error.message.startsWith('PAGE_LIMIT:')
       setNotice({
@@ -109,8 +136,13 @@ export function PdfToOfficeView() {
         message: isPageLimit ? t('pdfOfficePageLimitMessage') : t('pdfOfficeReadErrorMessage'),
       })
     } finally {
-      setIsReading(false)
-      setProgress(0)
+      if (readControllerRef.current === controller) {
+        readControllerRef.current = null
+        if (!controller.signal.aborted) {
+          setIsReading(false)
+          setProgress(0)
+        }
+      }
     }
   }
 
@@ -125,6 +157,9 @@ export function PdfToOfficeView() {
       return
     }
 
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    conversionControllerRef.current = controller
     clearResult()
     setIsConverting(true)
     setProgress(0)
@@ -136,29 +171,44 @@ export function PdfToOfficeView() {
           structure,
           file.name.replace(/\.pdf$/i, ''),
           file,
-          (completed, total) => setProgress(Math.round((completed / total) * 100)),
+          (completed, total) => {
+            if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
+          },
+          controller.signal,
         )
       } else if (outputFormat === 'xlsx') {
         blob = convertPdfStructureToXlsx(structure)
-        setProgress(100)
+        if (!controller.signal.aborted) setProgress(100)
       } else {
         blob = await convertPdfToPptx(file, (completed, total) => {
-          setProgress(Math.round((completed / total) * 100))
+          if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
         })
       }
 
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
       const nextResult = {
-        url: URL.createObjectURL(blob),
+        url,
         fileName: getPdfOfficeFileName(file.name, outputFormat),
         size: blob.size,
       }
       setResult(nextResult)
       setNotice({ tone: 'success', title: t('pdfOfficeConvertedTitle'), message: t('pdfOfficeConvertedMessage') })
     } catch {
+      if (controller.signal.aborted) return
       setNotice({ tone: 'error', title: t('pdfOfficeConvertErrorTitle'), message: t('pdfOfficeConvertErrorMessage') })
     } finally {
-      setIsConverting(false)
-      setProgress(0)
+      if (conversionControllerRef.current === controller) {
+        conversionControllerRef.current = null
+        if (!controller.signal.aborted) {
+          setIsConverting(false)
+          setProgress(0)
+        }
+      }
     }
   }
 
