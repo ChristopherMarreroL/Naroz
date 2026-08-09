@@ -303,6 +303,19 @@ function rgbToHex(red: number, green: number, blue: number) {
   return [red, green, blue].map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()
 }
 
+function getReadableDocxTextColor(color: string) {
+  const channels = color.match(/[\dA-F]{2}/gi)?.map((channel) => Number.parseInt(channel, 16) / 255)
+  if (!channels || channels.length !== 3) return '000000'
+
+  const [red, green, blue] = channels.map((channel) => (
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  ))
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+  const contrastAgainstWhite = 1.05 / (luminance + 0.05)
+
+  return contrastAgainstWhite >= 4.5 ? color : '000000'
+}
+
 function colorDistance(first: [number, number, number], second: [number, number, number]) {
   return Math.hypot(first[0] - second[0], first[1] - second[1], first[2] - second[2])
 }
@@ -417,6 +430,8 @@ async function readPdfTextColors(file: File, structure: PdfStructure, onProgress
           if (color) colors.set(span.sourceIndex, color)
         }))
         pageColors.set(pageNumber, colors)
+      } catch {
+        pageColors.set(pageNumber, new Map())
       } finally {
         canvas.width = 1
         canvas.height = 1
@@ -440,7 +455,9 @@ export async function convertPdfStructureToDocx(
 ) {
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
   const toHalfPoints = (points: number) => Math.min(WORD_MAX_FONT_POINTS * 2, Math.max(2, Math.round(points * 2)))
-  const pageColors = sourceFile ? await readPdfTextColors(sourceFile, structure, onProgress) : new Map<number, Map<number, string>>()
+  const pageColors: Map<number, Map<number, string>> = sourceFile
+    ? await readPdfTextColors(sourceFile, structure, onProgress).catch(() => new Map())
+    : new Map()
 
   const sections = structure.pages.map((page) => {
     const layoutScale = Math.min(1, WORD_MAX_PAGE_POINTS / page.width, WORD_MAX_PAGE_POINTS / page.height)
@@ -485,7 +502,7 @@ export async function convertPdfStructureToDocx(
           size: toHalfPoints(getFontPoints(span.fontSize)),
           bold: span.bold,
           italics: span.italics,
-          color: pageColors.get(page.pageNumber)?.get(span.sourceIndex) ?? '000000',
+          color: getReadableDocxTextColor(pageColors.get(page.pageNumber)?.get(span.sourceIndex) ?? '000000'),
         }))
         previousEnd = Math.max(previousEnd, span.x + span.width)
       })
