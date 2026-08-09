@@ -132,8 +132,12 @@ export function PdfToOfficeView() {
     try {
       let blob: Blob
       if (outputFormat === 'docx') {
-        blob = await convertPdfStructureToDocx(structure, file.name.replace(/\.pdf$/i, ''))
-        setProgress(100)
+        blob = await convertPdfStructureToDocx(
+          structure,
+          file.name.replace(/\.pdf$/i, ''),
+          file,
+          (completed, total) => setProgress(Math.round((completed / total) * 100)),
+        )
       } else if (outputFormat === 'xlsx') {
         blob = convertPdfStructureToXlsx(structure)
         setProgress(100)

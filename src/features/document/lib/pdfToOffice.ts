@@ -31,6 +31,7 @@ export interface PdfTextSpan {
   bold: boolean
   italics: boolean
   ascent: number
+  sourceIndex: number
 }
 
 export interface PdfTextLine {
@@ -174,6 +175,9 @@ function normalizeFontFamily(...candidates: Array<string | null | undefined>) {
   if (/^(helvetica|arialmt)$/i.test(family)) return 'Arial'
   if (/^(times|timesroman|timesnewromanpsmt)$/i.test(family)) return 'Times New Roman'
   if (/^(courier|couriernewpsmt)$/i.test(family)) return 'Courier New'
+  if (/^sans-serif$/i.test(family)) return 'Arial'
+  if (/^serif$/i.test(family)) return 'Times New Roman'
+  if (/^monospace$/i.test(family)) return 'Courier New'
   return family || 'Aptos'
 }
 
@@ -234,19 +238,20 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         return metadataPromise
       }))
 
-      for (const item of content.items) {
+      for (const [sourceIndex, item] of content.items.entries()) {
         if (!('str' in item)) {
           continue
         }
 
-        const text = item.str.replace(/\s+/g, ' ').trim()
-        if (!text) {
+        const text = item.str.replace(/\s+/g, ' ')
+        if (!text.trim()) {
           continue
         }
 
         const style = content.styles[item.fontName]
         const metadata = await fontMetadataCache.get(item.fontName) ?? null
-        const fontSize = Math.max(1, Math.hypot(item.transform[0], item.transform[1]), item.height)
+        const verticalFontScale = Math.hypot(item.transform[2], item.transform[3])
+        const fontSize = Math.max(1, verticalFontScale, item.height)
         const metadataName = metadata?.name
         const cssFamily = metadata?.cssFontInfo?.fontFamily
 
@@ -261,6 +266,7 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
           bold: hasBoldStyle(metadata, metadataName, cssFamily, style?.fontFamily),
           italics: hasItalicStyle(metadata, metadataName, cssFamily, style?.fontFamily),
           ascent: style?.ascent ?? 0.8,
+          sourceIndex,
         })
       }
 
@@ -284,9 +290,176 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
   }
 }
 
-export async function convertPdfStructureToDocx(structure: PdfStructure, title: string) {
+function quantizeColorChannel(value: number) {
+  return Math.min(255, Math.max(0, Math.round(value / 16) * 16))
+}
+
+function rgbToHex(red: number, green: number, blue: number) {
+  return [red, green, blue].map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()
+}
+
+function colorDistance(first: [number, number, number], second: [number, number, number]) {
+  return Math.hypot(first[0] - second[0], first[1] - second[1], first[2] - second[2])
+}
+
+function colorSaturation([red, green, blue]: [number, number, number]) {
+  return Math.max(red, green, blue) - Math.min(red, green, blue)
+}
+
+function isCanvasGrayscale(context: CanvasRenderingContext2D) {
+  const pixels = context.getImageData(0, 0, context.canvas.width, context.canvas.height).data
+  let visiblePixels = 0
+  let colorfulPixels = 0
+
+  // Sampling keeps the check inexpensive even for long, high-resolution PDFs.
+  for (let index = 0; index < pixels.length; index += 16) {
+    const red = pixels[index]
+    const green = pixels[index + 1]
+    const blue = pixels[index + 2]
+    if (Math.min(red, green, blue) >= 245) continue
+    visiblePixels += 1
+    if (colorSaturation([red, green, blue]) > 28) colorfulPixels += 1
+  }
+
+  return visiblePixels > 0 && colorfulPixels / visiblePixels < 0.01
+}
+
+function normalizeGrayscaleColor(color: string) {
+  const red = Number.parseInt(color.slice(0, 2), 16)
+  const green = Number.parseInt(color.slice(2, 4), 16)
+  const blue = Number.parseInt(color.slice(4, 6), 16)
+  const luminance = Math.round((red * 0.2126) + (green * 0.7152) + (blue * 0.0722))
+  return rgbToHex(luminance, luminance, luminance)
+}
+
+function sampleTextColor(context: CanvasRenderingContext2D, pageHeight: number, span: PdfTextSpan) {
+  const left = Math.max(0, Math.floor(span.x))
+  const top = Math.max(0, Math.floor(pageHeight - span.y - span.height))
+  const width = Math.min(context.canvas.width - left, Math.max(1, Math.ceil(span.width)))
+  const height = Math.min(context.canvas.height - top, Math.max(1, Math.ceil(span.height * 1.2)))
+  if (width <= 0 || height <= 0) return null
+
+  const pixels = context.getImageData(left, top, width, height).data
+  const clusters = new Map<string, {
+    color: [number, number, number]
+    count: number
+    red: number
+    green: number
+    blue: number
+  }>()
+
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] < 32) continue
+    const color: [number, number, number] = [
+      quantizeColorChannel(pixels[index]),
+      quantizeColorChannel(pixels[index + 1]),
+      quantizeColorChannel(pixels[index + 2]),
+    ]
+    const key = color.join(',')
+    const cluster = clusters.get(key)
+    if (cluster) {
+      cluster.count += 1
+      cluster.red += pixels[index]
+      cluster.green += pixels[index + 1]
+      cluster.blue += pixels[index + 2]
+    } else {
+      clusters.set(key, {
+        color,
+        count: 1,
+        red: pixels[index],
+        green: pixels[index + 1],
+        blue: pixels[index + 2],
+      })
+    }
+  }
+
+  const sorted = [...clusters.values()].sort((a, b) => b.count - a.count)
+  const background = sorted[0]
+  if (!background) return null
+
+  const foregroundCandidates = sorted
+    .slice(1)
+    .map((cluster) => ({ cluster, contrast: colorDistance(cluster.color, background.color) }))
+    .filter(({ contrast }) => contrast >= 32)
+    .sort((a, b) => (b.cluster.count * b.contrast) - (a.cluster.count * a.contrast))
+  const strongestForeground = foregroundCandidates[0]?.cluster
+  const neutralForeground = foregroundCandidates
+    .filter(({ cluster }) => (
+      colorSaturation(cluster.color) <= 24
+      && cluster.count >= Math.max(2, (strongestForeground?.count ?? 0) * 0.15)
+    ))
+    .sort((a, b) => (b.cluster.count * b.contrast) - (a.cluster.count * a.contrast))[0]?.cluster
+  const foreground = neutralForeground ?? strongestForeground
+
+  return foreground
+    ? rgbToHex(
+        Math.round(foreground.red / foreground.count),
+        Math.round(foreground.green / foreground.count),
+        Math.round(foreground.blue / foreground.count),
+      )
+    : null
+}
+
+async function readPdfTextColors(file: File, structure: PdfStructure, onProgress?: PdfConversionProgress) {
+  const loadingTask = getDocument({
+    data: await file.arrayBuffer(),
+    useWorkerFetch: true,
+    disableStream: true,
+    disableAutoFetch: true,
+    isEvalSupported: false,
+    stopAtErrors: true,
+  })
+  const pdf = await loadingTask.promise
+  const pageColors = new Map<number, Map<number, string>>()
+
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber)
+      const pageStructure = structure.pages[pageNumber - 1]
+      if (pageStructure) {
+        const viewport = page.getViewport({ scale: 1 })
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d', { alpha: false })
+        if (!context) throw new Error('CANVAS_UNAVAILABLE')
+
+        canvas.width = Math.max(1, Math.ceil(viewport.width))
+        canvas.height = Math.max(1, Math.ceil(viewport.height))
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        await page.render({ canvasContext: context, viewport, canvas }).promise
+        const pageIsGrayscale = isCanvasGrayscale(context)
+
+        const colors = new Map<number, string>()
+        pageStructure.lines.forEach((line) => line.spans.forEach((span) => {
+          const color = sampleTextColor(context, viewport.height, span)
+          if (color) {
+            colors.set(span.sourceIndex, pageIsGrayscale ? normalizeGrayscaleColor(color) : color)
+          }
+        }))
+        pageColors.set(pageNumber, colors)
+        canvas.width = 1
+        canvas.height = 1
+      }
+      page.cleanup()
+      onProgress?.(pageNumber, pdf.numPages)
+    }
+
+    return pageColors
+  } finally {
+    pdf.cleanup()
+    await loadingTask.destroy()
+  }
+}
+
+export async function convertPdfStructureToDocx(
+  structure: PdfStructure,
+  title: string,
+  sourceFile?: File,
+  onProgress?: PdfConversionProgress,
+) {
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
   const toHalfPoints = (points: number) => Math.max(2, Math.round(points * 2))
+  const pageColors = sourceFile ? await readPdfTextColors(sourceFile, structure, onProgress) : new Map<number, Map<number, string>>()
 
   const sections = structure.pages.map((page) => {
     let previousBottom = 0
@@ -320,6 +493,7 @@ export async function convertPdfStructureToDocx(structure: PdfStructure, title: 
           size: toHalfPoints(span.fontSize),
           bold: span.bold,
           italics: span.italics,
+          color: pageColors.get(page.pageNumber)?.get(span.sourceIndex) ?? '000000',
         }))
         previousEnd = Math.max(previousEnd, span.x + span.width)
       })
@@ -356,7 +530,7 @@ export async function convertPdfStructureToDocx(structure: PdfStructure, title: 
     styles: {
       default: {
         document: {
-          run: { font: 'Aptos', size: 22, color: '172033' },
+          run: { font: 'Aptos', size: 22, color: '000000' },
           paragraph: { spacing: { after: 0 } },
         },
       },
