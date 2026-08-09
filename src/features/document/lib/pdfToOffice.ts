@@ -61,6 +61,10 @@ export interface PdfStructure {
 
 export type PdfConversionProgress = (completed: number, total: number) => void
 
+function maxBy<T>(items: T[], getValue: (item: T) => number, initialValue: number) {
+  return items.reduce((maximum, item) => Math.max(maximum, getValue(item)), initialValue)
+}
+
 function getBaseName(fileName: string) {
   return fileName.replace(/\.pdf$/i, '') || 'documento'
 }
@@ -120,7 +124,7 @@ function groupIntoLines(items: PdfTextSpan[]) {
     .sort((a, b) => b.y - a.y)
     .map((row) => ({
       y: row.y,
-      height: Math.max(...row.items.map((item) => item.height), 1),
+      height: maxBy(row.items, (item) => item.height, 1),
       spans: row.items.sort((a, b) => a.x - b.x),
     }))
 }
@@ -229,18 +233,12 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
       const viewport = page.getViewport({ scale: 1 })
       const content = await page.getTextContent()
       signal?.throwIfAborted()
+      if (textItems + content.items.length > PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
+        page.cleanup()
+        throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
+      }
       const items: PdfTextSpan[] = []
-
-      const fontNames = new Set(
-        content.items
-          .filter((item) => 'str' in item)
-          .map((item) => item.fontName),
-      )
-      await Promise.all([...fontNames].map(async (fontName) => {
-        if (fontMetadataCache.has(fontName)) return
-        const metadata = await resolveFontMetadata(page, fontName)
-        if (metadata) fontMetadataCache.set(fontName, metadata)
-      }))
+      const pageFontMetadata = new Map<string, PdfFontMetadata | null>()
 
       for (const [sourceIndex, item] of content.items.entries()) {
         if (!('str' in item)) {
@@ -251,12 +249,15 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         if (!text.trim()) {
           continue
         }
-        if (textItems + items.length >= PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
-          throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
-        }
 
         const style = content.styles[item.fontName]
-        const metadata = fontMetadataCache.get(item.fontName) ?? null
+        let metadata = fontMetadataCache.get(item.fontName) ?? pageFontMetadata.get(item.fontName)
+        if (metadata === undefined) {
+          signal?.throwIfAborted()
+          metadata = await resolveFontMetadata(page, item.fontName)
+          pageFontMetadata.set(item.fontName, metadata)
+          if (metadata) fontMetadataCache.set(item.fontName, metadata)
+        }
         const viewportTransform = Util.transform(viewport.transform, item.transform)
         const viewportScale = Math.hypot(viewport.transform[0], viewport.transform[1])
         const verticalFontScale = Math.hypot(viewportTransform[2], viewportTransform[3])
@@ -397,7 +398,7 @@ function sampleTextColor(
   if (!background) return null
 
   const foregroundCandidates = sorted
-    .slice(1)
+    .filter((cluster) => cluster !== background)
     .map((cluster) => ({ cluster, contrast: colorDistance(cluster.color, background.color) }))
     .filter(({ cluster, contrast }) => cluster.count >= 2 && contrast >= 32)
     .sort((a, b) => b.contrast - a.contrast || b.cluster.count - a.cluster.count)
@@ -506,9 +507,9 @@ export async function convertPdfStructureToDocx(
     const getFontPoints = (value: number) => Math.min(maxPageFontPoints, Math.max(1, scaleLayout(value)))
     const lineMetrics = page.lines.map((line) => {
       const sortedSpans = [...line.spans].sort((a, b) => a.x - b.x)
-      const maxAscent = Math.max(...sortedSpans.map((span) => span.fontSize * span.ascent), line.height * 0.8)
+      const maxAscent = maxBy(sortedSpans, (span) => span.fontSize * span.ascent, line.height * 0.8)
       const top = Math.min(page.height, Math.max(0, page.height - line.y - maxAscent))
-      const naturalHeight = Math.min(page.height, Math.max(line.height, ...sortedSpans.map((span) => span.fontSize * 1.08)))
+      const naturalHeight = Math.min(page.height, maxBy(sortedSpans, (span) => span.fontSize * 1.08, line.height))
 
       return { sortedSpans, top, naturalHeight }
     })
@@ -600,9 +601,9 @@ export function convertPdfStructureToXlsx(structure: PdfStructure) {
   structure.pages.forEach((page) => {
     const rows = page.rows.length ? page.rows : [['']]
     const worksheet = XLSX.utils.aoa_to_sheet(rows)
-    const columnCount = Math.max(...rows.map((row) => row.length), 1)
+    const columnCount = maxBy(rows, (row) => row.length, 1)
     worksheet['!cols'] = Array.from({ length: columnCount }, (_, columnIndex) => ({
-      wch: Math.min(60, Math.max(12, ...rows.map((row) => row[columnIndex]?.length ?? 0))),
+      wch: Math.min(60, maxBy(rows, (row) => row[columnIndex]?.length ?? 0, 12)),
     }))
     XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(page.pageNumber))
   })
