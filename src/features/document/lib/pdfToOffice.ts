@@ -20,6 +20,7 @@ export const PDF_TO_OFFICE_MAX_PAGES = 100
 const PDF_COLOR_CANVAS_MAX_DIMENSION = 4096
 const PDF_COLOR_CANVAS_MAX_PIXELS = 16_000_000
 const WORD_MAX_PAGE_POINTS = 22 * 72
+const WORD_MAX_FONT_POINTS = WORD_MAX_PAGE_POINTS
 
 export type PdfOfficeFormat = 'docx' | 'xlsx' | 'pptx'
 
@@ -251,8 +252,11 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         const style = content.styles[item.fontName]
         const metadata = fontMetadataCache.get(item.fontName) ?? null
         const viewportTransform = Util.transform(viewport.transform, item.transform)
+        const viewportScale = Math.hypot(viewport.transform[0], viewport.transform[1])
         const verticalFontScale = Math.hypot(viewportTransform[2], viewportTransform[3])
-        const fontSize = Math.max(1, verticalFontScale, item.height)
+        const transformedWidth = item.width * viewportScale
+        const transformedHeight = item.height * viewportScale
+        const fontSize = Math.max(1, verticalFontScale, transformedHeight)
         const metadataName = metadata?.name
         const cssFamily = metadata?.cssFontInfo?.fontFamily
 
@@ -260,8 +264,8 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
           text,
           x: viewportTransform[4],
           y: viewport.height - viewportTransform[5],
-          width: item.width,
-          height: Math.max(item.height, fontSize * ((style?.ascent ?? 0.8) - (style?.descent ?? -0.2))),
+          width: transformedWidth,
+          height: Math.max(transformedHeight, fontSize * ((style?.ascent ?? 0.8) - (style?.descent ?? -0.2))),
           fontFamily: normalizeFontFamily(cssFamily, metadataName, metadata?.systemFontInfo?.css, style?.fontFamily, metadata?.fallbackName),
           fontSize,
           bold: hasBoldStyle(metadata, metadataName, cssFamily, style?.fontFamily),
@@ -435,20 +439,29 @@ export async function convertPdfStructureToDocx(
   onProgress?: PdfConversionProgress,
 ) {
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
-  const toHalfPoints = (points: number) => Math.max(2, Math.round(points * 2))
+  const toHalfPoints = (points: number) => Math.min(WORD_MAX_FONT_POINTS * 2, Math.max(2, Math.round(points * 2)))
   const pageColors = sourceFile ? await readPdfTextColors(sourceFile, structure, onProgress) : new Map<number, Map<number, string>>()
 
   const sections = structure.pages.map((page) => {
     const layoutScale = Math.min(1, WORD_MAX_PAGE_POINTS / page.width, WORD_MAX_PAGE_POINTS / page.height)
     const scaleLayout = (value: number) => value * layoutScale
-    let previousBottom = 0
-    const children = page.lines.length ? page.lines.map((line) => {
+    const maxPageFontPoints = Math.max(1, Math.min(WORD_MAX_FONT_POINTS, scaleLayout(page.width), scaleLayout(page.height)))
+    const getFontPoints = (value: number) => Math.min(maxPageFontPoints, Math.max(1, scaleLayout(value)))
+    const lineMetrics = page.lines.map((line) => {
       const sortedSpans = [...line.spans].sort((a, b) => a.x - b.x)
       const maxAscent = Math.max(...sortedSpans.map((span) => span.fontSize * span.ascent), line.height * 0.8)
-      const top = Math.max(0, page.height - line.y - maxAscent)
-      const lineHeight = Math.max(line.height, ...sortedSpans.map((span) => span.fontSize * 1.08))
-      const before = Math.max(0, top - previousBottom)
-      previousBottom = Math.max(previousBottom, top + lineHeight)
+      const top = Math.min(page.height, Math.max(0, page.height - line.y - maxAscent))
+      const naturalHeight = Math.min(page.height, Math.max(line.height, ...sortedSpans.map((span) => span.fontSize * 1.08)))
+
+      return { sortedSpans, top, naturalHeight }
+    })
+
+    const children = lineMetrics.length ? lineMetrics.map(({ sortedSpans, top, naturalHeight }, lineIndex) => {
+      const nextTop = lineMetrics[lineIndex + 1]?.top
+      const lineHeight = nextTop === undefined
+        ? naturalHeight
+        : Math.min(page.height, Math.max(1, nextTop - top))
+      const before = lineIndex === 0 ? top : 0
 
       const tabPositions: number[] = []
       const runs: TextRun[] = []
@@ -463,13 +476,13 @@ export async function convertPdfStructureToDocx(
           if (!tabPositions.includes(position)) tabPositions.push(position)
           runs.push(new TextRun({ text: '\t' }))
         } else if (spanIndex > 0 && gap > span.fontSize * 0.12) {
-          runs.push(new TextRun({ text: ' ', size: toHalfPoints(scaleLayout(span.fontSize)), font: span.fontFamily }))
+          runs.push(new TextRun({ text: ' ', size: toHalfPoints(getFontPoints(span.fontSize)), font: span.fontFamily }))
         }
 
         runs.push(new TextRun({
           text: span.text,
           font: span.fontFamily,
-          size: toHalfPoints(scaleLayout(span.fontSize)),
+          size: toHalfPoints(getFontPoints(span.fontSize)),
           bold: span.bold,
           italics: span.italics,
           color: pageColors.get(page.pageNumber)?.get(span.sourceIndex) ?? '000000',
@@ -483,7 +496,7 @@ export async function convertPdfStructureToDocx(
         spacing: {
           before: toTwips(scaleLayout(before)),
           after: 0,
-          line: Math.max(20, toTwips(scaleLayout(lineHeight))),
+          line: Math.max(20, toTwips(Math.min(scaleLayout(page.height), scaleLayout(lineHeight)))),
           lineRule: LineRuleType.EXACT,
         },
         widowControl: false,
