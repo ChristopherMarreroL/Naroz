@@ -12,9 +12,11 @@ import {
   convertPdfStructureToXlsx,
   convertPdfToPptx,
   getPdfOfficeFileName,
+  hasComplexPdfLayout,
   isSupportedPdf,
   PDF_TO_OFFICE_MAX_SIZE,
   readPdfStructure,
+  type PdfDocxMode,
   type PdfOfficeFormat,
   type PdfStructure,
 } from './lib/pdfToOffice'
@@ -36,6 +38,7 @@ export function PdfToOfficeView() {
   const [file, setFile] = useState<File | null>(null)
   const [structure, setStructure] = useState<PdfStructure | null>(null)
   const [outputFormat, setOutputFormat] = useState<PdfOfficeFormat>('docx')
+  const [docxMode, setDocxMode] = useState<PdfDocxMode>('editable')
   const [isReading, setIsReading] = useState(false)
   const [isConverting, setIsConverting] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -81,6 +84,7 @@ export function PdfToOfficeView() {
     setFile(null)
     setStructure(null)
     setOutputFormat('docx')
+    setDocxMode('editable')
     setIsReading(false)
     setIsConverting(false)
     setProgress(0)
@@ -119,6 +123,7 @@ export function PdfToOfficeView() {
       )
       if (controller.signal.aborted) return
       setStructure(nextStructure)
+      setDocxMode(!nextStructure.textItems || hasComplexPdfLayout(nextStructure) ? 'visual' : 'editable')
 
       if (!nextStructure.textItems) {
         setOutputFormat('pptx')
@@ -152,7 +157,7 @@ export function PdfToOfficeView() {
       return
     }
 
-    if (!structure.textItems && outputFormat !== 'pptx') {
+    if (!structure.textItems && (outputFormat === 'xlsx' || (outputFormat === 'docx' && docxMode === 'editable'))) {
       setNotice({ tone: 'warning', title: t('pdfOfficeScannedTitle'), message: t('pdfOfficeScannedMessage') })
       return
     }
@@ -175,6 +180,7 @@ export function PdfToOfficeView() {
             if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
           },
           controller.signal,
+          docxMode,
         )
       } else if (outputFormat === 'xlsx') {
         blob = convertPdfStructureToXlsx(structure)
@@ -285,7 +291,7 @@ export function PdfToOfficeView() {
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={t('pdfOfficeOutputTitle')}>
                     {outputFormats.map((format) => {
-                      const disabled = !hasEditableText && format.id !== 'pptx'
+                      const disabled = !hasEditableText && format.id === 'xlsx'
                       return (
                         <button
                           key={format.id}
@@ -305,8 +311,42 @@ export function PdfToOfficeView() {
                       )
                     })}
                   </div>
+                  {outputFormat === 'docx' ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('pdfOfficeWordModeTitle')}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={t('pdfOfficeWordModeTitle')}>
+                        {(['visual', 'editable'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="radio"
+                            aria-checked={docxMode === mode}
+                            disabled={isConverting || (!hasEditableText && mode === 'editable')}
+                            className={`rounded-xl border px-4 py-3 text-left transition ${docxMode === mode ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}
+                            onClick={() => {
+                              clearResult()
+                              setDocxMode(mode)
+                            }}
+                          >
+                            <span className="block text-sm font-bold text-slate-950">
+                              {mode === 'visual' ? t('pdfOfficeWordVisualTitle') : t('pdfOfficeWordEditableTitle')}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              {mode === 'visual' ? t('pdfOfficeWordVisualDescription') : t('pdfOfficeWordEditableDescription')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="mt-4 text-sm leading-6 text-slate-500">
-                    {outputFormat === 'pptx' ? t('pdfOfficePptxMode') : outputFormat === 'xlsx' ? t('pdfOfficeXlsxMode') : t('pdfOfficeDocxMode')}
+                    {outputFormat === 'pptx'
+                      ? t('pdfOfficePptxMode')
+                      : outputFormat === 'xlsx'
+                        ? t('pdfOfficeXlsxMode')
+                        : docxMode === 'visual'
+                          ? t('pdfOfficeDocxVisualMode')
+                          : t('pdfOfficeDocxMode')}
                   </p>
                 </div>
               ) : null}

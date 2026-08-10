@@ -1,11 +1,14 @@
 import {
   Document,
+  HorizontalPositionRelativeFrom,
+  ImageRun,
   LineRuleType,
   Packer,
   Paragraph,
   SectionType,
   TabStopType,
   TextRun,
+  VerticalPositionRelativeFrom,
 } from 'docx'
 import { GlobalWorkerOptions, Util, getDocument } from 'pdfjs-dist'
 import type { PDFPageProxy } from 'pdfjs-dist'
@@ -23,10 +26,14 @@ const PDF_COLOR_CANVAS_MAX_DIMENSION = 4096
 const PDF_COLOR_CANVAS_MAX_PIXELS = 16_000_000
 const PDF_COLOR_MAX_SAMPLES_PER_SPAN = 50_000
 const PDF_COLOR_MAX_SAMPLES_PER_PAGE = 2_000_000
+const PDF_FONT_METADATA_MAX_LOOKUPS = 64
+const PDF_FONT_METADATA_MAX_ATTEMPTS_PER_FONT = 2
+const PDF_VISUAL_DOCX_RENDER_SCALE = 4
 const WORD_MAX_PAGE_POINTS = 22 * 72
 const WORD_MAX_FONT_POINTS = WORD_MAX_PAGE_POINTS
 
 export type PdfOfficeFormat = 'docx' | 'xlsx' | 'pptx'
+export type PdfDocxMode = 'editable' | 'visual'
 
 export interface PdfTextSpan {
   text: string
@@ -63,6 +70,27 @@ export interface PdfStructure {
 }
 
 export type PdfConversionProgress = (completed: number, total: number) => void
+
+export function hasComplexPdfLayout(structure: PdfStructure) {
+  return structure.pages.some((page) => {
+    let separatedRows = 0
+
+    for (const line of page.lines) {
+      const spans = [...line.spans].sort((a, b) => a.x - b.x)
+      if (spans.length >= 6) return true
+
+      let separatedColumns = 0
+      for (let index = 1; index < spans.length; index += 1) {
+        const previous = spans[index - 1]
+        const gap = spans[index].x - (previous.x + previous.width)
+        if (gap > Math.max(18, spans[index].fontSize * 2.5)) separatedColumns += 1
+      }
+      if (separatedColumns >= 2) separatedRows += 1
+    }
+
+    return separatedRows >= 5
+  })
+}
 
 function maxBy<T>(items: T[], getValue: (item: T) => number, initialValue: number) {
   return items.reduce((maximum, item) => Math.max(maximum, getValue(item)), initialValue)
@@ -261,6 +289,8 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
 
     const pages: PdfPageStructure[] = []
     const fontMetadataCache = new Map<string, PdfFontMetadata>()
+    const fontMetadataAttempts = new Map<string, number>()
+    let fontMetadataLookups = 0
     let extractedTextItems = 0
     let textItems = 0
     let textCharacters = 0
@@ -297,8 +327,19 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         const style = content.styles[item.fontName]
         let metadata = fontMetadataCache.get(item.fontName) ?? pageFontMetadata.get(item.fontName)
         if (metadata === undefined) {
-          signal?.throwIfAborted()
-          metadata = await resolveFontMetadata(page, item.fontName)
+          const attempts = fontMetadataAttempts.get(item.fontName) ?? 0
+          if (
+            fontMetadataLookups < PDF_FONT_METADATA_MAX_LOOKUPS
+            && attempts < PDF_FONT_METADATA_MAX_ATTEMPTS_PER_FONT
+          ) {
+            signal?.throwIfAborted()
+            fontMetadataLookups += 1
+            fontMetadataAttempts.set(item.fontName, attempts + 1)
+            metadata = await resolveFontMetadata(page, item.fontName)
+            signal?.throwIfAborted()
+          } else {
+            metadata = null
+          }
           pageFontMetadata.set(item.fontName, metadata)
           if (metadata) fontMetadataCache.set(item.fontName, metadata)
         }
@@ -374,10 +415,10 @@ function colorDistance(first: [number, number, number], second: [number, number,
   return Math.hypot(first[0] - second[0], first[1] - second[1], first[2] - second[2])
 }
 
-function getBoundedRenderScale(width: number, height: number) {
+function getBoundedRenderScale(width: number, height: number, maximumScale = 1) {
   const dimensionScale = PDF_COLOR_CANVAS_MAX_DIMENSION / Math.max(width, height, 1)
   const pixelScale = Math.sqrt(PDF_COLOR_CANVAS_MAX_PIXELS / Math.max(width * height, 1))
-  return Math.min(1, dimensionScale, pixelScale)
+  return Math.min(maximumScale, dimensionScale, pixelScale)
 }
 
 function sampleTextColor(
@@ -558,13 +599,170 @@ async function readPdfTextColors(
   }
 }
 
+interface RenderedPdfPage {
+  data: Uint8Array
+  width: number
+  height: number
+}
+
+function canvasToPng(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('PNG_ENCODING_FAILED'))
+    }, 'image/png')
+  })
+}
+
+async function renderPdfPagesForWord(
+  file: File,
+  onProgress?: PdfConversionProgress,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
+  const loadingTask = getDocument({
+    data: await file.arrayBuffer(),
+    useWorkerFetch: true,
+    disableStream: true,
+    disableAutoFetch: true,
+    isEvalSupported: false,
+    stopAtErrors: true,
+  })
+  const pages: RenderedPdfPage[] = []
+
+  try {
+    const pdf = await loadingTask.promise
+    signal?.throwIfAborted()
+
+    try {
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        signal?.throwIfAborted()
+        const page = await pdf.getPage(pageNumber)
+        const canvas = document.createElement('canvas')
+
+        try {
+          const baseViewport = page.getViewport({ scale: 1 })
+          const renderScale = getBoundedRenderScale(
+            baseViewport.width,
+            baseViewport.height,
+            PDF_VISUAL_DOCX_RENDER_SCALE,
+          )
+          const viewport = page.getViewport({ scale: renderScale })
+          const context = canvas.getContext('2d', { alpha: false })
+          if (!context) throw new Error('CANVAS_UNAVAILABLE')
+
+          canvas.width = Math.max(1, Math.ceil(viewport.width))
+          canvas.height = Math.max(1, Math.ceil(viewport.height))
+          context.fillStyle = '#ffffff'
+          context.fillRect(0, 0, canvas.width, canvas.height)
+
+          const renderTask = page.render({ canvasContext: context, viewport, canvas })
+          const cancelRender = () => renderTask.cancel()
+          signal?.addEventListener('abort', cancelRender, { once: true })
+          try {
+            await renderTask.promise
+          } finally {
+            signal?.removeEventListener('abort', cancelRender)
+          }
+          signal?.throwIfAborted()
+
+          const blob = await canvasToPng(canvas)
+          signal?.throwIfAborted()
+          pages.push({
+            data: new Uint8Array(await blob.arrayBuffer()),
+            width: baseViewport.width,
+            height: baseViewport.height,
+          })
+        } finally {
+          canvas.width = 1
+          canvas.height = 1
+          page.cleanup()
+          onProgress?.(pageNumber, pdf.numPages)
+        }
+      }
+    } finally {
+      pdf.cleanup()
+    }
+  } finally {
+    await loadingTask.destroy()
+  }
+
+  return pages
+}
+
+async function convertPdfToVisualDocx(
+  file: File,
+  title: string,
+  onProgress?: PdfConversionProgress,
+  signal?: AbortSignal,
+) {
+  const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
+  const renderedPages = await renderPdfPagesForWord(file, onProgress, signal)
+  signal?.throwIfAborted()
+
+  const sections = renderedPages.map((page, pageIndex) => {
+    const layoutScale = Math.min(1, WORD_MAX_PAGE_POINTS / page.width, WORD_MAX_PAGE_POINTS / page.height)
+    const width = page.width * layoutScale
+    const height = page.height * layoutScale
+    const pixelsPerPoint = 96 / 72
+
+    return {
+      properties: {
+        type: pageIndex === 0 ? SectionType.CONTINUOUS : SectionType.NEXT_PAGE,
+        page: {
+          size: { width: toTwips(width), height: toTwips(height) },
+          margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0, gutter: 0 },
+        },
+      },
+      children: [new Paragraph({
+        children: [new ImageRun({
+          type: 'png',
+          data: page.data,
+          transformation: {
+            width: width * pixelsPerPoint,
+            height: height * pixelsPerPoint,
+          },
+          floating: {
+            horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 },
+            verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 },
+            allowOverlap: true,
+            behindDocument: false,
+            layoutInCell: false,
+          },
+          altText: {
+            title: `Pagina ${pageIndex + 1}`,
+            description: `Pagina ${pageIndex + 1} del PDF original`,
+            name: `Pagina ${pageIndex + 1}`,
+          },
+        })],
+        spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT },
+      })],
+    }
+  })
+
+  const document = new Document({
+    creator: 'Naroz',
+    title,
+    description: 'PDF conservado visualmente como documento Word por Naroz',
+    sections,
+  })
+
+  return Packer.toBlob(document)
+}
+
 export async function convertPdfStructureToDocx(
   structure: PdfStructure,
   title: string,
   sourceFile?: File,
   onProgress?: PdfConversionProgress,
   signal?: AbortSignal,
+  mode: PdfDocxMode = 'editable',
 ) {
+  if (mode === 'visual') {
+    if (!sourceFile) throw new Error('SOURCE_FILE_REQUIRED')
+    return convertPdfToVisualDocx(sourceFile, title, onProgress, signal)
+  }
+
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))
   const toHalfPoints = (points: number) => Math.min(WORD_MAX_FONT_POINTS * 2, Math.max(2, Math.round(points * 2)))
   const pageColors: Map<number, Map<number, string>> = sourceFile
