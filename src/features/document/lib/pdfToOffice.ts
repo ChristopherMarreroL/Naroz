@@ -20,6 +20,8 @@ export const PDF_TO_OFFICE_MAX_PAGES = 100
 export const PDF_TO_OFFICE_MAX_TEXT_ITEMS = 100_000
 const PDF_COLOR_CANVAS_MAX_DIMENSION = 4096
 const PDF_COLOR_CANVAS_MAX_PIXELS = 16_000_000
+const PDF_COLOR_MAX_SAMPLES_PER_SPAN = 50_000
+const PDF_COLOR_MAX_SAMPLES_PER_PAGE = 2_000_000
 const WORD_MAX_PAGE_POINTS = 22 * 72
 const WORD_MAX_FONT_POINTS = WORD_MAX_PAGE_POINTS
 
@@ -334,24 +336,28 @@ function getBoundedRenderScale(width: number, height: number) {
 }
 
 function sampleTextColor(
-  context: CanvasRenderingContext2D,
+  pagePixels: Uint8ClampedArray,
+  canvasWidth: number,
+  canvasHeight: number,
   pageHeight: number,
   span: PdfTextSpan,
   renderScale: number,
+  sampleBudget: number,
 ) {
   const padding = Math.max(1, Math.ceil(renderScale * 2))
   const left = Math.max(0, Math.floor(span.x * renderScale) - padding)
   const top = Math.max(0, Math.floor((pageHeight - span.y - span.height) * renderScale) - padding)
-  const right = Math.min(context.canvas.width, Math.ceil((span.x + span.width) * renderScale) + padding)
+  const right = Math.min(canvasWidth, Math.ceil((span.x + span.width) * renderScale) + padding)
   const bottom = Math.min(
-    context.canvas.height,
+    canvasHeight,
     Math.ceil((pageHeight - span.y + span.height * 0.2) * renderScale) + padding,
   )
   const width = right - left
   const height = bottom - top
-  if (width <= 0 || height <= 0) return null
+  const maxSamples = Math.min(PDF_COLOR_MAX_SAMPLES_PER_SPAN, sampleBudget)
+  if (width <= 0 || height <= 0 || maxSamples <= 0) return { color: null, samples: 0 }
 
-  const pixels = context.getImageData(left, top, width, height).data
+  const stride = Math.max(1, Math.ceil(Math.sqrt((width * height) / maxSamples)))
   const clusters = new Map<string, {
     color: [number, number, number]
     count: number
@@ -360,42 +366,45 @@ function sampleTextColor(
     blue: number
   }>()
   const borderCounts = new Map<string, number>()
+  let samples = 0
 
-  for (let index = 0; index < pixels.length; index += 4) {
-    if (pixels[index + 3] < 32) continue
-    const color: [number, number, number] = [
-      quantizeColorChannel(pixels[index]),
-      quantizeColorChannel(pixels[index + 1]),
-      quantizeColorChannel(pixels[index + 2]),
-    ]
-    const key = color.join(',')
-    const pixelIndex = index / 4
-    const pixelX = pixelIndex % width
-    const pixelY = Math.floor(pixelIndex / width)
-    if (pixelX === 0 || pixelY === 0 || pixelX === width - 1 || pixelY === height - 1) {
-      borderCounts.set(key, (borderCounts.get(key) ?? 0) + 1)
-    }
-    const cluster = clusters.get(key)
-    if (cluster) {
-      cluster.count += 1
-      cluster.red += pixels[index]
-      cluster.green += pixels[index + 1]
-      cluster.blue += pixels[index + 2]
-    } else {
-      clusters.set(key, {
-        color,
-        count: 1,
-        red: pixels[index],
-        green: pixels[index + 1],
-        blue: pixels[index + 2],
-      })
+  sampleRows: for (let y = top; y < bottom; y += stride) {
+    for (let x = left; x < right; x += stride) {
+      if (samples >= maxSamples) break sampleRows
+      samples += 1
+      const index = (y * canvasWidth + x) * 4
+      if (pagePixels[index + 3] < 32) continue
+      const color: [number, number, number] = [
+        quantizeColorChannel(pagePixels[index]),
+        quantizeColorChannel(pagePixels[index + 1]),
+        quantizeColorChannel(pagePixels[index + 2]),
+      ]
+      const key = color.join(',')
+      if (x === left || y === top || x + stride >= right || y + stride >= bottom) {
+        borderCounts.set(key, (borderCounts.get(key) ?? 0) + 1)
+      }
+      const cluster = clusters.get(key)
+      if (cluster) {
+        cluster.count += 1
+        cluster.red += pagePixels[index]
+        cluster.green += pagePixels[index + 1]
+        cluster.blue += pagePixels[index + 2]
+      } else {
+        clusters.set(key, {
+          color,
+          count: 1,
+          red: pagePixels[index],
+          green: pagePixels[index + 1],
+          blue: pagePixels[index + 2],
+        })
+      }
     }
   }
 
   const sorted = [...clusters.values()].sort((a, b) => b.count - a.count)
   const backgroundKey = [...borderCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
   const background = (backgroundKey ? clusters.get(backgroundKey) : null) ?? sorted[0]
-  if (!background) return null
+  if (!background) return { color: null, samples }
 
   const foregroundCandidates = sorted
     .filter((cluster) => cluster !== background)
@@ -404,13 +413,16 @@ function sampleTextColor(
     .sort((a, b) => b.contrast - a.contrast || b.cluster.count - a.cluster.count)
   const foreground = foregroundCandidates[0]?.cluster
 
-  return foreground
-    ? rgbToHex(
-        Math.round(foreground.red / foreground.count),
-        Math.round(foreground.green / foreground.count),
-        Math.round(foreground.blue / foreground.count),
-      )
-    : null
+  return {
+    color: foreground
+      ? rgbToHex(
+          Math.round(foreground.red / foreground.count),
+          Math.round(foreground.green / foreground.count),
+          Math.round(foreground.blue / foreground.count),
+        )
+      : null,
+    samples,
+  }
 }
 
 async function readPdfTextColors(
@@ -460,10 +472,24 @@ async function readPdfTextColors(
         signal?.throwIfAborted()
 
         const colors = new Map<number, string>()
-        pageStructure.lines.forEach((line) => line.spans.forEach((span) => {
-          const color = sampleTextColor(context, baseViewport.height, span, renderScale)
-          if (color) colors.set(span.sourceIndex, color)
-        }))
+        const pagePixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+        let sampleBudget = PDF_COLOR_MAX_SAMPLES_PER_PAGE
+        sampleLines: for (const line of pageStructure.lines) {
+          for (const span of line.spans) {
+            const sample = sampleTextColor(
+              pagePixels,
+              canvas.width,
+              canvas.height,
+              baseViewport.height,
+              span,
+              renderScale,
+              sampleBudget,
+            )
+            sampleBudget -= sample.samples
+            if (sample.color) colors.set(span.sourceIndex, sample.color)
+            if (sampleBudget <= 0) break sampleLines
+          }
+        }
         pageColors.set(pageNumber, colors)
       } catch (error) {
         if (signal?.aborted) throw error
@@ -522,6 +548,7 @@ export async function convertPdfStructureToDocx(
       const before = lineIndex === 0 ? top : 0
 
       const tabPositions: number[] = []
+      const tabPositionSet = new Set<number>()
       const runs: TextRun[] = []
       let previousEnd = 0
 
@@ -531,7 +558,10 @@ export async function convertPdfStructureToDocx(
 
         if (needsTab) {
           const position = toTwips(scaleLayout(Math.min(page.width - 1, Math.max(1, span.x))))
-          if (!tabPositions.includes(position)) tabPositions.push(position)
+          if (!tabPositionSet.has(position)) {
+            tabPositionSet.add(position)
+            tabPositions.push(position)
+          }
           runs.push(new TextRun({ text: '\t' }))
         } else if (spanIndex > 0 && gap > span.fontSize * 0.12) {
           runs.push(new TextRun({ text: ' ', size: toHalfPoints(getFontPoints(span.fontSize)), font: span.fontFamily }))
