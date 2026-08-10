@@ -18,6 +18,7 @@ GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 export const PDF_TO_OFFICE_MAX_SIZE = 25 * 1024 * 1024
 export const PDF_TO_OFFICE_MAX_PAGES = 100
 export const PDF_TO_OFFICE_MAX_TEXT_ITEMS = 100_000
+export const PDF_TO_OFFICE_MAX_TEXT_CHARACTERS = 5_000_000
 const PDF_COLOR_CANVAS_MAX_DIMENSION = 4096
 const PDF_COLOR_CANVAS_MAX_PIXELS = 16_000_000
 const PDF_COLOR_MAX_SAMPLES_PER_SPAN = 50_000
@@ -228,6 +229,7 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     const pages: PdfPageStructure[] = []
     const fontMetadataCache = new Map<string, PdfFontMetadata>()
     let textItems = 0
+    let textCharacters = 0
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       signal?.throwIfAborted()
@@ -247,6 +249,11 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
           continue
         }
 
+        if (textCharacters + item.str.length > PDF_TO_OFFICE_MAX_TEXT_CHARACTERS) {
+          page.cleanup()
+          throw new Error(`TEXT_CHARACTER_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_CHARACTERS}`)
+        }
+        textCharacters += item.str.length
         const text = item.str.replace(/\s+/g, ' ')
         if (!text.trim()) {
           continue
@@ -451,6 +458,10 @@ async function readPdfTextColors(
       try {
         const pageStructure = structure.pages[pageNumber - 1]
         if (!pageStructure) continue
+        if (!pageStructure.lines.some((line) => line.spans.length > 0)) {
+          pageColors.set(pageNumber, new Map())
+          continue
+        }
         const baseViewport = page.getViewport({ scale: 1 })
         const renderScale = getBoundedRenderScale(baseViewport.width, baseViewport.height)
         const viewport = page.getViewport({ scale: renderScale })
