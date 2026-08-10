@@ -108,18 +108,51 @@ function mergeNearbyItems(items: PdfTextSpan[]) {
 }
 
 function groupIntoLines(items: PdfTextSpan[]) {
+  const bucketSize = 4
+  const maxTolerance = 16
   const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x)
-  const rows: Array<{ y: number; items: PdfTextSpan[] }> = []
+  const rows: Array<{ y: number; items: PdfTextSpan[]; bucket: number }> = []
+  const buckets = new Map<number, Array<(typeof rows)[number]>>()
+
+  const addToBucket = (row: (typeof rows)[number]) => {
+    const bucketRows = buckets.get(row.bucket)
+    if (bucketRows) bucketRows.push(row)
+    else buckets.set(row.bucket, [row])
+  }
 
   for (const item of sorted) {
-    const tolerance = Math.max(2.5, item.height * 0.35)
-    const row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance)
+    const tolerance = Math.min(maxTolerance, Math.max(2.5, item.height * 0.35))
+    const targetBucket = Math.floor(item.y / bucketSize)
+    const bucketRadius = Math.ceil(tolerance / bucketSize)
+    let row: (typeof rows)[number] | undefined
+    let closestDistance = Number.POSITIVE_INFINITY
+
+    for (let bucket = targetBucket - bucketRadius; bucket <= targetBucket + bucketRadius; bucket += 1) {
+      for (const candidate of buckets.get(bucket) ?? []) {
+        const distance = Math.abs(candidate.y - item.y)
+        if (distance <= tolerance && distance < closestDistance) {
+          row = candidate
+          closestDistance = distance
+        }
+      }
+    }
 
     if (row) {
+      const previousBucket = row.bucket
       row.items.push(item)
       row.y = (row.y * (row.items.length - 1) + item.y) / row.items.length
+      row.bucket = Math.floor(row.y / bucketSize)
+      if (row.bucket !== previousBucket) {
+        const previousRows = buckets.get(previousBucket)
+        const previousIndex = previousRows?.indexOf(row) ?? -1
+        if (previousIndex >= 0) previousRows?.splice(previousIndex, 1)
+        if (!previousRows?.length) buckets.delete(previousBucket)
+        addToBucket(row)
+      }
     } else {
-      rows.push({ y: item.y, items: [item] })
+      const nextRow = { y: item.y, items: [item], bucket: targetBucket }
+      rows.push(nextRow)
+      addToBucket(nextRow)
     }
   }
 
@@ -275,6 +308,9 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
         const transformedWidth = item.width * viewportScale
         const transformedHeight = item.height * viewportScale
         const fontSize = Math.max(1, verticalFontScale, transformedHeight)
+        if (![viewportTransform[4], viewportTransform[5], transformedWidth, transformedHeight, fontSize].every(Number.isFinite)) {
+          continue
+        }
         const metadataName = metadata?.name
         const cssFamily = metadata?.cssFontInfo?.fontFamily
 
@@ -676,9 +712,9 @@ export async function convertPdfToPptx(
     stopAtErrors: true,
   })
   const pdf = await loadingTask.promise
-  signal?.throwIfAborted()
 
   try {
+    signal?.throwIfAborted()
     if (pdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
       throw new Error(`PAGE_LIMIT:${pdf.numPages}`)
     }
