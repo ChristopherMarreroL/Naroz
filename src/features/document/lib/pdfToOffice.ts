@@ -659,8 +659,14 @@ function canvasToDataUrl(canvas: HTMLCanvasElement) {
   return canvas.toDataURL('image/jpeg', 0.9)
 }
 
-export async function convertPdfToPptx(file: File, onProgress?: PdfConversionProgress) {
+export async function convertPdfToPptx(
+  file: File,
+  onProgress?: PdfConversionProgress,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
   const data = await file.arrayBuffer()
+  signal?.throwIfAborted()
   const loadingTask = getDocument({
     data,
     useWorkerFetch: true,
@@ -670,6 +676,7 @@ export async function convertPdfToPptx(file: File, onProgress?: PdfConversionPro
     stopAtErrors: true,
   })
   const pdf = await loadingTask.promise
+  signal?.throwIfAborted()
 
   try {
     if (pdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
@@ -687,44 +694,58 @@ export async function convertPdfToPptx(file: File, onProgress?: PdfConversionPro
     const slideHeight = 7.5
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      signal?.throwIfAborted()
       const page = await pdf.getPage(pageNumber)
-      const baseViewport = page.getViewport({ scale: 1 })
-      const scale = Math.min(2, 1800 / Math.max(baseViewport.width, baseViewport.height))
-      const viewport = page.getViewport({ scale })
       const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d', { alpha: false })
 
-      if (!context) {
-        throw new Error('CANVAS_UNAVAILABLE')
+      try {
+        const baseViewport = page.getViewport({ scale: 1 })
+        const scale = Math.min(2, 1800 / Math.max(baseViewport.width, baseViewport.height))
+        const viewport = page.getViewport({ scale })
+        const context = canvas.getContext('2d', { alpha: false })
+
+        if (!context) {
+          throw new Error('CANVAS_UNAVAILABLE')
+        }
+
+        canvas.width = Math.max(1, Math.floor(viewport.width))
+        canvas.height = Math.max(1, Math.floor(viewport.height))
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        const renderTask = page.render({ canvasContext: context, viewport, canvas })
+        const cancelRender = () => renderTask.cancel()
+        signal?.addEventListener('abort', cancelRender, { once: true })
+        try {
+          await renderTask.promise
+        } finally {
+          signal?.removeEventListener('abort', cancelRender)
+        }
+        signal?.throwIfAborted()
+
+        const pageRatio = viewport.width / viewport.height
+        const slideRatio = slideWidth / slideHeight
+        const imageWidth = pageRatio > slideRatio ? slideWidth : slideHeight * pageRatio
+        const imageHeight = pageRatio > slideRatio ? slideWidth / pageRatio : slideHeight
+        const slide = presentation.addSlide()
+        slide.background = { color: 'FFFFFF' }
+        slide.addImage({
+          data: canvasToDataUrl(canvas),
+          x: (slideWidth - imageWidth) / 2,
+          y: (slideHeight - imageHeight) / 2,
+          w: imageWidth,
+          h: imageHeight,
+        })
+      } finally {
+        page.cleanup()
+        canvas.width = 1
+        canvas.height = 1
       }
-
-      canvas.width = Math.max(1, Math.floor(viewport.width))
-      canvas.height = Math.max(1, Math.floor(viewport.height))
-      context.fillStyle = '#ffffff'
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      await page.render({ canvasContext: context, viewport, canvas }).promise
-
-      const pageRatio = viewport.width / viewport.height
-      const slideRatio = slideWidth / slideHeight
-      const imageWidth = pageRatio > slideRatio ? slideWidth : slideHeight * pageRatio
-      const imageHeight = pageRatio > slideRatio ? slideWidth / pageRatio : slideHeight
-      const slide = presentation.addSlide()
-      slide.background = { color: 'FFFFFF' }
-      slide.addImage({
-        data: canvasToDataUrl(canvas),
-        x: (slideWidth - imageWidth) / 2,
-        y: (slideHeight - imageHeight) / 2,
-        w: imageWidth,
-        h: imageHeight,
-      })
-
-      page.cleanup()
-      canvas.width = 1
-      canvas.height = 1
       onProgress?.(pageNumber, pdf.numPages)
     }
 
+    signal?.throwIfAborted()
     const output = await presentation.write({ outputType: 'blob', compression: true })
+    signal?.throwIfAborted()
     if (!(output instanceof Blob)) {
       throw new Error('PPTX_OUTPUT_INVALID')
     }

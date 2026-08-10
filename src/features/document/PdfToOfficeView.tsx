@@ -182,7 +182,7 @@ export function PdfToOfficeView() {
       } else {
         blob = await convertPdfToPptx(file, (completed, total) => {
           if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
-        })
+        }, controller.signal)
       }
 
       if (controller.signal.aborted) return
