@@ -228,6 +228,7 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
 
     const pages: PdfPageStructure[] = []
     const fontMetadataCache = new Map<string, PdfFontMetadata>()
+    let extractedTextItems = 0
     let textItems = 0
     let textCharacters = 0
 
@@ -237,10 +238,11 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
       const viewport = page.getViewport({ scale: 1 })
       const content = await page.getTextContent()
       signal?.throwIfAborted()
-      if (textItems + content.items.length > PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
+      if (extractedTextItems + content.items.length > PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
         page.cleanup()
         throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
       }
+      extractedTextItems += content.items.length
       const items: PdfTextSpan[] = []
       const pageFontMetadata = new Map<string, PdfFontMetadata | null>()
 
