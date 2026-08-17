@@ -29,6 +29,7 @@ const PDF_COLOR_MAX_SAMPLES_PER_PAGE = 2_000_000
 const PDF_FONT_METADATA_MAX_LOOKUPS = 64
 const PDF_FONT_METADATA_MAX_ATTEMPTS_PER_FONT = 2
 const PDF_VISUAL_DOCX_RENDER_SCALE = 4
+const PDF_VISUAL_DOCX_MAX_IMAGE_BYTES = 100 * 1024 * 1024
 const WORD_MAX_PAGE_POINTS = 22 * 72
 const WORD_MAX_FONT_POINTS = WORD_MAX_PAGE_POINTS
 
@@ -605,6 +606,12 @@ interface RenderedPdfPage {
   height: number
 }
 
+export interface PdfVisualDocxLabels {
+  page: string
+  originalPdf: string
+  documentDescription: string
+}
+
 function canvasToPng(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -629,6 +636,7 @@ async function renderPdfPagesForWord(
     stopAtErrors: true,
   })
   const pages: RenderedPdfPage[] = []
+  let totalImageBytes = 0
 
   try {
     const pdf = await loadingTask.promise
@@ -668,8 +676,13 @@ async function renderPdfPagesForWord(
 
           const blob = await canvasToPng(canvas)
           signal?.throwIfAborted()
+          const data = new Uint8Array(await blob.arrayBuffer())
+          totalImageBytes += data.byteLength
+          if (totalImageBytes > PDF_VISUAL_DOCX_MAX_IMAGE_BYTES) {
+            throw new Error('VISUAL_DOCX_IMAGE_LIMIT')
+          }
           pages.push({
-            data: new Uint8Array(await blob.arrayBuffer()),
+            data,
             width: baseViewport.width,
             height: baseViewport.height,
           })
@@ -693,6 +706,7 @@ async function renderPdfPagesForWord(
 async function convertPdfToVisualDocx(
   file: File,
   title: string,
+  labels: PdfVisualDocxLabels,
   onProgress?: PdfConversionProgress,
   signal?: AbortSignal,
 ) {
@@ -705,6 +719,7 @@ async function convertPdfToVisualDocx(
     const width = page.width * layoutScale
     const height = page.height * layoutScale
     const pixelsPerPoint = 96 / 72
+    const pageLabel = `${labels.page} ${pageIndex + 1}`
 
     return {
       properties: {
@@ -730,9 +745,9 @@ async function convertPdfToVisualDocx(
             layoutInCell: false,
           },
           altText: {
-            title: `Pagina ${pageIndex + 1}`,
-            description: `Pagina ${pageIndex + 1} del PDF original`,
-            name: `Pagina ${pageIndex + 1}`,
+            title: pageLabel,
+            description: `${pageLabel} ${labels.originalPdf}`,
+            name: pageLabel,
           },
         })],
         spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT },
@@ -743,7 +758,7 @@ async function convertPdfToVisualDocx(
   const document = new Document({
     creator: 'Naroz',
     title,
-    description: 'PDF conservado visualmente como documento Word por Naroz',
+    description: labels.documentDescription,
     sections,
   })
 
@@ -757,10 +772,12 @@ export async function convertPdfStructureToDocx(
   onProgress?: PdfConversionProgress,
   signal?: AbortSignal,
   mode: PdfDocxMode = 'editable',
+  visualLabels?: PdfVisualDocxLabels,
 ) {
   if (mode === 'visual') {
     if (!sourceFile) throw new Error('SOURCE_FILE_REQUIRED')
-    return convertPdfToVisualDocx(sourceFile, title, onProgress, signal)
+    if (!visualLabels) throw new Error('VISUAL_DOCX_LABELS_REQUIRED')
+    return convertPdfToVisualDocx(sourceFile, title, visualLabels, onProgress, signal)
   }
 
   const toTwips = (points: number) => Math.max(0, Math.round(points * 20))

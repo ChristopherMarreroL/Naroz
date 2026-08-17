@@ -181,6 +181,11 @@ export function PdfToOfficeView() {
           },
           controller.signal,
           docxMode,
+          {
+            page: t('page'),
+            originalPdf: t('pdfOfficeOriginalPdf'),
+            documentDescription: t('pdfOfficeVisualDocumentDescription'),
+          },
         )
       } else if (outputFormat === 'xlsx') {
         blob = convertPdfStructureToXlsx(structure)
@@ -204,9 +209,14 @@ export function PdfToOfficeView() {
       }
       setResult(nextResult)
       setNotice({ tone: 'success', title: t('pdfOfficeConvertedTitle'), message: t('pdfOfficeConvertedMessage') })
-    } catch {
+    } catch (error) {
       if (controller.signal.aborted) return
-      setNotice({ tone: 'error', title: t('pdfOfficeConvertErrorTitle'), message: t('pdfOfficeConvertErrorMessage') })
+      const isVisualImageLimit = error instanceof Error && error.message === 'VISUAL_DOCX_IMAGE_LIMIT'
+      setNotice({
+        tone: 'error',
+        title: t('pdfOfficeConvertErrorTitle'),
+        message: isVisualImageLimit ? t('pdfOfficeVisualWordLimitMessage') : t('pdfOfficeConvertErrorMessage'),
+      })
     } finally {
       if (conversionControllerRef.current === controller) {
         conversionControllerRef.current = null
