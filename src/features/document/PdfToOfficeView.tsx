@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
@@ -12,9 +12,11 @@ import {
   convertPdfStructureToXlsx,
   convertPdfToPptx,
   getPdfOfficeFileName,
+  hasComplexPdfLayout,
   isSupportedPdf,
   PDF_TO_OFFICE_MAX_SIZE,
   readPdfStructure,
+  type PdfDocxMode,
   type PdfOfficeFormat,
   type PdfStructure,
 } from './lib/pdfToOffice'
@@ -36,15 +38,25 @@ export function PdfToOfficeView() {
   const [file, setFile] = useState<File | null>(null)
   const [structure, setStructure] = useState<PdfStructure | null>(null)
   const [outputFormat, setOutputFormat] = useState<PdfOfficeFormat>('docx')
+  const [docxMode, setDocxMode] = useState<PdfDocxMode>('editable')
   const [isReading, setIsReading] = useState(false)
   const [isConverting, setIsConverting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<ConversionResult | null>(null)
+  const readControllerRef = useRef<AbortController | null>(null)
+  const conversionControllerRef = useRef<AbortController | null>(null)
   const [, setNotice] = useToastNotice<{
     tone: 'info' | 'success' | 'error' | 'warning'
     title: string
     message: string
   } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      readControllerRef.current?.abort()
+      conversionControllerRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -64,10 +76,17 @@ export function PdfToOfficeView() {
   }
 
   const clearContent = () => {
+    readControllerRef.current?.abort()
+    conversionControllerRef.current?.abort()
+    readControllerRef.current = null
+    conversionControllerRef.current = null
     clearResult()
     setFile(null)
     setStructure(null)
     setOutputFormat('docx')
+    setDocxMode('editable')
+    setIsReading(false)
+    setIsConverting(false)
     setProgress(0)
   }
 
@@ -82,6 +101,12 @@ export function PdfToOfficeView() {
       return
     }
 
+    readControllerRef.current?.abort()
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    readControllerRef.current = controller
+    conversionControllerRef.current = null
+    setIsConverting(false)
     clearResult()
     setFile(selectedFile)
     setStructure(null)
@@ -89,10 +114,16 @@ export function PdfToOfficeView() {
     setIsReading(true)
 
     try {
-      const nextStructure = await readPdfStructure(selectedFile, (completed, total) => {
-        setProgress(Math.round((completed / total) * 100))
-      })
+      const nextStructure = await readPdfStructure(
+        selectedFile,
+        (completed, total) => {
+          if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
+        },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
       setStructure(nextStructure)
+      setDocxMode(!nextStructure.textItems || hasComplexPdfLayout(nextStructure) ? 'visual' : 'editable')
 
       if (!nextStructure.textItems) {
         setOutputFormat('pptx')
@@ -101,6 +132,7 @@ export function PdfToOfficeView() {
         setNotice({ tone: 'success', title: t('pdfOfficeLoadedTitle'), message: t('pdfOfficeLoadedMessage') })
       }
     } catch (error) {
+      if (controller.signal.aborted) return
       setFile(null)
       const isPageLimit = error instanceof Error && error.message.startsWith('PAGE_LIMIT:')
       setNotice({
@@ -109,8 +141,13 @@ export function PdfToOfficeView() {
         message: isPageLimit ? t('pdfOfficePageLimitMessage') : t('pdfOfficeReadErrorMessage'),
       })
     } finally {
-      setIsReading(false)
-      setProgress(0)
+      if (readControllerRef.current === controller) {
+        readControllerRef.current = null
+        if (!controller.signal.aborted) {
+          setIsReading(false)
+          setProgress(0)
+        }
+      }
     }
   }
 
@@ -120,11 +157,14 @@ export function PdfToOfficeView() {
       return
     }
 
-    if (!structure.textItems && outputFormat !== 'pptx') {
+    if (!structure.textItems && (outputFormat === 'xlsx' || (outputFormat === 'docx' && docxMode === 'editable'))) {
       setNotice({ tone: 'warning', title: t('pdfOfficeScannedTitle'), message: t('pdfOfficeScannedMessage') })
       return
     }
 
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    conversionControllerRef.current = controller
     clearResult()
     setIsConverting(true)
     setProgress(0)
@@ -132,29 +172,59 @@ export function PdfToOfficeView() {
     try {
       let blob: Blob
       if (outputFormat === 'docx') {
-        blob = await convertPdfStructureToDocx(structure, file.name.replace(/\.pdf$/i, ''))
-        setProgress(100)
+        blob = await convertPdfStructureToDocx(
+          structure,
+          file.name.replace(/\.pdf$/i, ''),
+          file,
+          (completed, total) => {
+            if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
+          },
+          controller.signal,
+          docxMode,
+          {
+            page: t('page'),
+            originalPdf: t('pdfOfficeOriginalPdf'),
+            documentDescription: t('pdfOfficeVisualDocumentDescription'),
+          },
+        )
       } else if (outputFormat === 'xlsx') {
         blob = convertPdfStructureToXlsx(structure)
-        setProgress(100)
+        if (!controller.signal.aborted) setProgress(100)
       } else {
         blob = await convertPdfToPptx(file, (completed, total) => {
-          setProgress(Math.round((completed / total) * 100))
-        })
+          if (!controller.signal.aborted) setProgress(Math.round((completed / total) * 100))
+        }, controller.signal)
       }
 
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
       const nextResult = {
-        url: URL.createObjectURL(blob),
+        url,
         fileName: getPdfOfficeFileName(file.name, outputFormat),
         size: blob.size,
       }
       setResult(nextResult)
       setNotice({ tone: 'success', title: t('pdfOfficeConvertedTitle'), message: t('pdfOfficeConvertedMessage') })
-    } catch {
-      setNotice({ tone: 'error', title: t('pdfOfficeConvertErrorTitle'), message: t('pdfOfficeConvertErrorMessage') })
+    } catch (error) {
+      if (controller.signal.aborted) return
+      const isVisualImageLimit = error instanceof Error && error.message === 'VISUAL_DOCX_IMAGE_LIMIT'
+      setNotice({
+        tone: 'error',
+        title: t('pdfOfficeConvertErrorTitle'),
+        message: isVisualImageLimit ? t('pdfOfficeVisualWordLimitMessage') : t('pdfOfficeConvertErrorMessage'),
+      })
     } finally {
-      setIsConverting(false)
-      setProgress(0)
+      if (conversionControllerRef.current === controller) {
+        conversionControllerRef.current = null
+        if (!controller.signal.aborted) {
+          setIsConverting(false)
+          setProgress(0)
+        }
+      }
     }
   }
 
@@ -231,7 +301,7 @@ export function PdfToOfficeView() {
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={t('pdfOfficeOutputTitle')}>
                     {outputFormats.map((format) => {
-                      const disabled = !hasEditableText && format.id !== 'pptx'
+                      const disabled = !hasEditableText && format.id === 'xlsx'
                       return (
                         <button
                           key={format.id}
@@ -251,8 +321,42 @@ export function PdfToOfficeView() {
                       )
                     })}
                   </div>
+                  {outputFormat === 'docx' ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('pdfOfficeWordModeTitle')}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={t('pdfOfficeWordModeTitle')}>
+                        {(['visual', 'editable'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="radio"
+                            aria-checked={docxMode === mode}
+                            disabled={isConverting || (!hasEditableText && mode === 'editable')}
+                            className={`rounded-xl border px-4 py-3 text-left transition ${docxMode === mode ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}
+                            onClick={() => {
+                              clearResult()
+                              setDocxMode(mode)
+                            }}
+                          >
+                            <span className="block text-sm font-bold text-slate-950">
+                              {mode === 'visual' ? t('pdfOfficeWordVisualTitle') : t('pdfOfficeWordEditableTitle')}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              {mode === 'visual' ? t('pdfOfficeWordVisualDescription') : t('pdfOfficeWordEditableDescription')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="mt-4 text-sm leading-6 text-slate-500">
-                    {outputFormat === 'pptx' ? t('pdfOfficePptxMode') : outputFormat === 'xlsx' ? t('pdfOfficeXlsxMode') : t('pdfOfficeDocxMode')}
+                    {outputFormat === 'pptx'
+                      ? t('pdfOfficePptxMode')
+                      : outputFormat === 'xlsx'
+                        ? t('pdfOfficeXlsxMode')
+                        : docxMode === 'visual'
+                          ? t('pdfOfficeDocxVisualMode')
+                          : t('pdfOfficeDocxMode')}
                   </p>
                 </div>
               ) : null}
