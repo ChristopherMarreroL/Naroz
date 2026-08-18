@@ -1,92 +1,112 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://naroz.vercel.app/</loc>
+    <loc>https://www.naroz.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-merge</loc>
+    <loc>https://www.naroz.app/video-merge</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-convert</loc>
+    <loc>https://www.naroz.app/video-convert</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-trim</loc>
+    <loc>https://www.naroz.app/video-trim</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-extract-audio</loc>
+    <loc>https://www.naroz.app/video-extract-audio</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-remove-audio</loc>
+    <loc>https://www.naroz.app/video-remove-audio</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-resize</loc>
+    <loc>https://www.naroz.app/video-resize</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/video-speed</loc>
+    <loc>https://www.naroz.app/video-speed</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/image-convert</loc>
+    <loc>https://www.naroz.app/image-convert</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/image-remove-background</loc>
+    <loc>https://www.naroz.app/image-remove-background</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/image-crop</loc>
+    <loc>https://www.naroz.app/image-crop</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/image-transform</loc>
+    <loc>https://www.naroz.app/image-transform</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/document-merge-pdf</loc>
+    <loc>https://www.naroz.app/document-merge-pdf</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/document-delete-pages</loc>
+    <loc>https://www.naroz.app/document-delete-pages</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/document-merge-docx</loc>
+    <loc>https://www.naroz.app/document-merge-docx</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/msg-to-pdf</loc>
+    <loc>https://www.naroz.app/msg-to-pdf</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/excel-column-builder</loc>
+    <loc>https://www.naroz.app/markdown-converter</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://naroz.vercel.app/excel-join</loc>
+    <loc>https://www.naroz.app/pdf-to-office</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.naroz.app/office-to-pdf</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.naroz.app/excel-column-builder</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.naroz.app/excel-join</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.naroz.app/qr-generator</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>

@@ -195,6 +195,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
   return (
     <>
+      <h1 className="sr-only">{t('homePageTitle')}</h1>
       <section className="home-hero home-hero-demo">
         <HomeProductDemo locale={locale} onNavigate={onNavigate} />
       </section>
@@ -215,6 +216,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               key={category.id}
               type="button"
               className={activeCategory === category.id ? 'category-filter-active' : ''}
+              aria-pressed={activeCategory === category.id}
               onClick={() => setActiveCategory(category.id)}
             >
               {category.label}

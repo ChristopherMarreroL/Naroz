@@ -77,7 +77,7 @@ const flows: DemoFlow[] = [
     category: { es: 'Utilidad', en: 'Utility' },
     title: { es: 'Generador de código QR', en: 'QR code generator' },
     description: { es: 'Convierte enlaces o texto en un QR descargable.', en: 'Turn links or text into a downloadable QR code.' },
-    sourceName: 'https://naroz.vercel.app',
+    sourceName: 'https://www.naroz.app',
     sourceMeta: 'Enlace seguro · HTTPS',
     sourceFormat: 'URL',
     pickerFileName: 'naroz-enlace.txt',
@@ -358,7 +358,7 @@ export function HomeProductDemo({ locale, onNavigate }: HomeProductDemoProps) {
 
         <div className="demo-address-pill">
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="8" width="10" height="8" rx="2" /><path d="M7.5 8V6.5a2.5 2.5 0 0 1 5 0V8" /></svg>
-          <span className="demo-address">https://naroz.vercel.app{displayedPath}</span>
+          <span className="demo-address">https://www.naroz.app{displayedPath}</span>
           <button type="button" onClick={resumeDemo} aria-label={text.reload}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 7V3m0 0h-4m4 0-2.4 2.4a6 6 0 1 0 1.1 8.1" /></svg>
           </button>

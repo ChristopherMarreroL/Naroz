@@ -3,7 +3,7 @@ import type { AppToolId } from '../types/app'
 import { TOOL_PATHS, getToolPath } from './routes'
 
 export const SEO_SITE_NAME = 'Naroz'
-export const SEO_DEFAULT_SITE_URL = 'https://naroz.vercel.app'
+export const SEO_DEFAULT_SITE_URL = 'https://www.naroz.app'
 export const SEO_OG_IMAGE_PATH = '/og-image.png'
 export const SEO_OG_IMAGE_ALT = 'Naroz logo'
 
@@ -36,12 +36,12 @@ export function getOgImageUrl() {
 const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: string }>> = {
   home: {
     es: {
-      title: 'Naroz - Convierte y transforma archivos facilmente',
-      description: 'Naroz es una herramienta web para convertir, unir y transformar archivos de video e imagen facilmente desde el navegador.',
+      title: 'Naroz: herramientas online para PDF, video e imágenes',
+      description: 'Convierte, une y transforma PDF, Word, Excel, videos e imágenes gratis y de forma privada, directamente en tu navegador con Naroz.',
     },
     en: {
-      title: 'Naroz - Convert and transform files easily',
-      description: 'Naroz is a web tool to convert, merge, and transform video and image files easily right in the browser.',
+      title: 'Naroz: online tools for PDF, video, and images',
+      description: 'Convert, merge, and transform PDF, Word, Excel, videos, and images for free and privately, directly in your browser with Naroz.',
     },
   },
   'video-merge': {
@@ -133,6 +133,55 @@ export function getSeoContent(locale: Locale, tool: AppToolId = 'home') {
   return {
     ...content[locale],
     canonicalPath: getToolPath(tool),
+  }
+}
+
+export function getStructuredData(locale: Locale, tool: AppToolId = 'home') {
+  const { title, description, canonicalPath } = getSeoContent(locale, tool)
+  const siteUrl = getSiteUrl()
+  const canonicalUrl = getCanonicalUrl(canonicalPath)
+  const websiteId = `${siteUrl}/#website`
+  const applicationId = `${siteUrl}/#webapp`
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': websiteId,
+        url: `${siteUrl}/`,
+        name: SEO_SITE_NAME,
+        alternateName: ['Naroz App'],
+        inLanguage: ['es', 'en'],
+      },
+      {
+        '@type': 'WebApplication',
+        '@id': applicationId,
+        url: `${siteUrl}/`,
+        name: SEO_SITE_NAME,
+        description: seoByTool.home[locale].description,
+        applicationCategory: 'UtilitiesApplication',
+        operatingSystem: 'Any',
+        browserRequirements: 'Requires JavaScript and an HTML5-compatible browser.',
+        image: getOgImageUrl(),
+        isAccessibleForFree: true,
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD',
+        },
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${canonicalUrl}#webpage`,
+        url: canonicalUrl,
+        name: title,
+        description,
+        inLanguage: locale,
+        isPartOf: { '@id': websiteId },
+        mainEntity: { '@id': applicationId },
+      },
+    ],
   }
 }
 

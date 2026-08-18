@@ -3,13 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
-import { HomeView } from './features/home/HomeView'
 import { useLocale } from './i18n/LocaleProvider'
 import { notify } from './lib/notifications'
 import { getToolFromPath, getToolPath } from './lib/routes'
 import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 
 const VideoMergeView = lazy(() => import('./features/video/VideoMergeView').then((module) => ({ default: module.VideoMergeView })))
+const HomeView = lazy(() => import('./features/home/HomeView').then((module) => ({ default: module.HomeView })))
 const VideoConvertView = lazy(() => import('./features/video/VideoConvertView').then((module) => ({ default: module.VideoConvertView })))
 const AudioExtractView = lazy(() => import('./features/video/AudioExtractView').then((module) => ({ default: module.AudioExtractView })))
 const VideoRemoveAudioView = lazy(() => import('./features/video/VideoRemoveAudioView').then((module) => ({ default: module.VideoRemoveAudioView })))
@@ -267,7 +267,7 @@ function App() {
     <>
       <SeoHead />
       <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={handleGoHome}>
-        {activeTool === 'home' ? <div className={getToolViewClassName(true)}><HomeView onNavigate={handleNavigate} /></div> : null}
+        {activeTool === 'home' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><HomeView onNavigate={handleNavigate} /></Suspense></div> : null}
         {activeTool === 'video-merge' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoMergeView /></Suspense></div> : null}
         {activeTool === 'video-convert' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoConvertView /></Suspense></div> : null}
         {activeTool === 'video-trim' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><VideoTrimView /></Suspense></div> : null}

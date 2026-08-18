@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useLocale } from '../../i18n/LocaleProvider'
-import { getCanonicalUrl, getOgImageUrl, getSeoContent, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
+import { getCanonicalUrl, getOgImageUrl, getSeoContent, getStructuredData, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
 import { getToolFromPath } from '../../lib/routes'
 
 function upsertMeta(selector: string, attributes: Record<string, string>) {
@@ -29,6 +29,19 @@ function upsertLink(selector: string, attributes: Record<string, string>) {
   Object.entries(attributes).forEach(([key, value]) => {
     element?.setAttribute(key, value)
   })
+}
+
+function upsertStructuredData(value: object) {
+  let element = document.head.querySelector('#naroz-structured-data') as HTMLScriptElement | null
+
+  if (!element) {
+    element = document.createElement('script')
+    element.id = 'naroz-structured-data'
+    element.type = 'application/ld+json'
+    document.head.appendChild(element)
+  }
+
+  element.textContent = JSON.stringify(value)
 }
 
 export function SeoHead() {
@@ -60,6 +73,7 @@ export function SeoHead() {
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: imageUrl })
     upsertMeta('meta[name="twitter:image:alt"]', { name: 'twitter:image:alt', content: SEO_OG_IMAGE_ALT })
     upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl })
+    upsertStructuredData(getStructuredData(locale, activeTool))
   }, [locale, location.pathname])
 
   return null

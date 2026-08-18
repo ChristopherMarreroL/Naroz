@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const DEFAULT_SITE_URL = 'https://naroz.vercel.app'
+const DEFAULT_SITE_URL = 'https://www.naroz.app'
 const routes = [
   '/',
   '/video-merge',
@@ -19,8 +19,12 @@ const routes = [
   '/document-delete-pages',
   '/document-merge-docx',
   '/msg-to-pdf',
+  '/markdown-converter',
+  '/pdf-to-office',
+  '/office-to-pdf',
   '/excel-column-builder',
   '/excel-join',
+  '/qr-generator',
 ]
 
 function normalizeSiteUrl(value) {
