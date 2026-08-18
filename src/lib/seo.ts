@@ -4,7 +4,7 @@ import { seoPages as staticSeoPages } from '../../scripts/seo-pages.mjs'
 import { TOOL_PATHS, getToolPath } from './routes'
 
 export const SEO_SITE_NAME = 'Naroz'
-export const SEO_DEFAULT_SITE_URL = 'https://www.naroz.app'
+export const SEO_DEFAULT_SITE_URL = 'https://naroz.app'
 export const SEO_OG_IMAGE_PATH = '/og-image.png'
 export const SEO_OG_IMAGE_ALT = 'Naroz logo'
 
@@ -44,7 +44,7 @@ export function getNotFoundSeoContent(locale: Locale) {
 }
 
 const englishSeoByTool: Record<AppToolId, { title: string; description: string }> = {
-  home: { title: 'Naroz: online tools for PDF, video, and images', description: 'Convert, merge, and transform PDF, Word, Excel, videos, and images for free and privately, directly in your browser with Naroz.' },
+  home: { title: 'Naroz: browser tools for converting and transforming files', description: 'A web application for converting, merging, and transforming PDF, Word, Excel, image, video, and audio files directly in your browser.' },
   'video-merge': { title: 'Merge videos - Naroz', description: 'Merge multiple MP4, MKV, or MOV videos into one export directly in the browser.' },
   'video-convert': { title: 'Convert video - Naroz', description: 'Convert videos between MP4, MKV, and MOV from a single web tool.' },
   'video-trim': { title: 'Trim video - Naroz', description: 'Trim a video segment with preview and local export.' },
