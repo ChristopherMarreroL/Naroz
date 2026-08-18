@@ -11,6 +11,7 @@ import { formatBytes } from '../../lib/format'
 import { preloadBackgroundRemoval, removeBackgroundFromImage } from './lib/backgroundRemoval'
 import { getImageExtensionLabel } from './lib/imageConverter'
 import type { ConvertedImageResult, ImageUploadState } from './types'
+import { assertSafeImageDimensions } from './lib/imageLimits'
 
 const BACKGROUND_REMOVAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const BACKGROUND_REMOVAL_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
@@ -26,12 +27,13 @@ function loadImagePreview(file: File): Promise<ImageUploadState> {
     const previewUrl = URL.createObjectURL(file)
     const image = new Image()
     image.onload = () => {
-      resolve({
-        file,
-        previewUrl,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      })
+      try {
+        assertSafeImageDimensions(image.naturalWidth, image.naturalHeight)
+        resolve({ file, previewUrl, width: image.naturalWidth, height: image.naturalHeight })
+      } catch (error) {
+        URL.revokeObjectURL(previewUrl)
+        reject(error)
+      }
     }
     image.onerror = () => {
       URL.revokeObjectURL(previewUrl)

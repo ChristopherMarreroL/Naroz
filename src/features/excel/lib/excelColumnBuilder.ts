@@ -28,6 +28,8 @@ export interface SelectedExcelColumn {
 
 const SUPPORTED_EXTENSIONS = ['.xlsx', '.xls', '.csv']
 export const EXCEL_PREVIEW_ROW_LIMIT = 100
+export const EXCEL_MAX_ROWS = 10_000
+export const EXCEL_MAX_COLUMNS = 100
 
 export function isSupportedExcelFile(file: File) {
   const lowerName = file.name.toLowerCase()
@@ -74,11 +76,20 @@ function normalizeHeader(value: ExcelCellValue, index: number, used: Map<string,
 
 function parseSheet(workbook: XLSX.WorkBook, sheetName: string): ExcelSheetData {
   const worksheet = workbook.Sheets[sheetName]
+  const sourceRange = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1:A1')
+  const limitedRange = {
+    s: sourceRange.s,
+    e: {
+      c: Math.min(sourceRange.e.c, sourceRange.s.c + EXCEL_MAX_COLUMNS - 1),
+      r: Math.min(sourceRange.e.r, sourceRange.s.r + EXCEL_MAX_ROWS),
+    },
+  }
   const rows = normalizeRows(
     XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
       header: 1,
       defval: null,
       raw: false,
+      range: limitedRange,
     }),
   )
 

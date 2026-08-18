@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
+import { assertSafeOfficeArchive } from './officeArchiveLimits'
 
 export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
 
@@ -560,6 +561,10 @@ async function convertPresentationToPdf(file: File, onProgress: (value: number) 
   }
 }
 export async function convertOfficeToPdf(file: File, kind: OfficeFileKind, onProgress: (value: number) => void) {
+  if (kind === 'docx' || kind === 'pptx') {
+    await assertSafeOfficeArchive(await file.arrayBuffer())
+  }
+
   if (kind === 'docx') return convertDocxToPdf(file, onProgress)
   if (kind === 'xlsx') return convertSpreadsheetToPdf(file, onProgress)
   return convertPresentationToPdf(file, onProgress)

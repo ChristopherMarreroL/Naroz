@@ -1,16 +1,18 @@
 import type { ImageUploadState } from '../types'
+import { assertSafeImageDimensions } from './imageLimits'
 
 export function loadImagePreview(file: File): Promise<ImageUploadState> {
   return new Promise((resolve, reject) => {
     const previewUrl = URL.createObjectURL(file)
     const image = new Image()
     image.onload = () => {
-      resolve({
-        file,
-        previewUrl,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      })
+      try {
+        assertSafeImageDimensions(image.naturalWidth, image.naturalHeight)
+        resolve({ file, previewUrl, width: image.naturalWidth, height: image.naturalHeight })
+      } catch (error) {
+        URL.revokeObjectURL(previewUrl)
+        reject(error)
+      }
     }
     image.onerror = () => {
       URL.revokeObjectURL(previewUrl)
@@ -26,7 +28,12 @@ export function loadImageElement(file: File): Promise<HTMLImageElement> {
     const image = new Image()
     image.onload = () => {
       URL.revokeObjectURL(url)
-      resolve(image)
+      try {
+        assertSafeImageDimensions(image.naturalWidth, image.naturalHeight)
+        resolve(image)
+      } catch (error) {
+        reject(error)
+      }
     }
     image.onerror = () => {
       URL.revokeObjectURL(url)

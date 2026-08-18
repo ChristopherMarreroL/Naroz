@@ -1,5 +1,6 @@
 import { useLocale } from '../../../i18n/LocaleProvider'
 import { FileDropzone } from '../../../components/shared/FileDropzone'
+import { VIDEO_MAX_FILE_SIZE } from '../limits'
 
 interface FilePickerProps {
   onSelect: (files: FileList) => void
@@ -17,6 +18,7 @@ export function FilePicker({ onSelect, disabled = false }: FilePickerProps) {
       uploadLabel={t('uploadVideoDropzone')}
       accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
       multiple
+      maxSize={VIDEO_MAX_FILE_SIZE}
       disabled={disabled}
       aside={<span className="badge">MP4 / MKV / MOV</span>}
       onSelect={(files) => {

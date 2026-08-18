@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import DOMPurify from 'dompurify'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -9,9 +10,33 @@ import { useToastNotice } from '../../hooks/useToastNotice'
 import { formatBytes } from '../../lib/format'
 import { createDocumentItem, isSupportedEml, isSupportedMailFile, type DocumentItem } from './lib/files'
 import { parseMailFile, type ParsedMsgData } from './lib/msgToPdf'
+import { isAllowedMailImageSource, MAIL_HTML_FORBIDDEN_ATTRIBUTES, MAIL_HTML_FORBIDDEN_TAGS } from './lib/mailHtmlPolicy'
+
+const MAIL_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
 
 function sanitizeHtmlForExport(html: string) {
-  return html.replace(/oklch\([^)]*\)/gi, '#1f2937')
+  const sanitized = DOMPurify.sanitize(html.replace(/oklch\([^)]*\)/gi, '#1f2937'), {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: MAIL_HTML_FORBIDDEN_TAGS,
+    // Mail content is untrusted. Presentation attributes are intentionally
+    // discarded because CSS escapes and srcset candidates can hide requests.
+    FORBID_ATTR: MAIL_HTML_FORBIDDEN_ATTRIBUTES,
+  })
+  const document = new DOMParser().parseFromString(sanitized, 'text/html')
+
+  document.querySelectorAll<HTMLElement>('[src]').forEach((element) => {
+    if (!isAllowedMailImageSource(element.getAttribute('src'))) {
+      element.removeAttribute('src')
+    }
+  })
+
+  document.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
+    link.removeAttribute('href')
+    link.removeAttribute('target')
+    link.removeAttribute('rel')
+  })
+
+  return document.body.innerHTML
 }
 
 function escapeHtml(text: string) {
@@ -67,57 +92,11 @@ function buildPrintableMailDocument(title: string, sender: string, sentAt: strin
 </html>`
 }
 
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
-}
-
-async function inlineRemoteImages(html: string) {
-  if (!html.trim() || typeof DOMParser === 'undefined') {
-    return html
-  }
-
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-  const images = Array.from(doc.querySelectorAll('img'))
-
-  await Promise.all(
-    images.map(async (image) => {
-      const src = image.getAttribute('src')?.trim()
-      if (!src || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('cid:')) {
-        return
-      }
-
-      try {
-        const response = await fetch(src)
-        if (!response.ok) {
-          return
-        }
-
-        const blob = await response.blob()
-        const dataUrl = await blobToDataUrl(blob)
-        if (dataUrl) {
-          image.setAttribute('src', dataUrl)
-        }
-      } catch {
-        // If the host blocks access, keep the original URL.
-      }
-    }),
-  )
-
-  return doc.body.innerHTML
-}
-
 export function MsgToPdfView() {
   const { t } = useLocale()
   const [item, setItem] = useState<DocumentItem | null>(null)
   const [parsed, setParsed] = useState<ParsedMsgData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [renderHtml, setRenderHtml] = useState('')
   const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
@@ -127,30 +106,12 @@ export function MsgToPdfView() {
   const recipientCount = useMemo(() => parsed?.recipients.length ?? 0, [parsed])
   const senderSummary = useMemo(() => parsed?.senderName || parsed?.senderEmail || '-', [parsed?.senderEmail, parsed?.senderName])
   const senderDisplay = useMemo(() => parsed?.senderEmail || parsed?.senderName || '-', [parsed?.senderEmail, parsed?.senderName])
-
-  useEffect(() => {
-    let cancelled = false
-
-    if (!parsed?.bodyHtml) {
-      return undefined
-    }
-
-    void inlineRemoteImages(sanitizeHtmlForExport(parsed.bodyHtml)).then((html) => {
-      if (!cancelled) {
-        setRenderHtml(html)
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [parsed?.bodyHtml])
+  const renderHtml = useMemo(() => parsed?.bodyHtml ? sanitizeHtmlForExport(parsed.bodyHtml) : '', [parsed])
 
   const clearAll = () => {
     setItem(null)
     setParsed(null)
     setError(null)
-    setRenderHtml('')
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('msgToPdfCardDesc') })
   }
 
@@ -172,7 +133,6 @@ export function MsgToPdfView() {
       setItem(createDocumentItem(file, isSupportedEml(file) ? 'eml' : 'msg'))
       setParsed(nextParsed)
       setError(null)
-      setRenderHtml('')
       setNotice({ tone: 'success', title: t('documentsAdded'), message: t('mailLoaded') })
     } catch (msgError) {
       setItem(createDocumentItem(file, isSupportedEml(file) ? 'eml' : 'msg'))
@@ -235,6 +195,7 @@ export function MsgToPdfView() {
               uploadLabel={t('uploadMailDropzone')}
               acceptedFormats="MSG / EML"
               accept=".msg,.eml,application/vnd.ms-outlook,message/rfc822"
+              maxSize={MAIL_TO_PDF_MAX_SIZE}
               aside={<span className="badge">MSG / EML</span>}
               onSelect={(files) => void handleSelectFiles(files)}
             />

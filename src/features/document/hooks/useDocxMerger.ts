@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import DocxMerger from 'docx-merger'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
+import { assertSafeOfficeArchive } from '../lib/officeArchiveLimits'
 import type { MergeProgress } from '../../../types/video'
 
 interface DocxMergeResult {
@@ -94,6 +95,7 @@ export function useDocxMerger() {
       const binaries: string[] = []
       for (const [index, file] of files.entries()) {
         const buffer = await file.arrayBuffer()
+        await assertSafeOfficeArchive(buffer)
         binaries.push(arrayBufferToBinaryString(buffer))
 
         setProgress({

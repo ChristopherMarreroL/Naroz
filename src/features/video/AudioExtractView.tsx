@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { FileDropzone } from '../../components/shared/FileDropzone'
+import { VIDEO_MAX_FILE_SIZE } from './limits'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
@@ -106,6 +107,7 @@ export function AudioExtractView() {
             buttonLabel={t('selectVideo')}
       uploadLabel={t('uploadVideoDropzone')}
             accept="video/mp4,.mp4,video/x-matroska,.mkv,video/quicktime,.mov"
+            maxSize={VIDEO_MAX_FILE_SIZE}
             disabled={isProcessing}
             aside={<span className="badge">MP4 / MKV / MOV</span>}
             onSelect={(files) => void handleSelectFile(files)}

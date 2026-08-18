@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
+import { LOCAL_FFMPEG_CORE } from '../../../lib/ffmpegCore'
 import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
 import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
-
-const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 
 interface TrimResult {
   blob: Blob
@@ -28,6 +27,10 @@ function formatSeconds(value: number) {
 export function useVideoTrimmer() {
   const { locale } = useLocale()
   const ffmpegRef = useRef<FFmpeg | null>(null)
+  useEffect(() => () => {
+    ffmpegRef.current?.terminate()
+    ffmpegRef.current = null
+  }, [])
   const [progress, setProgress] = useState<MergeProgress>({
     stage: 'idle',
     percent: 0,
@@ -82,11 +85,7 @@ export function useVideoTrimmer() {
     })
 
     try {
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-      })
+      await ffmpeg.load(LOCAL_FFMPEG_CORE)
 
       ffmpegRef.current = ffmpeg
       setProgress({
