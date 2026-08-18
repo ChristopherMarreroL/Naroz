@@ -1,6 +1,12 @@
 {
   "name": "Naroz",
   "short_name": "Naroz",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "description": "Convierte, une y transforma archivos directamente en el navegador.",
+  "lang": "es",
+  "categories": ["utilities", "productivity"],
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

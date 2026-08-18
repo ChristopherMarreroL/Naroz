@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -9,10 +9,9 @@ import { useToastNotice } from '../../hooks/useToastNotice'
 import { formatBytes } from '../../lib/format'
 import { createDocumentItem, isSupportedEml, isSupportedMailFile, type DocumentItem } from './lib/files'
 import { parseMailFile, type ParsedMsgData } from './lib/msgToPdf'
+import { sanitizeMailHtml } from './lib/mailHtmlSanitizer'
 
-function sanitizeHtmlForExport(html: string) {
-  return html.replace(/oklch\([^)]*\)/gi, '#1f2937')
-}
+const MAIL_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
 
 function escapeHtml(text: string) {
   return text
@@ -57,59 +56,8 @@ function buildPrintableMailDocument(title: string, sender: string, sentAt: strin
       </div>
       <div class="mail-html">${body}</div>
     </div>
-    <script>
-      window.onload = () => {
-        window.focus();
-        setTimeout(() => window.print(), 350);
-      };
-    </script>
   </body>
 </html>`
-}
-
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
-}
-
-async function inlineRemoteImages(html: string) {
-  if (!html.trim() || typeof DOMParser === 'undefined') {
-    return html
-  }
-
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-  const images = Array.from(doc.querySelectorAll('img'))
-
-  await Promise.all(
-    images.map(async (image) => {
-      const src = image.getAttribute('src')?.trim()
-      if (!src || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('cid:')) {
-        return
-      }
-
-      try {
-        const response = await fetch(src)
-        if (!response.ok) {
-          return
-        }
-
-        const blob = await response.blob()
-        const dataUrl = await blobToDataUrl(blob)
-        if (dataUrl) {
-          image.setAttribute('src', dataUrl)
-        }
-      } catch {
-        // If the host blocks access, keep the original URL.
-      }
-    }),
-  )
-
-  return doc.body.innerHTML
 }
 
 export function MsgToPdfView() {
@@ -117,7 +65,6 @@ export function MsgToPdfView() {
   const [item, setItem] = useState<DocumentItem | null>(null)
   const [parsed, setParsed] = useState<ParsedMsgData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [renderHtml, setRenderHtml] = useState('')
   const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
@@ -127,30 +74,12 @@ export function MsgToPdfView() {
   const recipientCount = useMemo(() => parsed?.recipients.length ?? 0, [parsed])
   const senderSummary = useMemo(() => parsed?.senderName || parsed?.senderEmail || '-', [parsed?.senderEmail, parsed?.senderName])
   const senderDisplay = useMemo(() => parsed?.senderEmail || parsed?.senderName || '-', [parsed?.senderEmail, parsed?.senderName])
-
-  useEffect(() => {
-    let cancelled = false
-
-    if (!parsed?.bodyHtml) {
-      return undefined
-    }
-
-    void inlineRemoteImages(sanitizeHtmlForExport(parsed.bodyHtml)).then((html) => {
-      if (!cancelled) {
-        setRenderHtml(html)
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [parsed?.bodyHtml])
+  const renderHtml = useMemo(() => parsed?.bodyHtml ? sanitizeMailHtml(parsed.bodyHtml) : '', [parsed])
 
   const clearAll = () => {
     setItem(null)
     setParsed(null)
     setError(null)
-    setRenderHtml('')
     setNotice({ tone: 'info', title: t('contentCleared'), message: t('msgToPdfCardDesc') })
   }
 
@@ -172,12 +101,18 @@ export function MsgToPdfView() {
       setItem(createDocumentItem(file, isSupportedEml(file) ? 'eml' : 'msg'))
       setParsed(nextParsed)
       setError(null)
-      setRenderHtml('')
       setNotice({ tone: 'success', title: t('documentsAdded'), message: t('mailLoaded') })
     } catch (msgError) {
       setItem(createDocumentItem(file, isSupportedEml(file) ? 'eml' : 'msg'))
       setParsed(null)
-      setError(msgError instanceof Error ? msgError.message : t('mailToPdfUnsupported'))
+      const message = msgError instanceof Error
+        ? {
+            MAIL_TOO_MANY_ATTACHMENTS: t('mailTooManyAttachments'),
+            MAIL_BODY_TOO_LARGE: t('mailBodyTooLarge'),
+            MAIL_ATTACHMENTS_TOO_LARGE: t('mailAttachmentsTooLarge'),
+          }[msgError.message] ?? t('mailToPdfUnsupported')
+        : t('mailToPdfUnsupported')
+      setError(message)
       setNotice(null)
     }
   }
@@ -204,7 +139,27 @@ export function MsgToPdfView() {
     const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8' })
     const blobUrl = URL.createObjectURL(blob)
     printWindow.location.replace(blobUrl)
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+    const deadline = Date.now() + 10_000
+    const printWhenReady = () => {
+      if (printWindow.closed || Date.now() > deadline) {
+        URL.revokeObjectURL(blobUrl)
+        return
+      }
+
+      try {
+        if (printWindow.document.readyState === 'complete') {
+          printWindow.focus()
+          printWindow.print()
+          window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+          return
+        }
+      } catch {
+        // The Blob navigation has not finished yet.
+      }
+
+      window.setTimeout(printWhenReady, 100)
+    }
+    window.setTimeout(printWhenReady, 100)
   }
 
   return (
@@ -235,6 +190,7 @@ export function MsgToPdfView() {
               uploadLabel={t('uploadMailDropzone')}
               acceptedFormats="MSG / EML"
               accept=".msg,.eml,application/vnd.ms-outlook,message/rfc822"
+              maxSize={MAIL_TO_PDF_MAX_SIZE}
               aside={<span className="badge">MSG / EML</span>}
               onSelect={(files) => void handleSelectFiles(files)}
             />

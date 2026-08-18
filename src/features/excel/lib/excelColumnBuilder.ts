@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { assertSafeOfficeArchive } from '../../document/lib/officeArchiveLimits'
 
 export type ExcelCellValue = string | number | boolean | Date | null
 
@@ -28,6 +29,10 @@ export interface SelectedExcelColumn {
 
 const SUPPORTED_EXTENSIONS = ['.xlsx', '.xls', '.csv']
 export const EXCEL_PREVIEW_ROW_LIMIT = 100
+export const EXCEL_MAX_ROWS = 10_000
+export const EXCEL_MAX_COLUMNS = 100
+export const EXCEL_MAX_SHEETS = 50
+export const EXCEL_MAX_TOTAL_CELLS = 1_000_000
 
 export function isSupportedExcelFile(file: File) {
   const lowerName = file.name.toLowerCase()
@@ -74,11 +79,20 @@ function normalizeHeader(value: ExcelCellValue, index: number, used: Map<string,
 
 function parseSheet(workbook: XLSX.WorkBook, sheetName: string): ExcelSheetData {
   const worksheet = workbook.Sheets[sheetName]
+  const sourceRange = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1:A1')
+  const limitedRange = {
+    s: sourceRange.s,
+    e: {
+      c: Math.min(sourceRange.e.c, sourceRange.s.c + EXCEL_MAX_COLUMNS - 1),
+      r: Math.min(sourceRange.e.r, sourceRange.s.r + EXCEL_MAX_ROWS),
+    },
+  }
   const rows = normalizeRows(
     XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
       header: 1,
       defval: null,
       raw: false,
+      range: limitedRange,
     }),
   )
 
@@ -100,10 +114,32 @@ function parseSheet(workbook: XLSX.WorkBook, sheetName: string): ExcelSheetData 
 
 export async function readExcelFile(file: File): Promise<ExcelFileData> {
   const extension = getExcelExtension(file)
-  const workbook =
-    extension === 'csv'
-      ? XLSX.read(await file.text(), { type: 'string', cellDates: true })
-      : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+  const readOptions = { cellDates: true, sheetRows: EXCEL_MAX_ROWS + 1 } as const
+  let workbook: XLSX.WorkBook
+  if (extension === 'csv') {
+    workbook = XLSX.read(await file.text(), { ...readOptions, type: 'string' })
+  } else {
+    const buffer = await file.arrayBuffer()
+    if (extension === 'xlsx') {
+      await assertSafeOfficeArchive(buffer)
+    }
+    workbook = XLSX.read(buffer, { ...readOptions, type: 'array' })
+  }
+
+  if (workbook.SheetNames.length > EXCEL_MAX_SHEETS) {
+    throw new Error('EXCEL_TOO_MANY_SHEETS')
+  }
+
+  const totalCells = workbook.SheetNames.reduce((sum, sheetName) => {
+    const worksheet = workbook.Sheets[sheetName]
+    const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1:A1')
+    const rows = Math.min(range.e.r - range.s.r + 1, EXCEL_MAX_ROWS + 1)
+    const columns = Math.min(range.e.c - range.s.c + 1, EXCEL_MAX_COLUMNS)
+    return sum + rows * columns
+  }, 0)
+  if (totalCells > EXCEL_MAX_TOTAL_CELLS) {
+    throw new Error('EXCEL_TOO_MANY_CELLS')
+  }
 
   const sheets = workbook.SheetNames.map((sheetName) => parseSheet(workbook, sheetName))
 

@@ -8,6 +8,7 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
+import { EXCEL_BATCH_LIMITS, validateBatchLimits } from '../../lib/batchLimits'
 import {
   getSelectedSheet,
   isSupportedExcelFile,
@@ -177,10 +178,20 @@ export function ExcelJoinView() {
       return
     }
 
-    clearResult()
     const validFiles = incomingFiles.filter((file) => isSupportedExcelFile(file))
     const invalidFiles = incomingFiles.filter((file) => !isSupportedExcelFile(file))
-
+    clearResult()
+    const batchError = validateBatchLimits(files, validFiles, EXCEL_BATCH_LIMITS)
+    if (batchError) {
+      setNotice({
+        tone: 'error',
+        title: t('invalidFile'),
+        message: batchError === 'TOO_MANY_FILES'
+          ? `${t('tooManyFiles')} ${EXCEL_BATCH_LIMITS.maxFiles}.`
+          : `${t('batchTooLarge')} ${formatBytes(EXCEL_BATCH_LIMITS.maxTotalSize)}.`,
+      })
+      return
+    }
     if (validFiles.length === 0) {
       setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('excelUnsupportedFile') })
       return
@@ -188,9 +199,15 @@ export function ExcelJoinView() {
 
     setIsReading(true)
     try {
-      const loadedResults = await Promise.allSettled(validFiles.map((file) => readExcelFile(file)))
-      const loadedFiles = loadedResults.flatMap((resultItem) => (resultItem.status === 'fulfilled' ? [resultItem.value] : []))
-      const failedFiles = loadedResults.flatMap((resultItem, index) => (resultItem.status === 'rejected' ? [validFiles[index].name] : []))
+      const loadedFiles: ExcelFileData[] = []
+      const failedFiles: string[] = []
+      for (const file of validFiles) {
+        try {
+          loadedFiles.push(await readExcelFile(file))
+        } catch {
+          failedFiles.push(file.name)
+        }
+      }
       const largeFiles = validFiles.filter((file) => file.size > LARGE_FILE_SIZE).map((file) => file.name)
       const skippedFiles = [...invalidFiles.map((file) => file.name), ...failedFiles]
 

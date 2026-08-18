@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
+import { LOCAL_FFMPEG_CORE } from '../../../lib/ffmpegCore'
 import type { MergeProgress, VideoOutputFormat } from '../../../types/video'
 import { getVideoExtension, getVideoMimeType, shouldUseFastStart } from '../lib/media'
 
-const FFMPEG_CORE_BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm'
 const SPEED_CHANGE_VIDEO_PRESET = 'ultrafast'
 const SPEED_CHANGE_VIDEO_CRF = '28'
 const SPEED_CHANGE_AUDIO_BITRATE = '128k'
@@ -103,6 +103,10 @@ async function detectHasAudioTrack(file: File): Promise<boolean | null> {
 export function useVideoSpeedChanger() {
   const { locale } = useLocale()
   const ffmpegRef = useRef<FFmpeg | null>(null)
+  useEffect(() => () => {
+    ffmpegRef.current?.terminate()
+    ffmpegRef.current = null
+  }, [])
   const logBufferRef = useRef<string[]>([])
   const [progress, setProgress] = useState<MergeProgress>({
     stage: 'idle',
@@ -162,11 +166,7 @@ export function useVideoSpeedChanger() {
     })
 
     try {
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-        workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, 'text/javascript'),
-      })
+      await ffmpeg.load(LOCAL_FFMPEG_CORE)
 
       ffmpegRef.current = ffmpeg
       setProgress({

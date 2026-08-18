@@ -3,6 +3,8 @@ import { useRef, useState, type ReactNode } from 'react'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { notify } from '../../lib/notifications'
 
+const DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024
+
 interface FileDropzoneProps {
   title: string
   description: string
@@ -38,7 +40,7 @@ export function FileDropzone({
   uploadLabel,
   accept,
   acceptedFormats,
-  maxSize,
+  maxSize = DEFAULT_MAX_FILE_SIZE,
   enforceMaxSize = true,
   multiple = false,
   disabled = false,

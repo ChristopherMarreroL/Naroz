@@ -6,7 +6,7 @@
     radial-gradient(circle at 8% 6%, rgba(53, 212, 194, 0.12), transparent 23rem),
     radial-gradient(circle at 94% 2%, rgba(91, 108, 255, 0.11), transparent 28rem),
     #f5f7fb;
-  font-family: 'Geist', sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -76,7 +76,7 @@ svg {
   h2,
   h3,
   h4 {
-    font-family: 'Geist', sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 }
 
@@ -228,7 +228,7 @@ svg {
 
   .tool-hero-title {
     color: #0f172a;
-    font-family: 'Geist', sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: clamp(2rem, 4vw, 3.4rem);
     font-weight: 800;
     letter-spacing: -0.055em;
@@ -667,7 +667,7 @@ svg {
     max-width: 11ch;
     margin: 1.75rem 0 0;
     color: #0c1320;
-    font-family: 'Geist', sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: clamp(3rem, 5.2vw, 5.35rem);
     font-weight: 600;
     letter-spacing: -0.045em;

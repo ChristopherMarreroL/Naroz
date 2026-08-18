@@ -2,8 +2,9 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useLocale } from '../../i18n/LocaleProvider'
-import { getCanonicalUrl, getOgImageUrl, getSeoContent, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
-import { getToolFromPath } from '../../lib/routes'
+import { getCanonicalUrl, getOgImageUrl, getSeoContent, getStructuredData, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
+import { findToolFromPath } from '../../lib/routes'
+import { applyNotFoundSeo } from '../../lib/seoDom'
 
 function upsertMeta(selector: string, attributes: Record<string, string>) {
   let element = document.head.querySelector(selector) as HTMLMetaElement | null
@@ -31,12 +32,29 @@ function upsertLink(selector: string, attributes: Record<string, string>) {
   })
 }
 
+function upsertStructuredData(value: object) {
+  let element = document.head.querySelector('#naroz-structured-data') as HTMLScriptElement | null
+
+  if (!element) {
+    element = document.createElement('script')
+    element.id = 'naroz-structured-data'
+    element.type = 'application/ld+json'
+    document.head.appendChild(element)
+  }
+
+  element.textContent = JSON.stringify(value)
+}
+
 export function SeoHead() {
   const { locale } = useLocale()
   const location = useLocation()
 
   useEffect(() => {
-    const activeTool = getToolFromPath(location.pathname)
+    const activeTool = findToolFromPath(location.pathname)
+    if (!activeTool) {
+      applyNotFoundSeo(locale)
+      return
+    }
     const { title, description, canonicalPath } = getSeoContent(locale, activeTool)
     const canonicalUrl = getCanonicalUrl(canonicalPath)
     const imageUrl = getOgImageUrl()
@@ -60,6 +78,7 @@ export function SeoHead() {
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: imageUrl })
     upsertMeta('meta[name="twitter:image:alt"]', { name: 'twitter:image:alt', content: SEO_OG_IMAGE_ALT })
     upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl })
+    upsertStructuredData(getStructuredData(locale, activeTool))
   }, [locale, location.pathname])
 
   return null

@@ -26,6 +26,30 @@ export interface ParsedMsgData {
   attachments: ParsedMsgAttachment[]
 }
 
+const MAIL_MAX_ATTACHMENTS = 100
+const MAIL_MAX_BODY_LENGTH = 2_000_000
+const MAIL_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+const MAIL_MAX_INLINE_ATTACHMENT_BYTES = 1024 * 1024
+
+function getAttachmentSize(content: ParsedMsgAttachment['content']) {
+  if (!content) return 0
+  if (typeof content === 'string') return Math.ceil((content.length * 3) / 4)
+  return content.byteLength
+}
+
+export function assertSafeMailComplexity(mail: ParsedMsgData) {
+  if (mail.attachments.length > MAIL_MAX_ATTACHMENTS) {
+    throw new Error('MAIL_TOO_MANY_ATTACHMENTS')
+  }
+  if (mail.body.length > MAIL_MAX_BODY_LENGTH || mail.bodyHtml.length > MAIL_MAX_BODY_LENGTH) {
+    throw new Error('MAIL_BODY_TOO_LARGE')
+  }
+  const attachmentBytes = mail.attachments.reduce((sum, attachment) => sum + getAttachmentSize(attachment.content), 0)
+  if (attachmentBytes > MAIL_MAX_ATTACHMENT_BYTES) {
+    throw new Error('MAIL_ATTACHMENTS_TOO_LARGE')
+  }
+}
+
 type MsgReaderConstructor = new (arrayBuffer: ArrayBuffer | DataView) => {
   parserConfig?: { ansiEncoding?: string }
   getFileData: () => unknown
@@ -151,13 +175,20 @@ function replaceInlineCidSources(html: string, attachments: ParsedMsgAttachment[
   }
 
   const cidMap = new Map<string, string>()
+  let inlineBytes = 0
   for (const attachment of attachments) {
     if (!attachment.contentId || !attachment.content) {
       continue
     }
 
+    const attachmentSize = getAttachmentSize(attachment.content)
+    if (attachmentSize <= 0 || inlineBytes + attachmentSize > MAIL_MAX_INLINE_ATTACHMENT_BYTES) {
+      continue
+    }
+
     const normalizedCid = attachment.contentId.replace(/^<|>$/g, '')
     cidMap.set(normalizedCid, arrayBufferToDataUrl(attachment.content, attachment.mimeType || 'application/octet-stream'))
+    inlineBytes += attachmentSize
   }
 
   return html.replace(/src=["']cid:([^"']+)["']/gi, (fullMatch, cid) => {
@@ -198,24 +229,28 @@ async function parseEmlFile(file: File): Promise<ParsedMsgData> {
   ]
 
   const from = flattenPostalAddresses(email.from)[0]
-  const html = replaceInlineCidSources(email.html || '', attachments)
-  const text = normalizeBody(email.text || htmlToText(html))
-
-  return {
+  const originalHtml = email.html || ''
+  const text = normalizeBody(email.text || htmlToText(originalHtml))
+  const parsed = {
     subject: decodeEntities(email.subject || '(No subject)'),
     senderName: decodeEntities(from?.name || ''),
     senderEmail: decodeEntities(from?.email || ''),
     sentAt: email.date || '',
     recipients,
     body: text,
-    bodyHtml: html,
+    bodyHtml: originalHtml,
     attachments,
   }
+  assertSafeMailComplexity(parsed)
+  parsed.bodyHtml = replaceInlineCidSources(originalHtml, attachments)
+  return parsed
 }
 
 export async function parseMailFile(file: File): Promise<ParsedMsgData> {
   if (file.name.toLowerCase().endsWith('.eml') || file.type === 'message/rfc822') {
-    return parseEmlFile(file)
+    const parsed = await parseEmlFile(file)
+    assertSafeMailComplexity(parsed)
+    return parsed
   }
 
   const buffer = await file.arrayBuffer()
@@ -228,7 +263,7 @@ export async function parseMailFile(file: File): Promise<ParsedMsgData> {
     throw new Error(String(data.error))
   }
 
-  return {
+  const parsed = {
     subject: typeof data.subject === 'string' ? decodeEntities(data.subject) : '(No subject)',
     senderName: typeof data.senderName === 'string' ? decodeEntities(data.senderName) : '',
     senderEmail: typeof data.senderEmail === 'string' ? decodeEntities(data.senderEmail) : typeof data.creatorSMTPAddress === 'string' ? decodeEntities(data.creatorSMTPAddress) : '',
@@ -245,6 +280,8 @@ export async function parseMailFile(file: File): Promise<ParsedMsgData> {
     bodyHtml: extractHtmlBody(data),
     attachments: Array.isArray(data.attachments) ? (data.attachments as ParsedMsgAttachment[]) : [],
   }
+  assertSafeMailComplexity(parsed)
+  return parsed
 }
 
 function canvasToPngDataUrl(canvas: HTMLCanvasElement) {

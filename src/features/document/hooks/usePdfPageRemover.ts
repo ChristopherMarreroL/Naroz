@@ -1,10 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  type PDFDocumentLoadingTask,
+  type PDFDocumentProxy,
+  type PDFPageProxy,
+  type RenderTask,
+} from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { PDFDocument } from 'pdf-lib'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
+import { assertSafeImageDimensions } from '../../image/lib/imageLimits'
 import type { MergeProgress } from '../../../types/video'
+
+const PDF_PREVIEW_MAX_PAGES = 200
+const PDF_LOAD_CANCELLED = 'PDF_LOAD_CANCELLED'
+const PDF_PREVIEW_CANCELLED = 'PDF_PREVIEW_CANCELLED'
+const PDF_DELETE_CANCELLED = 'PDF_DELETE_CANCELLED'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
@@ -44,62 +57,143 @@ async function canvasToObjectUrl(canvas: HTMLCanvasElement) {
   return URL.createObjectURL(blob)
 }
 
-async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number) {
-  const page = await pdf.getPage(pageNumber)
-  const viewport = page.getViewport({ scale: 0.22 })
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-
-  if (!context) {
-    throw new Error('No se pudo generar la vista previa de la pagina.')
+function throwIfPreviewAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new Error(PDF_PREVIEW_CANCELLED)
   }
-
-  const outputScale = window.devicePixelRatio || 1
-  canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
-  canvas.height = Math.max(1, Math.floor(viewport.height * outputScale))
-  canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
-  canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
-
-  context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
-  await page.render({ canvasContext: context, viewport, canvas }).promise
-
-  const thumbnailUrl = await canvasToObjectUrl(canvas)
-  page.cleanup?.()
-  return { pageNumber, thumbnailUrl }
 }
 
-export async function renderPdfPagePreview(file: File, pageNumber: number, scale = 1.4) {
+async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number, signal?: AbortSignal) {
+  throwIfPreviewAborted(signal)
+  const page = await pdf.getPage(pageNumber)
+  let renderTask: RenderTask | null = null
+  const cancelRender = () => {
+    renderTask?.cancel()
+  }
+  signal?.addEventListener('abort', cancelRender, { once: true })
+
+  try {
+    throwIfPreviewAborted(signal)
+    const viewport = page.getViewport({ scale: 0.22 })
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+
+    if (!context) {
+      throw new Error('No se pudo generar la vista previa de la pagina.')
+    }
+
+    const outputScale = window.devicePixelRatio || 1
+    const canvasWidth = Math.max(1, Math.floor(viewport.width * outputScale))
+    const canvasHeight = Math.max(1, Math.floor(viewport.height * outputScale))
+    assertSafeImageDimensions(canvasWidth, canvasHeight)
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
+    canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
+    canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
+
+    context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
+    renderTask = page.render({ canvasContext: context, viewport, canvas })
+    if (signal?.aborted) {
+      renderTask.cancel()
+    }
+    try {
+      await renderTask.promise
+    } finally {
+      renderTask = null
+    }
+
+    const thumbnailUrl = await canvasToObjectUrl(canvas)
+    if (signal?.aborted) {
+      URL.revokeObjectURL(thumbnailUrl)
+      throw new Error(PDF_PREVIEW_CANCELLED)
+    }
+
+    return { pageNumber, thumbnailUrl }
+  } finally {
+    signal?.removeEventListener('abort', cancelRender)
+    renderTask?.cancel()
+    page.cleanup?.()
+  }
+}
+
+export async function renderPdfPagePreview(file: File, pageNumber: number, scale = 1.4, signal?: AbortSignal) {
+  throwIfPreviewAborted(signal)
   const buffer = await file.arrayBuffer()
+  throwIfPreviewAborted(signal)
   const loadingTask = getDocument({
     data: buffer,
     useWorkerFetch: true,
     disableStream: true,
     disableAutoFetch: true,
-    isEvalSupported: false,
     stopAtErrors: true,
   })
-  const pdf = await loadingTask.promise
-  const page = await pdf.getPage(pageNumber)
-  const viewport = page.getViewport({ scale })
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d', { willReadFrequently: true })
+  let destroyPromise: Promise<void> | null = null
+  let pdf: PDFDocumentProxy | null = null
+  let page: PDFPageProxy | null = null
+  let renderTask: RenderTask | null = null
+  const destroyActiveLoadingTask = () => {
+    if (!destroyPromise) {
+      destroyPromise = loadingTask.destroy().catch(() => undefined).then(() => undefined)
+    }
 
-  if (!context) {
-    throw new Error('No se pudo generar la vista previa de la pagina.')
+    return destroyPromise
   }
+  const cancelPreview = () => {
+    renderTask?.cancel()
+    void destroyActiveLoadingTask()
+  }
+  signal?.addEventListener('abort', cancelPreview, { once: true })
 
-  const outputScale = window.devicePixelRatio || 1
-  canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
-  canvas.height = Math.max(1, Math.floor(viewport.height * outputScale))
-  canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
-  canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
+  try {
+    pdf = await loadingTask.promise
+    throwIfPreviewAborted(signal)
+    page = await pdf.getPage(pageNumber)
+    throwIfPreviewAborted(signal)
+    try {
+      const viewport = page.getViewport({ scale })
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d', { willReadFrequently: true })
 
-  context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
-  await page.render({ canvasContext: context, viewport, canvas }).promise
-  const previewUrl = await canvasToObjectUrl(canvas)
-  page.cleanup?.()
-  await loadingTask.destroy()
-  return previewUrl
+      if (!context) {
+        throw new Error('No se pudo generar la vista previa de la pagina.')
+      }
+
+      const outputScale = window.devicePixelRatio || 1
+      const canvasWidth = Math.max(1, Math.floor(viewport.width * outputScale))
+      const canvasHeight = Math.max(1, Math.floor(viewport.height * outputScale))
+      assertSafeImageDimensions(canvasWidth, canvasHeight)
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
+      canvas.style.width = `${Math.max(1, Math.floor(viewport.width))}px`
+      canvas.style.height = `${Math.max(1, Math.floor(viewport.height))}px`
+
+      context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
+      renderTask = page.render({ canvasContext: context, viewport, canvas })
+      if (signal?.aborted) {
+        renderTask.cancel()
+      }
+      try {
+        await renderTask.promise
+      } finally {
+        renderTask = null
+      }
+
+      const previewUrl = await canvasToObjectUrl(canvas)
+      if (signal?.aborted) {
+        URL.revokeObjectURL(previewUrl)
+        throw new Error(PDF_PREVIEW_CANCELLED)
+      }
+
+      return previewUrl
+    } finally {
+      page.cleanup?.()
+    }
+  } finally {
+    signal?.removeEventListener('abort', cancelPreview)
+    renderTask?.cancel()
+    pdf?.cleanup()
+    await destroyActiveLoadingTask()
+  }
 }
 
 export function usePdfPageRemover() {
@@ -116,15 +210,65 @@ export function usePdfPageRemover() {
   const [pageCount, setPageCount] = useState<number | null>(null)
   const [pagePreviews, setPagePreviews] = useState<PdfPagePreview[]>([])
   const [selectedPages, setSelectedPages] = useState<number[]>([])
+  const loadGenerationRef = useRef(0)
+  const deleteGenerationRef = useRef(0)
+  const mountedRef = useRef(true)
+  const pagePreviewsRef = useRef<PdfPagePreview[]>([])
+  const resultRef = useRef<PdfDeleteResult | null>(null)
+  const activeLoadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null)
+  const activeLoadControllerRef = useRef<AbortController | null>(null)
+  const activeDeleteControllerRef = useRef<AbortController | null>(null)
+  const loadingTaskDestroyPromisesRef = useRef<WeakMap<PDFDocumentLoadingTask, Promise<void>>>(new WeakMap())
 
   useEffect(() => {
-    return () => {
-      if (result?.url) {
-        URL.revokeObjectURL(result.url)
-      }
-      pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+    pagePreviewsRef.current = pagePreviews
+  }, [pagePreviews])
+
+  useEffect(() => {
+    resultRef.current = result
+  }, [result])
+
+  const destroyLoadingTask = useCallback((loadingTask: PDFDocumentLoadingTask) => {
+    const existingPromise = loadingTaskDestroyPromisesRef.current.get(loadingTask)
+    if (existingPromise) {
+      return existingPromise
     }
-  }, [pagePreviews, result])
+
+    const destroyPromise = loadingTask.destroy().catch(() => undefined).then(() => undefined)
+    loadingTaskDestroyPromisesRef.current.set(loadingTask, destroyPromise)
+    return destroyPromise
+  }, [])
+
+  const cancelActivePdfLoad = useCallback(() => {
+    activeLoadControllerRef.current?.abort()
+    activeLoadControllerRef.current = null
+
+    const loadingTask = activeLoadingTaskRef.current
+    activeLoadingTaskRef.current = null
+    if (loadingTask) {
+      void destroyLoadingTask(loadingTask)
+    }
+  }, [destroyLoadingTask])
+
+  const cancelActiveDelete = useCallback(() => {
+    deleteGenerationRef.current += 1
+    activeDeleteControllerRef.current?.abort()
+    activeDeleteControllerRef.current = null
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      loadGenerationRef.current += 1
+      cancelActivePdfLoad()
+      cancelActiveDelete()
+      if (resultRef.current?.url) {
+        URL.revokeObjectURL(resultRef.current.url)
+      }
+      pagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+    }
+  }, [cancelActiveDelete, cancelActivePdfLoad])
 
   useEffect(() => {
     setProgress((current) =>
@@ -150,8 +294,25 @@ export function usePdfPageRemover() {
   }, [])
 
   const loadPdf = useCallback(async (file: File): Promise<LoadResult> => {
+    const loadGeneration = loadGenerationRef.current + 1
+    loadGenerationRef.current = loadGeneration
+    cancelActivePdfLoad()
+    const controller = new AbortController()
+    activeLoadControllerRef.current = controller
+    const ensureCurrentLoad = () => {
+      if (loadGeneration !== loadGenerationRef.current || controller.signal.aborted) {
+        throw new Error(PDF_LOAD_CANCELLED)
+      }
+    }
+
     setError(null)
     resetResult()
+    const previousPreviews = pagePreviewsRef.current
+    pagePreviewsRef.current = []
+    previousPreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+    setPagePreviews([])
+    setPageCount(null)
+    setSelectedPages([])
     setProgress({
       stage: 'preparing',
       percent: 8,
@@ -159,28 +320,33 @@ export function usePdfPageRemover() {
       detail: locale === 'es' ? 'Generando vistas previas de cada pagina.' : 'Generating page previews.',
     })
 
-    const buffer = await file.arrayBuffer()
-    const loadingTask = getDocument({
-      data: buffer,
-      useWorkerFetch: true,
-      disableStream: true,
-      disableAutoFetch: true,
-      isEvalSupported: false,
-      stopAtErrors: true,
-    })
-    const pdf = await loadingTask.promise
-
+    const previews: PdfPagePreview[] = []
+    let loadingTask: PDFDocumentLoadingTask | null = null
+    let pdf: PDFDocumentProxy | null = null
     try {
+      const buffer = await file.arrayBuffer()
+      ensureCurrentLoad()
+      loadingTask = getDocument({
+        data: buffer,
+        useWorkerFetch: true,
+        disableStream: true,
+        disableAutoFetch: true,
+        stopAtErrors: true,
+      })
+      activeLoadingTaskRef.current = loadingTask
+      pdf = await loadingTask.promise
+      ensureCurrentLoad()
+
       const totalPages = pdf.numPages
+      if (totalPages > PDF_PREVIEW_MAX_PAGES) {
+        throw new Error('PDF_TOO_MANY_PAGES')
+      }
 
+      ensureCurrentLoad()
       setPageCount(totalPages)
-      setSelectedPages([])
 
-      pagePreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
-      setPagePreviews([])
-
-      const previews: PdfPagePreview[] = []
       for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+        ensureCurrentLoad()
         setProgress({
           stage: 'preparing',
           percent: Math.max(8, Math.min(96, Math.round((pageNumber / totalPages) * 78) + 8)),
@@ -188,9 +354,16 @@ export function usePdfPageRemover() {
           detail: locale === 'es' ? `Generando vista ${pageNumber} de ${totalPages}.` : `Rendering preview ${pageNumber} of ${totalPages}.`,
         })
 
-        previews.push(await renderPageThumbnail(pdf, pageNumber))
+        const preview = await renderPageThumbnail(pdf, pageNumber, controller.signal)
+        if (loadGeneration !== loadGenerationRef.current) {
+          URL.revokeObjectURL(preview.thumbnailUrl)
+          throw new Error(PDF_LOAD_CANCELLED)
+        }
+        previews.push(preview)
       }
 
+      ensureCurrentLoad()
+      pagePreviewsRef.current = previews
       setPagePreviews(previews)
       setProgress({
         stage: 'idle',
@@ -200,11 +373,36 @@ export function usePdfPageRemover() {
       })
 
       return { totalPages, previews }
+    } catch (error) {
+      previews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+      if (controller.signal.aborted || loadGeneration !== loadGenerationRef.current) {
+        throw new Error(PDF_LOAD_CANCELLED)
+      }
+      throw error
     } finally {
-      pdf.cleanup()
-      await loadingTask.destroy()
+      pdf?.cleanup()
+      if (loadingTask) {
+        await destroyLoadingTask(loadingTask)
+        if (activeLoadingTaskRef.current === loadingTask) {
+          activeLoadingTaskRef.current = null
+        }
+      }
+      if (activeLoadControllerRef.current === controller) {
+        activeLoadControllerRef.current = null
+      }
     }
-  }, [locale, pagePreviews, resetResult])
+  }, [cancelActivePdfLoad, destroyLoadingTask, locale, resetResult])
+
+  const cancelPdfLoad = useCallback(() => {
+    loadGenerationRef.current += 1
+    cancelActivePdfLoad()
+    const currentPreviews = pagePreviewsRef.current
+    pagePreviewsRef.current = []
+    currentPreviews.forEach((preview) => URL.revokeObjectURL(preview.thumbnailUrl))
+    setPagePreviews([])
+    setPageCount(null)
+    setSelectedPages([])
+  }, [cancelActivePdfLoad])
 
   const togglePageSelection = useCallback((pageNumber: number) => {
     setSelectedPages((current) =>
@@ -227,17 +425,35 @@ export function usePdfPageRemover() {
   }, [])
 
   const deletePages = useCallback(async (file: File, pagesToDelete: number[]) => {
+    cancelActiveDelete()
+    const deleteGeneration = deleteGenerationRef.current + 1
+    deleteGenerationRef.current = deleteGeneration
+    const controller = new AbortController()
+    activeDeleteControllerRef.current = controller
+    const isCurrentDelete = () => mountedRef.current
+      && deleteGenerationRef.current === deleteGeneration
+      && activeDeleteControllerRef.current === controller
+      && !controller.signal.aborted
+    const ensureCurrentDelete = () => {
+      if (!isCurrentDelete()) {
+        throw new Error(PDF_DELETE_CANCELLED)
+      }
+    }
+
     setError(null)
     resetResult()
     setIsProcessing(true)
 
     try {
+      ensureCurrentDelete()
       if (pagesToDelete.length === 0) {
         throw new Error('EMPTY_SELECTION')
       }
 
       const buffer = await file.arrayBuffer()
+      ensureCurrentDelete()
       const sourcePdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
+      ensureCurrentDelete()
       const total = sourcePdf.getPageCount()
       setPageCount(total)
 
@@ -264,6 +480,7 @@ export function usePdfPageRemover() {
 
       const outputPdf = await PDFDocument.create()
       const copiedPages = await outputPdf.copyPages(sourcePdf, remainingPageIndices)
+      ensureCurrentDelete()
       copiedPages.forEach((page) => outputPdf.addPage(page))
 
       setProgress({
@@ -274,18 +491,25 @@ export function usePdfPageRemover() {
       })
 
       const bytes = await outputPdf.save()
+      ensureCurrentDelete()
       const copy = new Uint8Array(bytes.byteLength)
       copy.set(bytes)
       const blob = new Blob([copy.buffer], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      if (!isCurrentDelete()) {
+        URL.revokeObjectURL(url)
+        throw new Error(PDF_DELETE_CANCELLED)
+      }
       const deleteResult: PdfDeleteResult = {
         blob,
-        url: URL.createObjectURL(blob),
+        url,
         fileName: createOutputName(file.name),
         size: blob.size,
         removedPages: validPages,
         totalPages: total,
       }
 
+      ensureCurrentDelete()
       setResult(deleteResult)
       setProgress({
         stage: 'finished',
@@ -296,6 +520,9 @@ export function usePdfPageRemover() {
 
       return deleteResult
     } catch (deleteError) {
+      if (!isCurrentDelete() || (deleteError instanceof Error && deleteError.message === PDF_DELETE_CANCELLED)) {
+        return null
+      }
       let message = locale === 'es' ? 'No se pudieron eliminar las paginas seleccionadas.' : 'The selected pages could not be removed.'
 
       if (deleteError instanceof Error) {
@@ -315,9 +542,14 @@ export function usePdfPageRemover() {
       })
       return null
     } finally {
-      setIsProcessing(false)
+      if (activeDeleteControllerRef.current === controller) {
+        activeDeleteControllerRef.current = null
+        if (mountedRef.current) {
+          setIsProcessing(false)
+        }
+      }
     }
-  }, [locale, resetResult, t])
+  }, [cancelActiveDelete, locale, resetResult, t])
 
   const selectedCount = useMemo(() => selectedPages.length, [selectedPages])
 
@@ -327,6 +559,7 @@ export function usePdfPageRemover() {
     result,
     error,
     loadPdf,
+    cancelPdfLoad,
     deletePages,
     pageCount,
     pagePreviews,

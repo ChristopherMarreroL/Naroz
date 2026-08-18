@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import JSZip from 'jszip'
-
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
 import { SectionHero } from '../../components/shared/SectionHero'
@@ -16,6 +14,7 @@ import {
   OFFICE_TO_PDF_MAX_SIZE,
   type OfficeFileKind,
 } from './lib/officeToPdf'
+import { generateCancellableZipBlob } from './lib/zipGeneration'
 
 type ConversionStatus = 'queued' | 'converting' | 'success' | 'error'
 
@@ -97,14 +96,6 @@ function getUniqueFileName(fileName: string, usedNames: Set<string>) {
   return candidate
 }
 
-async function generateZipBlob(zip: JSZip): Promise<Blob> {
-  if (typeof zip.generateAsync === 'function') {
-    return zip.generateAsync({ type: 'blob' })
-  }
-
-  return zip.generate({ type: 'blob' })
-}
-
 export function OfficeToPdfBatchView() {
   const { locale, t } = useLocale()
   const [uploads, setUploads] = useState<OfficeUpload[]>([])
@@ -113,6 +104,7 @@ export function OfficeToPdfBatchView() {
   const resultUrlsRef = useRef(new Set<string>())
   const batchUrlRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
+  const conversionControllerRef = useRef<AbortController | null>(null)
   const [, setNotice] = useToastNotice<{
     tone: 'info' | 'success' | 'error' | 'warning'
     title: string
@@ -125,6 +117,8 @@ export function OfficeToPdfBatchView() {
 
     return () => {
       mountedRef.current = false
+      conversionControllerRef.current?.abort()
+      conversionControllerRef.current = null
       resultUrls.forEach((url) => URL.revokeObjectURL(url))
       resultUrls.clear()
       if (batchUrlRef.current) URL.revokeObjectURL(batchUrlRef.current)
@@ -254,20 +248,24 @@ export function OfficeToPdfBatchView() {
     const queue = [...uploads]
     resetOutputs()
     setIsConverting(true)
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    conversionControllerRef.current = controller
     const converted: Array<{ blob: Blob; result: ConversionResult }> = []
     const usedFileNames = new Set<string>()
     let conversionFailures = 0
     let zipFailed = false
 
     for (const upload of queue) {
-      if (!mountedRef.current) return
+      if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
       updateUpload(upload.id, { status: 'converting', progress: 4 })
 
       try {
         const blob = await convertOfficeToPdf(upload.file, upload.kind, (progress) => {
+          if (controller.signal.aborted) return
           updateUpload(upload.id, { progress })
-        })
-        if (!mountedRef.current) return
+        }, controller.signal)
+        if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
 
         const fileName = getUniqueFileName(getOfficePdfFileName(upload.file.name), usedFileNames)
         const result = { url: URL.createObjectURL(blob), fileName, size: blob.size }
@@ -276,7 +274,7 @@ export function OfficeToPdfBatchView() {
         converted.push({ blob, result })
         updateUpload(upload.id, { status: 'success', progress: 100, result, errorKey: null })
       } catch (error) {
-        if (!mountedRef.current) return
+        if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
         console.error('Office to PDF conversion failed', error)
         conversionFailures += 1
         updateUpload(upload.id, {
@@ -289,10 +287,13 @@ export function OfficeToPdfBatchView() {
 
     if (mountedRef.current && converted.length > 1) {
       try {
+        if (controller.signal.aborted || conversionControllerRef.current !== controller) return
+        const { default: JSZip } = await import('jszip')
+        if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
         const zip = new JSZip()
         converted.forEach((item) => zip.file(item.result.fileName, item.blob))
-        const zipBlob = await generateZipBlob(zip)
-        if (!mountedRef.current) return
+        const zipBlob = await generateCancellableZipBlob(zip, controller.signal)
+        if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
         const url = URL.createObjectURL(zipBlob)
         batchUrlRef.current = url
         setBatchDownload({ url, fileName: 'documentos-office-convertidos.zip', size: zipBlob.size })
@@ -301,8 +302,9 @@ export function OfficeToPdfBatchView() {
       }
     }
 
-    if (!mountedRef.current) return
+    if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
     setIsConverting(false)
+    conversionControllerRef.current = null
 
     if (converted.length === 0) {
       setNotice({ tone: 'error', title: t('officePdfConvertErrorTitle'), message: t('officePdfConvertErrorMessage') })

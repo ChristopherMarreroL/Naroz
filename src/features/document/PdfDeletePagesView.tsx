@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -17,6 +17,11 @@ export function PdfDeletePagesView() {
   const [previewPage, setPreviewPage] = useState<number | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewUrlPage, setPreviewUrlPage] = useState<number | null>(null)
+  const [previewErrorPage, setPreviewErrorPage] = useState<number | null>(null)
+  const previewAbortControllerRef = useRef<AbortController | null>(null)
+  const previewDialogRef = useRef<HTMLDivElement | null>(null)
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
   const [notice, setNotice] = useToastNotice<{ tone: 'info' | 'success' | 'error'; title: string; message: string } | null>({
     tone: 'info',
     title: t('documentLocalProcessing'),
@@ -29,6 +34,7 @@ export function PdfDeletePagesView() {
     result,
     error,
     loadPdf,
+    cancelPdfLoad,
     deletePages,
     pageCount,
     pagePreviews,
@@ -42,6 +48,7 @@ export function PdfDeletePagesView() {
   const pageCountLabel = useMemo(() => (pageCount ? `${pageCount}` : '--'), [pageCount])
 
   const clearAll = () => {
+    cancelPdfLoad()
     setDocumentItem(null)
     clearSelection()
     closePreview()
@@ -49,8 +56,12 @@ export function PdfDeletePagesView() {
   }
 
   const closePreview = () => {
+    previewAbortControllerRef.current?.abort()
+    previewAbortControllerRef.current = null
     setPreviewPage(null)
     setPreviewUrlPage(null)
+    setPreviewErrorPage(null)
+    previewUrlRef.current = null
     setPreviewUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current)
@@ -61,15 +72,38 @@ export function PdfDeletePagesView() {
   }
 
   useEffect(() => {
+    if (!previewPage) return undefined
+
+    previouslyFocusedElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const focusFrame = window.requestAnimationFrame(() => previewDialogRef.current?.focus())
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      const previouslyFocusedElement = previouslyFocusedElementRef.current
+      previouslyFocusedElementRef.current = null
+      if (previouslyFocusedElement && document.contains(previouslyFocusedElement)) {
+        previouslyFocusedElement.focus()
+      }
+    }
+  }, [previewPage])
+
+  useEffect(() => {
+    previewAbortControllerRef.current?.abort()
+
     if (!previewPage || !documentItem) {
+      previewAbortControllerRef.current = null
       return undefined
     }
 
-    let isActive = true
+    const controller = new AbortController()
+    const requestedPage = previewPage
+    previewAbortControllerRef.current = controller
 
-    void renderPdfPagePreview(documentItem.file, previewPage, 1.9)
+    void renderPdfPagePreview(documentItem.file, requestedPage, 1.9, controller.signal)
       .then((url) => {
-        if (!isActive) {
+        if (controller.signal.aborted || previewAbortControllerRef.current !== controller) {
           URL.revokeObjectURL(url)
           return
         }
@@ -79,13 +113,46 @@ export function PdfDeletePagesView() {
             URL.revokeObjectURL(current)
           }
 
+          previewUrlRef.current = url
           return url
         })
-        setPreviewUrlPage(previewPage)
+        setPreviewErrorPage(null)
+        setPreviewUrlPage(requestedPage)
+      })
+      .catch(() => {
+        if (controller.signal.aborted || previewAbortControllerRef.current !== controller) {
+          return
+        }
+
+        setPreviewErrorPage(requestedPage)
+        setPreviewUrlPage(requestedPage)
+        previewUrlRef.current = null
+        setPreviewUrl((current) => {
+          if (current) {
+            URL.revokeObjectURL(current)
+          }
+
+          return null
+        })
+      })
+      .finally(() => {
+        if (controller.signal.aborted || previewAbortControllerRef.current !== controller) {
+          return
+        }
+
+        setPreviewUrlPage(requestedPage)
+        previewAbortControllerRef.current = null
       })
 
     return () => {
-      isActive = false
+      controller.abort()
+      if (previewAbortControllerRef.current === controller) {
+        previewAbortControllerRef.current = null
+      }
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current)
+        previewUrlRef.current = null
+      }
     }
   }, [documentItem, previewPage])
 
@@ -100,6 +167,7 @@ export function PdfDeletePagesView() {
       return
     }
 
+    closePreview()
     const item = createDocumentItem(file, 'pdf')
     setDocumentItem(item)
 
@@ -111,10 +179,16 @@ export function PdfDeletePagesView() {
         message: `${t('deletePdfPagesStatusDesc')} (${loaded.totalPages} ${t('pages')})`,
       })
     } catch (loadError) {
+      if (loadError instanceof Error && loadError.message === 'PDF_LOAD_CANCELLED') {
+        return
+      }
+      const message = loadError instanceof Error && loadError.message === 'PDF_TOO_MANY_PAGES'
+        ? t('pdfTooManyPages')
+        : t('pdfMergeError')
       setNotice({
         tone: 'error',
         title: t('deletePdfPagesError'),
-        message: loadError instanceof Error ? loadError.message : t('pdfMergeError'),
+        message,
       })
     }
   }
@@ -131,7 +205,8 @@ export function PdfDeletePagesView() {
     }
   }
 
-  const isPreviewLoading = previewPage !== null && previewUrlPage !== previewPage
+  const isPreviewLoading = previewPage !== null && previewUrlPage !== previewPage && previewErrorPage !== previewPage
+  const isPreviewError = previewErrorPage === previewPage
 
   return (
     <>
@@ -311,13 +386,48 @@ export function PdfDeletePagesView() {
 
       {previewPage ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-3 py-4 backdrop-blur-sm sm:px-6">
-          <div className="w-full max-w-7xl rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_90px_-25px_rgba(15,23,42,0.65)]">
+          <div
+            ref={previewDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pdf-preview-title"
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                closePreview()
+                return
+              }
+
+              if (event.key !== 'Tab') return
+              const focusableElements = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+              ))
+              if (!focusableElements.length) {
+                event.preventDefault()
+                return
+              }
+
+              const firstElement = focusableElements[0]
+              const lastElement = focusableElements[focusableElements.length - 1]
+              const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+              const isInsideFocusableElements = activeElement ? focusableElements.includes(activeElement) : false
+              if (event.shiftKey && (!isInsideFocusableElements || activeElement === firstElement)) {
+                event.preventDefault()
+                lastElement.focus()
+              } else if (!event.shiftKey && (!isInsideFocusableElements || activeElement === lastElement)) {
+                event.preventDefault()
+                firstElement.focus()
+              }
+            }}
+            className="w-full min-w-0 max-w-7xl max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_90px_-25px_rgba(15,23,42,0.65)]"
+          >
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('pagePreview')}</p>
-                <h3 className="mt-1 text-lg font-extrabold text-slate-950">{t('page')} {previewPage}</h3>
+                <h3 id="pdf-preview-title" className="mt-1 text-lg font-extrabold text-slate-950">{t('page')} {previewPage}</h3>
               </div>
-              <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50" onClick={closePreview}>
+              <button type="button" aria-label={t('closePreview')} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50" onClick={closePreview}>
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 stroke-current" fill="none" strokeWidth="1.9">
                   <path d="M6 6 18 18M18 6 6 18" />
                 </svg>
@@ -326,7 +436,7 @@ export function PdfDeletePagesView() {
 
             <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-                <div className="relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-[1.25rem] bg-white p-4">
+                <div className="relative flex min-h-[40dvh] max-h-[60dvh] items-center justify-center overflow-auto rounded-[1.25rem] bg-white p-4 sm:min-h-[55vh] sm:max-h-[78vh]">
                   <button
                     type="button"
                     className="absolute left-3 top-1/2 z-10 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
@@ -339,10 +449,14 @@ export function PdfDeletePagesView() {
                     </svg>
                   </button>
 
-                  {isPreviewLoading || !previewUrl ? (
+                  {isPreviewLoading ? (
                     <div className="text-sm text-slate-500">{t('loadingTool')}</div>
-                  ) : (
+                  ) : isPreviewError ? (
+                    <div className="text-sm text-rose-600">{t('pdfMergeError')}</div>
+                  ) : previewUrl ? (
                     <img src={previewUrl} alt={`${t('page')} ${previewPage}`} className="max-h-[78vh] w-auto max-w-full object-contain" />
+                  ) : (
+                    <div className="text-sm text-slate-500">{t('loadingTool')}</div>
                   )}
 
                   <button

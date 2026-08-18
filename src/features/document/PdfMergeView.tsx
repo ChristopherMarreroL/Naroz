@@ -8,6 +8,7 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
+import { PDF_MERGE_LIMITS, validateBatchLimits } from '../../lib/batchLimits'
 import { DocumentQueue } from './components/DocumentQueue'
 import { usePdfMerger } from './hooks/usePdfMerger'
 import { createDocumentItem, getTotalSize, isSupportedPdf, moveDocument, type DocumentItem } from './lib/files'
@@ -30,6 +31,17 @@ export function PdfMergeView() {
     }
 
     const files = Array.from(fileList)
+    const batchError = validateBatchLimits([], files, PDF_MERGE_LIMITS)
+    if (batchError) {
+      setNotice({
+        tone: 'error',
+        title: t('invalidFile'),
+        message: batchError === 'TOO_MANY_FILES'
+          ? `${t('tooManyFiles')} ${PDF_MERGE_LIMITS.maxFiles}.`
+          : `${t('batchTooLarge')} ${formatBytes(PDF_MERGE_LIMITS.maxTotalSize)}.`,
+      })
+      return
+    }
     const invalid = files.find((file) => !isSupportedPdf(file))
     if (invalid) {
       setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('pdfOnlyAccepted') })

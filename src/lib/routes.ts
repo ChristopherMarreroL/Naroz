@@ -32,7 +32,11 @@ export function getToolPath(tool: AppToolId) {
 }
 
 export function getToolFromPath(pathname: string): AppToolId {
+  return findToolFromPath(pathname) ?? 'home'
+}
+
+export function findToolFromPath(pathname: string): AppToolId | null {
   const normalizedPath = pathname === '/' ? '/' : pathname.replace(/\/+$/, '')
   const match = ROUTABLE_TOOLS.find((tool) => TOOL_PATHS[tool] === normalizedPath)
-  return match ?? 'home'
+  return match ?? null
 }

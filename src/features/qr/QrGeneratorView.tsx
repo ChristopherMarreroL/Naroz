@@ -5,6 +5,7 @@ import { SectionHero } from '../../components/shared/SectionHero'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
+import { assertSafeImageFile } from '../image/lib/imageLimits'
 import { QrOptionsPanel } from './components/QrOptionsPanel'
 import { QrPreview } from './components/QrPreview'
 import { useQrGenerator } from './hooks/useQrGenerator'
@@ -106,6 +107,7 @@ export function QrGeneratorView() {
     }
 
     try {
+      await assertSafeImageFile(file)
       const dataUrl = await readFileAsDataUrl(file)
       await validateLogoDataUrl(dataUrl)
       setLogo({ name: file.name, dataUrl })

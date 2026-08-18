@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
 import { FileDropzone } from '../../components/shared/FileDropzone'
@@ -34,11 +34,22 @@ export function OfficeToPdfView() {
   const [isConverting, setIsConverting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<ConversionResult | null>(null)
+  const mountedRef = useRef(true)
+  const conversionControllerRef = useRef<AbortController | null>(null)
   const [, setNotice] = useToastNotice<{
     tone: 'info' | 'success' | 'error' | 'warning'
     title: string
     message: string
   } | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      conversionControllerRef.current?.abort()
+      conversionControllerRef.current = null
+    }
+  }, [])
 
   useEffect(() => () => {
     if (result?.url) URL.revokeObjectURL(result.url)
@@ -84,9 +95,13 @@ export function OfficeToPdfView() {
     clearResult()
     setIsConverting(true)
     setProgress(4)
+    conversionControllerRef.current?.abort()
+    const controller = new AbortController()
+    conversionControllerRef.current = controller
 
     try {
-      const blob = await convertOfficeToPdf(file, kind, setProgress)
+      const blob = await convertOfficeToPdf(file, kind, setProgress, controller.signal)
+      if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
       const nextResult = {
         url: URL.createObjectURL(blob),
         fileName: getOfficePdfFileName(file.name),
@@ -96,10 +111,14 @@ export function OfficeToPdfView() {
       setProgress(100)
       setNotice({ tone: 'success', title: t('officePdfConvertedTitle'), message: t('officePdfConvertedMessage') })
     } catch {
+      if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
       setNotice({ tone: 'error', title: t('officePdfConvertErrorTitle'), message: t('officePdfConvertErrorMessage') })
       setProgress(0)
     } finally {
-      setIsConverting(false)
+      if (conversionControllerRef.current === controller) {
+        conversionControllerRef.current = null
+        if (mountedRef.current) setIsConverting(false)
+      }
     }
   }
 

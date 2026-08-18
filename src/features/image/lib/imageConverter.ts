@@ -1,6 +1,7 @@
 import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 
 import type { ConvertedImageResult, ImageOutputFormat } from '../types'
+import { assertSafeImageDimensions, assertSafeImageFile } from './imageLimits'
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   'image/jpeg',
@@ -96,13 +97,19 @@ function createOutputName(fileName: string, format: ImageOutputFormat): string {
   return `${baseName}-convertida.${getOutputExtension(format)}`
 }
 
-function loadImage(file: File): Promise<HTMLImageElement> {
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  await assertSafeImageFile(file)
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
     image.onload = () => {
       URL.revokeObjectURL(url)
-      resolve(image)
+      try {
+        assertSafeImageDimensions(image.naturalWidth, image.naturalHeight)
+        resolve(image)
+      } catch (error) {
+        reject(error)
+      }
     }
     image.onerror = () => {
       URL.revokeObjectURL(url)

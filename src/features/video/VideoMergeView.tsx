@@ -15,6 +15,7 @@ import { VideoList } from './components/VideoList'
 import { useVideoMerger } from './hooks/useVideoMerger'
 import { useVideoQueue } from './hooks/useVideoQueue'
 import type { VideoOutputFormat } from '../../types/video'
+import { validateVideoMergeSelection } from './limits'
 
 interface Notice {
   tone: 'error' | 'warning' | 'success' | 'info'
@@ -41,6 +42,23 @@ export function VideoMergeView() {
   }, [ensureLoaded])
 
   const handleSelectVideos = async (files: FileList) => {
+    const validationError = validateVideoMergeSelection(videos.map((video) => video.file), Array.from(files))
+    if (validationError) {
+      const messages = locale === 'es'
+        ? {
+            FILE_TOO_LARGE: 'Cada video debe pesar 500 MB o menos.',
+            TOO_MANY_FILES: 'Puedes unir hasta 20 videos por lote.',
+            TOTAL_TOO_LARGE: 'El lote completo no puede superar 1 GB.',
+          }
+        : {
+            FILE_TOO_LARGE: 'Each video must be 500 MB or smaller.',
+            TOO_MANY_FILES: 'You can merge up to 20 videos per batch.',
+            TOTAL_TOO_LARGE: 'The complete batch cannot exceed 1 GB.',
+          }
+      setNotice({ tone: 'error', title: t('invalidFile'), message: messages[validationError] })
+      return
+    }
+
     const { addedCount, rejectedFiles } = await addVideos(files)
 
     if (addedCount > 0) {
