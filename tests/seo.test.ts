@@ -12,9 +12,9 @@ import { renderNotFoundHtml, renderSeoPageHtml, seoPages } from '../scripts/seo-
 import { findToolFromPath } from '../src/lib/routes'
 
 describe('SEO identity', () => {
-  test('uses the public www domain as the single canonical host', () => {
-    expect(SEO_DEFAULT_SITE_URL).toBe('https://www.naroz.app')
-    expect(getCanonicalUrl('/video-convert')).toBe('https://www.naroz.app/video-convert/')
+  test('uses the official domain as the single canonical host', () => {
+    expect(SEO_DEFAULT_SITE_URL).toBe('https://naroz.app')
+    expect(getCanonicalUrl('/video-convert')).toBe('https://naroz.app/video-convert/')
   })
 
   test('describes Naroz as a website and free web application', () => {
@@ -24,7 +24,7 @@ describe('SEO identity', () => {
     expect(graph[0]).toMatchObject({
       '@type': 'WebSite',
       name: 'Naroz',
-      url: 'https://www.naroz.app/',
+      url: 'https://naroz.app/',
     })
     expect(graph[1]).toMatchObject({
       '@type': 'WebApplication',
@@ -43,12 +43,16 @@ describe('SEO identity', () => {
       Bun.file('vercel.json').text(),
     ])
 
-    expect(html).toContain('<link rel="canonical" href="https://www.naroz.app/"')
+    expect(html).toContain('<link rel="canonical" href="https://naroz.app/"')
     expect(html).toContain('"@type": "WebSite"')
     expect(html).toContain('"@type": "WebApplication"')
-    expect(robots).toContain('Sitemap: https://www.naroz.app/sitemap.xml')
-    expect(sitemap).toContain('<loc>https://www.naroz.app/</loc>')
+    expect(robots).toContain('Sitemap: https://naroz.app/sitemap.xml')
+    expect(sitemap).toContain('<loc>https://naroz.app/</loc>')
+    const sitemapUrls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1])
+    expect(sitemapUrls).toEqual(seoPages.map((page) => `https://naroz.app${page.path === '/' ? '/' : `${page.path}/`}`))
     expect(vercel).toContain('"cleanUrls": true')
+    expect(`${html}\n${robots}\n${sitemap}`).not.toContain('www.naroz.app')
+    expect(`${html}\n${robots}\n${sitemap}`).not.toContain('naroz.netlify.app')
     expect(`${html}\n${robots}\n${sitemap}`).not.toContain('naroz.vercel.app')
     expect(html).not.toContain('fonts.googleapis.com')
     expect(vercel).not.toContain('fonts.gstatic.com')
@@ -68,9 +72,29 @@ describe('SEO identity', () => {
     expect(rendered).toContain('<meta name="description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
     expect(rendered).toContain('<meta property="og:description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
     expect(rendered).toContain('<meta name="twitter:description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
-    expect(rendered).toContain('<link rel="canonical" href="https://www.naroz.app/video-convert/" />')
-    expect(rendered).toContain('"@id": "https://www.naroz.app/video-convert/#webpage"')
-    expect(rendered).not.toContain('<link rel="canonical" href="https://www.naroz.app/" />')
+    expect(rendered).toContain('<link rel="canonical" href="https://naroz.app/video-convert/" />')
+    expect(rendered).toContain('"@id": "https://naroz.app/video-convert/#webpage"')
+    expect(rendered).not.toContain('<link rel="canonical" href="https://naroz.app/" />')
+  })
+
+  test('keeps one canonical, description, title, and valid JSON-LD graph per public page', async () => {
+    const sourceHtml = await Bun.file('index.html').text()
+
+    for (const page of seoPages) {
+      const document = new JSDOM(renderSeoPageHtml(sourceHtml, page)).window.document
+      const structuredDataElement = document.querySelector('#naroz-structured-data')
+      const structuredData = JSON.parse(structuredDataElement?.textContent ?? '')
+
+      expect(document.querySelectorAll('title')).toHaveLength(1)
+      expect(document.querySelectorAll('meta[name="description"]')).toHaveLength(1)
+      expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1)
+      expect(document.querySelectorAll('#naroz-structured-data')).toHaveLength(1)
+      expect(structuredData['@graph']).toHaveLength(3)
+      expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebSite')).toHaveLength(1)
+      expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebApplication')).toHaveLength(1)
+      expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebPage')).toHaveLength(1)
+      expect(document.documentElement.outerHTML).not.toContain('www.naroz.app')
+    }
   })
 
   test('uses the same Spanish metadata before and after React loads', () => {
@@ -96,7 +120,7 @@ describe('SEO identity', () => {
     expect(rendered).toContain('<meta name="twitter:title" content="Pagina no encontrada - Naroz" />')
     expect(rendered).toContain('<meta name="twitter:description" content="La direccion solicitada no existe o fue movida." />')
     expect(rendered).not.toContain('property="og:url"')
-    expect(rendered).not.toContain('Naroz: herramientas online para PDF, video e imágenes')
+    expect(rendered).not.toContain('Naroz: herramientas para convertir y transformar archivos')
     expect(rendered).not.toContain('rel="canonical"')
   })
 
@@ -106,10 +130,10 @@ describe('SEO identity', () => {
       <meta name="description" content="Old description" />
       <meta property="og:title" content="Old page" />
       <meta property="og:description" content="Old description" />
-      <meta property="og:url" content="https://www.naroz.app/old-page/" />
+      <meta property="og:url" content="https://naroz.app/old-page/" />
       <meta name="twitter:title" content="Old page" />
       <meta name="twitter:description" content="Old description" />
-      <link rel="canonical" href="https://www.naroz.app/old-page/" />
+      <link rel="canonical" href="https://naroz.app/old-page/" />
       <script id="naroz-structured-data" type="application/ld+json">{"old":true}</script>
     </head><body></body></html>`)
     const hadDocument = 'document' in globalThis

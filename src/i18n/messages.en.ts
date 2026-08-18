@@ -1,9 +1,9 @@
 import type { Messages } from './LocaleProvider'
 
 const messages: Messages = {
-    brandTagline: 'A modular platform to edit, convert, and merge multimedia content and documents directly in the browser.',
-    seoTitle: 'Naroz - Convert and transform files easily',
-    seoDescription: 'Naroz is a web tool to convert, merge, and transform video and image files easily right in the browser.',
+    brandTagline: 'A web application for converting and transforming documents and multimedia files directly in the browser.',
+    seoTitle: 'Naroz: browser tools for converting and transforming files',
+    seoDescription: 'Naroz is a web application for converting, merging, and transforming PDF, Word, Excel, image, video, and audio files in the browser.',
     homeHeroBadge: 'Web media suite',
     general: 'General',
     video: 'Video',
@@ -28,11 +28,11 @@ const messages: Messages = {
     web: 'Web',
     today: 'Today',
     homeTitle: 'Naroz',
-    homeDescription: 'Convert, merge, and transform your video, image, and document files from one place.',
-    homeIntroTitle: 'Tools to transform files in the browser',
-    homeIntroDescription: 'A lightweight suite for converting and transforming video, image, and document files directly in your browser, with more tools on the way.',
+    homeDescription: 'Convert, merge, and transform documents, PDF, Excel, images, and videos from one place.',
+    homeIntroTitle: 'Convert and transform files from the browser',
+    homeIntroDescription: 'A web application for converting, merging, and transforming documents, PDF, Excel, images, and videos directly in your browser.',
     homeAvailable: 'Available tools',
-    homePageTitle: 'Naroz file conversion and editing tools',
+    homePageTitle: 'Naroz tools for converting and transforming files',
     homeUpcoming: 'Coming next',
     homeUpcomingDescription: 'Ideas and features worth exploring after the current tools are more stable.',
     activeCount: 'active',

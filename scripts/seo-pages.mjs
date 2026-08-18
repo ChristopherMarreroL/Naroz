@@ -1,11 +1,11 @@
-export const SEO_SITE_URL = 'https://www.naroz.app'
+export const SEO_SITE_URL = 'https://naroz.app'
 
 function getCanonicalUrl(path, siteUrl = SEO_SITE_URL) {
   return `${siteUrl}${path === '/' ? '/' : `${path}/`}`
 }
 
 export const seoPages = [
-  { id: 'home', path: '/', title: 'Naroz: herramientas online para PDF, video e imágenes', description: 'Convierte, une y transforma PDF, Word, Excel, videos e imágenes gratis y de forma privada, directamente en tu navegador con Naroz.' },
+  { id: 'home', path: '/', title: 'Naroz: herramientas para convertir y transformar archivos', description: 'Aplicación web para convertir, combinar y transformar PDF, Word, Excel, imágenes, videos y audio directamente en tu navegador.' },
   { id: 'video-merge', path: '/video-merge', title: 'Unir videos online gratis - Naroz', description: 'Une varios videos MP4, MKV o MOV en un único archivo directamente en tu navegador.' },
   { id: 'video-convert', path: '/video-convert', title: 'Convertir videos online - Naroz', description: 'Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador.' },
   { id: 'video-trim', path: '/video-trim', title: 'Recortar videos online - Naroz', description: 'Recorta un fragmento de video con vista previa y procesamiento local en tu navegador.' },

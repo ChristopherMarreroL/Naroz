@@ -1,9 +1,9 @@
 import type { Messages } from './LocaleProvider'
 
 const messages: Messages = {
-    brandTagline: 'Una plataforma modular para editar, convertir y unir contenido multimedia y documentos desde el navegador.',
-    seoTitle: 'Naroz - Convierte y transforma archivos facilmente',
-    seoDescription: 'Naroz es una herramienta web para convertir, unir y transformar archivos de video e imagen facilmente desde el navegador.',
+    brandTagline: 'Una aplicación web para convertir y transformar documentos y archivos multimedia directamente desde el navegador.',
+    seoTitle: 'Naroz: herramientas para convertir y transformar archivos',
+    seoDescription: 'Naroz es una aplicación web para convertir, combinar y transformar PDF, Word, Excel, imágenes, videos y audio desde el navegador.',
     homeHeroBadge: 'Suite multimedia web',
     general: 'General',
     video: 'Video',
@@ -28,11 +28,11 @@ const messages: Messages = {
     web: 'Web',
     today: 'Disponible',
     homeTitle: 'Naroz',
-    homeDescription: 'Convierte, une y transforma tus archivos de video, imagen y documentos desde un solo lugar.',
-    homeIntroTitle: 'Herramientas para transformar archivos en el navegador',
-    homeIntroDescription: 'Una suite ligera para convertir y transformar archivos de video, imagen y documentos directamente en tu navegador, con nuevas funciones en camino.',
+    homeDescription: 'Convierte, combina y transforma documentos, PDF, Excel, imágenes y videos desde un solo lugar.',
+    homeIntroTitle: 'Convierte y transforma archivos desde el navegador',
+    homeIntroDescription: 'Una aplicación web para convertir, combinar y transformar documentos, PDF, Excel, imágenes y videos directamente en tu navegador.',
     homeAvailable: 'Herramientas disponibles',
-    homePageTitle: 'Herramientas de Naroz para convertir y editar archivos',
+    homePageTitle: 'Herramientas de Naroz para convertir y transformar archivos',
     homeUpcoming: 'Proximamente',
     homeUpcomingDescription: 'Ideas y funciones que vale la pena explorar despues de estabilizar las herramientas actuales.',
     activeCount: 'activas',
