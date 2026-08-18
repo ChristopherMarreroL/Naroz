@@ -174,10 +174,11 @@ interface AvifPropertyAssociation {
   propertyIndices: number[]
 }
 
-function readBmffBox(bytes: Uint8Array, offset: number, limit: number): BmffBox | null {
+function readBmffBox(bytes: Uint8Array, offset: number, limit: number, allowTruncatedMedia = false): BmffBox | null {
   if (offset + 8 > limit) return null
   const size = readUint32BE(bytes, offset)
   if (size === null) return null
+  const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8))
 
   let headerSize = 8
   let boxSize = size
@@ -192,8 +193,16 @@ function readBmffBox(bytes: Uint8Array, offset: number, limit: number): BmffBox 
     boxSize = limit - offset
   }
 
-  if (!Number.isSafeInteger(boxSize) || boxSize < headerSize || boxSize > limit - offset) return null
-  const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8))
+  if (!Number.isSafeInteger(boxSize) || boxSize < headerSize) return null
+  if (boxSize > limit - offset) {
+    if (!allowTruncatedMedia || type !== 'mdat') return null
+    return {
+      end: limit,
+      payloadStart: offset + headerSize,
+      type,
+    }
+  }
+
   return {
     end: offset + boxSize,
     payloadStart: offset + headerSize,
@@ -211,6 +220,18 @@ function readBmffBoxes(bytes: Uint8Array, start: number, end: number) {
     offset = box.end
   }
   return offset === end ? boxes : null
+}
+
+function readBmffTopLevelBoxes(bytes: Uint8Array) {
+  const boxes: BmffBox[] = []
+  let offset = 0
+  while (offset < bytes.length) {
+    const box = readBmffBox(bytes, offset, bytes.length, true)
+    if (!box) return null
+    boxes.push(box)
+    offset = box.end
+  }
+  return boxes
 }
 
 function readBmffFullBoxVersion(bytes: Uint8Array, box: BmffBox) {
@@ -264,7 +285,7 @@ function readAvifPropertyAssociations(bytes: Uint8Array, box: BmffBox): AvifProp
 }
 
 function readAvifDimensions(bytes: Uint8Array): ImageDimensions | null {
-  const topLevelBoxes = readBmffBoxes(bytes, 0, bytes.length)
+  const topLevelBoxes = readBmffTopLevelBoxes(bytes)
   if (!topLevelBoxes) return null
 
   const fileTypeBox = topLevelBoxes.find((box) => box.type === 'ftyp')

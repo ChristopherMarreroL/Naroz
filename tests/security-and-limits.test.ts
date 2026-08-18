@@ -197,6 +197,14 @@ describe('image limits', () => {
     const avif = concat(box('ftyp', ftypPayload), box('meta', metaPayload))
 
     await expect(assertSafeImageFile(new File([avif], 'valid.avif', { type: 'image/avif' }))).resolves.toBeUndefined()
+
+    const mediaPayload = new Uint8Array(1_200_000)
+    const mdatHeader = new Uint8Array(8)
+    const mdatView = new DataView(mdatHeader.buffer)
+    mdatView.setUint32(0, mdatHeader.length + mediaPayload.length)
+    writeAscii(mdatHeader, 4, 'mdat')
+    const largeAvif = concat(avif, mdatHeader, mediaPayload)
+    await expect(assertSafeImageFile(new File([largeAvif], 'large.avif', { type: 'image/avif' }))).resolves.toBeUndefined()
   })
 })
 
