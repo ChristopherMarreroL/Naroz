@@ -157,7 +157,9 @@ export function ImageConvertView() {
       return
     }
 
-    const batchError = validateBatchLimits([], incomingFiles, IMAGE_BATCH_LIMITS)
+    const validFiles = incomingFiles.filter((file) => isSupportedImageType(file))
+    const invalidFiles = incomingFiles.filter((file) => !isSupportedImageType(file))
+    const batchError = validateBatchLimits([], validFiles, IMAGE_BATCH_LIMITS)
     if (batchError) {
       setNotice({
         tone: 'error',
@@ -170,9 +172,6 @@ export function ImageConvertView() {
     }
 
     clearResults()
-
-    const validFiles = incomingFiles.filter((file) => isSupportedImageType(file))
-    const invalidFiles = incomingFiles.filter((file) => !isSupportedImageType(file))
 
     if (validFiles.length === 0) {
       setNotice({ tone: 'error', title: t('unsupportedImage'), message: t('imageInputSupported') })

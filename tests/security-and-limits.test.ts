@@ -133,7 +133,7 @@ describe('image limits', () => {
       .rejects.toThrow('IMAGE_DIMENSIONS_TOO_LARGE')
   })
 
-  test('requires a real AVIF BMFF structure before accepting ispe dimensions', async () => {
+  test('parses standard AVIF item properties before accepting dimensions', async () => {
     const writeAscii = (target: Uint8Array, offset: number, value: string) => {
       target.set(Array.from(value, (character) => character.charCodeAt(0)), offset)
     }
@@ -165,11 +165,35 @@ describe('image limits', () => {
     writeAscii(ftypPayload, 0, 'avif')
     writeAscii(ftypPayload, 8, 'mif1')
     writeAscii(ftypPayload, 12, 'avif')
-    const ispePayload = new Uint8Array(12)
-    const ispeView = new DataView(ispePayload.buffer)
-    ispeView.setUint32(4, 100)
-    ispeView.setUint32(8, 100)
-    const metaPayload = concat(new Uint8Array(4), box('ipco', box('ispe', ispePayload)))
+
+    const createIspePayload = (width: number, height: number) => {
+      const payload = new Uint8Array(12)
+      const view = new DataView(payload.buffer)
+      view.setUint32(4, width)
+      view.setUint32(8, height)
+      return payload
+    }
+    const primaryItemBox = new Uint8Array(6)
+    new DataView(primaryItemBox.buffer).setUint16(4, 1)
+    const propertyAssociation = new Uint8Array(12)
+    const propertyAssociationView = new DataView(propertyAssociation.buffer)
+    propertyAssociationView.setUint32(4, 1)
+    propertyAssociationView.setUint16(8, 1)
+    propertyAssociation[10] = 1
+    propertyAssociation[11] = 2
+    const propertyContainer = box('ipco', concat(
+      box('ispe', createIspePayload(MAX_IMAGE_DIMENSION + 1, 1)),
+      box('ispe', createIspePayload(100, 100)),
+    ))
+    const itemPropertyContainer = box('iprp', concat(
+      propertyContainer,
+      box('ipma', propertyAssociation),
+    ))
+    const metaPayload = concat(
+      new Uint8Array(4),
+      box('pitm', primaryItemBox),
+      itemPropertyContainer,
+    )
     const avif = concat(box('ftyp', ftypPayload), box('meta', metaPayload))
 
     await expect(assertSafeImageFile(new File([avif], 'valid.avif', { type: 'image/avif' }))).resolves.toBeUndefined()

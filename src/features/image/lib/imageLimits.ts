@@ -169,6 +169,11 @@ interface BmffBox {
   type: string
 }
 
+interface AvifPropertyAssociation {
+  itemId: number
+  propertyIndices: number[]
+}
+
 function readBmffBox(bytes: Uint8Array, offset: number, limit: number): BmffBox | null {
   if (offset + 8 > limit) return null
   const size = readUint32BE(bytes, offset)
@@ -208,6 +213,56 @@ function readBmffBoxes(bytes: Uint8Array, start: number, end: number) {
   return offset === end ? boxes : null
 }
 
+function readBmffFullBoxVersion(bytes: Uint8Array, box: BmffBox) {
+  return box.payloadStart + 4 <= box.end ? bytes[box.payloadStart] : null
+}
+
+function readAvifPrimaryItemId(bytes: Uint8Array, box: BmffBox) {
+  const version = readBmffFullBoxVersion(bytes, box)
+  if (version === 0) return readUint16BE(bytes, box.payloadStart + 4)
+  if (version === 1) return readUint32BE(bytes, box.payloadStart + 4)
+  return null
+}
+
+function readAvifPropertyAssociations(bytes: Uint8Array, box: BmffBox): AvifPropertyAssociation[] | null {
+  const version = readBmffFullBoxVersion(bytes, box)
+  if (version !== 0 && version !== 1) return null
+
+  const flags = readUint32BE(bytes, box.payloadStart)
+  const entryCount = readUint32BE(bytes, box.payloadStart + 4)
+  if (flags === null || entryCount === null) return null
+
+  const usesWidePropertyIndices = (flags & 0x01) !== 0
+  const propertyIndexBytes = usesWidePropertyIndices ? 2 : 1
+  const itemIdBytes = version === 0 ? 2 : 4
+  const associations: AvifPropertyAssociation[] = []
+  let offset = box.payloadStart + 8
+
+  for (let entryIndex = 0; entryIndex < entryCount; entryIndex += 1) {
+    const itemId = version === 0 ? readUint16BE(bytes, offset) : readUint32BE(bytes, offset)
+    if (itemId === null) return null
+    offset += itemIdBytes
+    if (offset >= box.end) return null
+
+    const associationCount = bytes[offset]
+    offset += 1
+    const propertyIndices: number[] = []
+    for (let associationIndex = 0; associationIndex < associationCount; associationIndex += 1) {
+      const association = propertyIndexBytes === 2
+        ? readUint16BE(bytes, offset)
+        : (offset < box.end ? bytes[offset] : null)
+      if (association === null) return null
+      offset += propertyIndexBytes
+      const propertyIndex = association & (usesWidePropertyIndices ? 0x7fff : 0x7f)
+      if (propertyIndex > 0) propertyIndices.push(propertyIndex)
+    }
+
+    associations.push({ itemId, propertyIndices })
+  }
+
+  return offset === box.end ? associations : null
+}
+
 function readAvifDimensions(bytes: Uint8Array): ImageDimensions | null {
   const topLevelBoxes = readBmffBoxes(bytes, 0, bytes.length)
   if (!topLevelBoxes) return null
@@ -223,11 +278,24 @@ function readAvifDimensions(bytes: Uint8Array): ImageDimensions | null {
   const metaBox = topLevelBoxes.find((box) => box.type === 'meta')
   if (!metaBox || metaBox.payloadStart + 4 > metaBox.end) return null
   const metaChildren = readBmffBoxes(bytes, metaBox.payloadStart + 4, metaBox.end)
-  const propertyContainer = metaChildren?.find((box) => box.type === 'ipco')
-  if (!propertyContainer) return null
+  const primaryItemBox = metaChildren?.find((box) => box.type === 'pitm')
+  const primaryItemId = primaryItemBox ? readAvifPrimaryItemId(bytes, primaryItemBox) : null
+  const itemPropertyBox = metaChildren?.find((box) => box.type === 'iprp')
+  if (primaryItemId === null || !itemPropertyBox) return null
+
+  const itemPropertyChildren = readBmffBoxes(bytes, itemPropertyBox.payloadStart, itemPropertyBox.end)
+  const propertyContainer = itemPropertyChildren?.find((box) => box.type === 'ipco')
+  const propertyAssociationBox = itemPropertyChildren?.find((box) => box.type === 'ipma')
+  if (!propertyContainer || !propertyAssociationBox) return null
 
   const properties = readBmffBoxes(bytes, propertyContainer.payloadStart, propertyContainer.end)
-  const imageSpatialExtents = properties?.find((box) => box.type === 'ispe')
+  const associations = readAvifPropertyAssociations(bytes, propertyAssociationBox)
+  const primaryAssociations = associations?.find((association) => association.itemId === primaryItemId)
+  if (!properties || !primaryAssociations) return null
+
+  const imageSpatialExtents = primaryAssociations.propertyIndices
+    .map((propertyIndex) => properties[propertyIndex - 1])
+    .find((box) => box?.type === 'ispe')
   if (!imageSpatialExtents || imageSpatialExtents.payloadStart + 12 > imageSpatialExtents.end) return null
 
   const width = readUint32BE(bytes, imageSpatialExtents.payloadStart + 4)

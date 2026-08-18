@@ -76,9 +76,11 @@ export function ExcelColumnBuilderView() {
       return
     }
 
+    const validFiles = incomingFiles.filter((file) => isSupportedExcelFile(file))
+    const invalidFiles = incomingFiles.filter((file) => !isSupportedExcelFile(file))
     clearResult()
 
-    const batchError = validateBatchLimits(files, incomingFiles, EXCEL_BATCH_LIMITS)
+    const batchError = validateBatchLimits(files, validFiles, EXCEL_BATCH_LIMITS)
     if (batchError) {
       setNotice({
         tone: 'error',
@@ -90,8 +92,6 @@ export function ExcelColumnBuilderView() {
       return
     }
 
-    const validFiles = incomingFiles.filter((file) => isSupportedExcelFile(file))
-    const invalidFiles = incomingFiles.filter((file) => !isSupportedExcelFile(file))
     if (validFiles.length === 0) {
       setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('excelUnsupportedFile') })
       return
