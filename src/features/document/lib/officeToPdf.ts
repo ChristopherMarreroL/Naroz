@@ -1,16 +1,21 @@
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
-import JSZip from 'jszip'
-import * as XLSX from 'xlsx'
-import { assertSafeOfficeArchive } from './officeArchiveLimits'
+import type { jsPDF as JsPdfDocument } from 'jspdf'
+import { limitExcelRange } from '../../excel/lib/excelLimits'
+import type { OfficeArchive } from './officeArchiveLimits'
 
 export type OfficeFileKind = 'docx' | 'xlsx' | 'pptx'
 
 export const OFFICE_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
+export const OFFICE_TO_PDF_MAX_PAGES = 200
+export const OFFICE_TO_PDF_MAX_PAGE_DIMENSION = 4_096
+export const OFFICE_TO_PDF_MAX_PAGE_PIXELS = 16_000_000
+export const OFFICE_TO_PDF_MAX_TOTAL_PIXELS = 80_000_000
 const MAX_EXCEL_ROWS = 10_000
 const MAX_EXCEL_COLUMNS = 100
+const MAX_EXCEL_SHEETS = 50
 const CSS_PIXELS_PER_INCH = 96
 const MILLIMETERS_PER_INCH = 25.4
+const OFFICE_TO_PDF_RASTER_SCALE = 1.5
+const OFFICE_TO_PDF_CANCELLED = 'OFFICE_TO_PDF_CANCELLED'
 const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
 function getExtension(name: string) {
   return name.split('.').pop()?.toLowerCase() ?? ''
@@ -40,6 +45,41 @@ function getPdfPageFormat(width: number, height: number) {
   } as const
 }
 
+function throwIfOfficeConversionAborted(signal?: AbortSignal) {
+  if (!signal?.aborted) return
+  throw new Error(OFFICE_TO_PDF_CANCELLED)
+}
+
+export function assertOfficePdfPageCount(pageCount: number) {
+  if (!Number.isInteger(pageCount) || pageCount <= 0) {
+    throw new Error('OFFICE_PAGE_COUNT_INVALID')
+  }
+  if (pageCount > OFFICE_TO_PDF_MAX_PAGES) {
+    throw new Error('OFFICE_TOO_MANY_PAGES')
+  }
+}
+
+export function assertOfficePdfRasterBudget(width: number, height: number, totalPixels = 0) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error('OFFICE_PAGE_DIMENSIONS_INVALID')
+  }
+  if (width > OFFICE_TO_PDF_MAX_PAGE_DIMENSION || height > OFFICE_TO_PDF_MAX_PAGE_DIMENSION) {
+    throw new Error('OFFICE_PAGE_DIMENSIONS_TOO_LARGE')
+  }
+
+  const rasterWidth = Math.ceil(width * OFFICE_TO_PDF_RASTER_SCALE)
+  const rasterHeight = Math.ceil(height * OFFICE_TO_PDF_RASTER_SCALE)
+  const pagePixels = rasterWidth * rasterHeight
+  if (!Number.isSafeInteger(pagePixels) || pagePixels > OFFICE_TO_PDF_MAX_PAGE_PIXELS) {
+    throw new Error('OFFICE_PAGE_RASTER_TOO_LARGE')
+  }
+  if (!Number.isFinite(totalPixels) || totalPixels < 0 || totalPixels + pagePixels > OFFICE_TO_PDF_MAX_TOTAL_PIXELS) {
+    throw new Error('OFFICE_TOTAL_RASTER_TOO_LARGE')
+  }
+
+  return totalPixels + pagePixels
+}
+
 interface DocxAnchorLayout {
   height: number
   horizontalRelativeFrom: string
@@ -58,13 +98,16 @@ interface DocxLayoutMetadata {
   expectedPageCount: number | null
 }
 
-async function readDocxLayoutMetadata(buffer: ArrayBuffer): Promise<DocxLayoutMetadata> {
-  const zip = await new JSZip().loadAsync(buffer)
+async function readDocxLayoutMetadata(zip: OfficeArchive, signal?: AbortSignal): Promise<DocxLayoutMetadata> {
+  const { readOfficeArchiveEntryText } = await import('./officeArchiveLimits')
+  throwIfOfficeConversionAborted(signal)
   const documentPart = zip.file('word/document.xml')
   const appPart = zip.file('docProps/app.xml')
   if (!documentPart) return { anchorLayouts: [], expectedPageCount: null }
 
-  const xml = new DOMParser().parseFromString(await documentPart.async('text'), 'application/xml')
+  const documentXml = await readOfficeArchiveEntryText(documentPart, signal)
+  throwIfOfficeConversionAborted(signal)
+  const xml = new DOMParser().parseFromString(documentXml, 'application/xml')
   if (xml.querySelector('parsererror')) return { anchorLayouts: [], expectedPageCount: null }
 
   const anchorLayouts = Array.from(xml.getElementsByTagNameNS(WORDPROCESSING_DRAWING_NS, 'anchor')).flatMap((anchor) => {
@@ -90,7 +133,9 @@ async function readDocxLayoutMetadata(buffer: ArrayBuffer): Promise<DocxLayoutMe
 
   let expectedPageCount: number | null = null
   if (appPart) {
-    const appXml = new DOMParser().parseFromString(await appPart.async('text'), 'application/xml')
+    const appXmlText = await readOfficeArchiveEntryText(appPart, signal)
+    throwIfOfficeConversionAborted(signal)
+    const appXml = new DOMParser().parseFromString(appXmlText, 'application/xml')
     const pages = Array.from(appXml.getElementsByTagName('*')).find((element) => element.localName === 'Pages')
     const parsedPages = Number.parseInt(pages?.textContent ?? '', 10)
     if (Number.isFinite(parsedPages) && parsedPages > 0) expectedPageCount = parsedPages
@@ -244,7 +289,7 @@ function splitDocxPage(
   return true
 }
 
-function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | null) {
+function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | null, signal?: AbortSignal) {
   const result = [...pages]
   const maxAdditionalPages = 20
   const expectedPagesToAdd = Math.min(
@@ -254,6 +299,7 @@ function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | 
   let addedPages = 0
 
   while (addedPages < expectedPagesToAdd) {
+    throwIfOfficeConversionAborted(signal)
     const candidates = result
       .map(getDocxPageOverflow)
       .filter((entry): entry is DocxPageOverflow => Boolean(entry))
@@ -261,6 +307,7 @@ function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | 
     let didSplit = false
 
     for (const candidate of candidates) {
+      throwIfOfficeConversionAborted(signal)
       if (candidate.printableOverflow <= 4) break
       if (splitDocxPage(result, candidate, true)) {
         addedPages += 1
@@ -272,6 +319,7 @@ function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | 
   }
 
   while (addedPages < maxAdditionalPages) {
+    throwIfOfficeConversionAborted(signal)
     const candidates = result
       .map(getDocxPageOverflow)
       .filter((entry): entry is DocxPageOverflow => Boolean(entry))
@@ -279,6 +327,7 @@ function paginateDocxOverflow(pages: HTMLElement[], expectedPageCount: number | 
     let didSplit = false
 
     for (const candidate of candidates) {
+      throwIfOfficeConversionAborted(signal)
       if (candidate.clippedOverflow <= 2) break
       if (splitDocxPage(result, candidate, false)) {
         addedPages += 1
@@ -315,11 +364,19 @@ function normalizeDocxPages(pages: HTMLElement[]) {
   })
 }
 
-async function convertDocxToPdf(file: File, onProgress: (value: number) => void) {
-  const [{ renderAsync }, { default: html2canvas }] = await Promise.all([
+async function convertDocxToPdf(
+  documentBuffer: ArrayBuffer,
+  archive: OfficeArchive,
+  onProgress: (value: number) => void,
+  signal?: AbortSignal,
+) {
+  throwIfOfficeConversionAborted(signal)
+  const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([
     import('docx-preview'),
     import('html2canvas'),
+    import('jspdf'),
   ])
+  throwIfOfficeConversionAborted(signal)
   const container = document.createElement('div')
   container.setAttribute('aria-hidden', 'true')
   Object.assign(container.style, {
@@ -333,8 +390,10 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
   document.body.appendChild(container)
 
   try {
-    const documentBuffer = await file.arrayBuffer()
-    const { anchorLayouts, expectedPageCount } = await readDocxLayoutMetadata(documentBuffer)
+    throwIfOfficeConversionAborted(signal)
+    const { anchorLayouts, expectedPageCount } = await readDocxLayoutMetadata(archive, signal)
+    if (expectedPageCount !== null) assertOfficePdfPageCount(expectedPageCount)
+    throwIfOfficeConversionAborted(signal)
     await renderAsync(documentBuffer, container, undefined, {
       className: 'naroz-docx-preview',
       inWrapper: true,
@@ -344,9 +403,11 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
       ignoreHeight: false,
       useBase64URL: true,
     })
+    throwIfOfficeConversionAborted(signal)
 
     let pages = Array.from(container.querySelectorAll<HTMLElement>('section.naroz-docx-preview'))
     if (!pages.length) throw new Error('DOCX_EMPTY')
+    assertOfficePdfPageCount(pages.length)
 
     const wrapper = container.querySelector<HTMLElement>('.naroz-docx-preview-wrapper')
     if (wrapper) {
@@ -357,8 +418,10 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
       page.style.flex = 'none'
     })
     normalizeDocxPages(pages)
-    await waitForElementAssets(container)
-    pages = paginateDocxOverflow(pages, expectedPageCount)
+    await waitForElementAssets(container, signal)
+    pages = paginateDocxOverflow(pages, expectedPageCount, signal)
+    assertOfficePdfPageCount(pages.length)
+    throwIfOfficeConversionAborted(signal)
     pages.forEach((page) => {
       const computedPage = getComputedStyle(page)
       const pageWidth = Math.max(1, Number.parseFloat(computedPage.width))
@@ -369,14 +432,17 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
       page.style.minHeight = pageHeight + 'px'
     })
     applyDocxAnchorLayouts(pages, anchorLayouts)
-    await waitForElementAssets(container)
-    let pdf: jsPDF | null = null
+    await waitForElementAssets(container, signal)
+    let pdf: JsPdfDocument | null = null
+    let totalRasterPixels = 0
 
     for (let index = 0; index < pages.length; index += 1) {
+      throwIfOfficeConversionAborted(signal)
       const page = pages[index]
       const computedPage = getComputedStyle(page)
       const pageWidth = Math.max(1, Number.parseFloat(computedPage.width))
       const pageHeight = Math.max(1, Number.parseFloat(computedPage.height))
+      totalRasterPixels = assertOfficePdfRasterBudget(pageWidth, pageHeight, totalRasterPixels)
       const canvas = await html2canvas(page, {
         backgroundColor: '#ffffff',
         scale: 1.5,
@@ -387,54 +453,77 @@ async function convertDocxToPdf(file: File, onProgress: (value: number) => void)
         windowWidth: pageWidth,
         windowHeight: pageHeight,
       })
+      try {
+        throwIfOfficeConversionAborted(signal)
 
-      const format = getPdfPageFormat(pageWidth, pageHeight)
-      if (!pdf) {
-        pdf = new jsPDF({
-          unit: 'mm',
-          format: [format.pageWidth, format.pageHeight],
-          orientation: format.orientation,
-        })
-      } else {
-        pdf.addPage([format.pageWidth, format.pageHeight], format.orientation)
+        const format = getPdfPageFormat(pageWidth, pageHeight)
+        if (!pdf) {
+          pdf = new jsPDF({
+            unit: 'mm',
+            format: [format.pageWidth, format.pageHeight],
+            orientation: format.orientation,
+          })
+        } else {
+          pdf.addPage([format.pageWidth, format.pageHeight], format.orientation)
+        }
+        pdf.addImage(
+          canvas.toDataURL('image/jpeg', 0.95),
+          'JPEG',
+          0,
+          0,
+          format.pageWidth,
+          format.pageHeight,
+          undefined,
+          'FAST',
+        )
+      } finally {
+        canvas.width = 1
+        canvas.height = 1
       }
-      pdf.addImage(
-        canvas.toDataURL('image/jpeg', 0.95),
-        'JPEG',
-        0,
-        0,
-        format.pageWidth,
-        format.pageHeight,
-        undefined,
-        'FAST',
-      )
-      canvas.width = 1
-      canvas.height = 1
+      throwIfOfficeConversionAborted(signal)
       onProgress(Math.round(((index + 1) / pages.length) * 100))
     }
 
     if (!pdf) throw new Error('DOCX_EMPTY')
+    throwIfOfficeConversionAborted(signal)
     return pdf.output('blob')
   } finally {
     container.remove()
   }
 }
 
-async function convertSpreadsheetToPdf(file: File, onProgress: (value: number) => void) {
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+async function convertSpreadsheetToPdf(file: File, onProgress: (value: number) => void, signal?: AbortSignal) {
+  throwIfOfficeConversionAborted(signal)
+  const [{ jsPDF }, { autoTable }, XLSX] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+    import('xlsx'),
+  ])
+  throwIfOfficeConversionAborted(signal)
+  const workbook = XLSX.read(await file.arrayBuffer(), {
+    type: 'array',
+    cellDates: true,
+    sheetRows: MAX_EXCEL_ROWS,
+  })
+  throwIfOfficeConversionAborted(signal)
   if (!workbook.SheetNames.length) throw new Error('XLSX_EMPTY')
+  if (workbook.SheetNames.length > MAX_EXCEL_SHEETS) throw new Error('XLSX_TOO_MANY_SHEETS')
 
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' })
 
-  workbook.SheetNames.forEach((sheetName, sheetIndex) => {
+  for (const [sheetIndex, sheetName] of workbook.SheetNames.entries()) {
+    throwIfOfficeConversionAborted(signal)
     if (sheetIndex > 0) pdf.addPage('a4', 'landscape')
     const sheet = workbook.Sheets[sheetName]
+    const sourceRange = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1:A1')
+    const limitedRange = limitExcelRange(sourceRange, MAX_EXCEL_ROWS, MAX_EXCEL_COLUMNS)
     const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean>>(sheet, {
       header: 1,
       defval: '',
       raw: false,
+      range: limitedRange,
     })
-    const normalizedRows = rows.slice(0, MAX_EXCEL_ROWS).map((row) => row.slice(0, MAX_EXCEL_COLUMNS).map(String))
+    const normalizedRows = rows.map((row) => row.map(String))
     const head = normalizedRows.length ? [normalizedRows[0]] : [['']]
     const body = normalizedRows.length > 1 ? normalizedRows.slice(1) : []
 
@@ -453,38 +542,86 @@ async function convertSpreadsheetToPdf(file: File, onProgress: (value: number) =
       showHead: 'everyPage',
     })
     onProgress(Math.round(((sheetIndex + 1) / workbook.SheetNames.length) * 100))
-  })
+  }
 
+  throwIfOfficeConversionAborted(signal)
   return pdf.output('blob')
 }
 
-async function waitForElementAssets(element: HTMLElement) {
+async function waitForElementAssets(element: HTMLElement, signal?: AbortSignal) {
+  throwIfOfficeConversionAborted(signal)
   await document.fonts.ready
+  throwIfOfficeConversionAborted(signal)
 
   const images = Array.from(element.querySelectorAll('img'))
   await Promise.all(images.map(async (image) => {
     if (image.complete) return
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      const timeoutId: { current?: number } = {}
       const finish = () => {
         image.removeEventListener('load', finish)
         image.removeEventListener('error', finish)
+        if (timeoutId.current !== undefined) window.clearTimeout(timeoutId.current)
+        signal?.removeEventListener('abort', cancel)
         resolve()
       }
+      const cancel = () => {
+        image.removeEventListener('load', finish)
+        image.removeEventListener('error', finish)
+        if (timeoutId.current !== undefined) window.clearTimeout(timeoutId.current)
+        signal?.removeEventListener('abort', cancel)
+        reject(new Error(OFFICE_TO_PDF_CANCELLED))
+      }
+
+      if (signal?.aborted) {
+        cancel()
+        return
+      }
+
       image.addEventListener('load', finish, { once: true })
       image.addEventListener('error', finish, { once: true })
-      window.setTimeout(finish, 5000)
+      signal?.addEventListener('abort', cancel, { once: true })
+      timeoutId.current = window.setTimeout(finish, 5000)
     })
   }))
 
-  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  throwIfOfficeConversionAborted(signal)
+  await new Promise<void>((resolve, reject) => {
+    const animationFrames: { first?: number; second?: number } = {}
+    const finish = () => {
+      if (animationFrames.first !== undefined) window.cancelAnimationFrame(animationFrames.first)
+      if (animationFrames.second !== undefined) window.cancelAnimationFrame(animationFrames.second)
+      signal?.removeEventListener('abort', cancel)
+      resolve()
+    }
+    const cancel = () => {
+      if (animationFrames.first !== undefined) window.cancelAnimationFrame(animationFrames.first)
+      if (animationFrames.second !== undefined) window.cancelAnimationFrame(animationFrames.second)
+      signal?.removeEventListener('abort', cancel)
+      reject(new Error(OFFICE_TO_PDF_CANCELLED))
+    }
+
+    if (signal?.aborted) {
+      cancel()
+      return
+    }
+
+    signal?.addEventListener('abort', cancel, { once: true })
+    animationFrames.first = requestAnimationFrame(() => {
+      animationFrames.second = requestAnimationFrame(finish)
+    })
+  })
 }
 
-async function convertPresentationToPdf(file: File, onProgress: (value: number) => void) {
-  const [{ PptxViewer, RECOMMENDED_ZIP_LIMITS }, { default: html2canvas }] = await Promise.all([
+async function convertPresentationToPdf(file: File, onProgress: (value: number) => void, signal?: AbortSignal) {
+  throwIfOfficeConversionAborted(signal)
+  const [{ PptxViewer, RECOMMENDED_ZIP_LIMITS }, { default: html2canvas }, { jsPDF }] = await Promise.all([
     import('@aiden0z/pptx-renderer'),
     import('html2canvas'),
+    import('jspdf'),
   ])
+  throwIfOfficeConversionAborted(signal)
   const viewerHost = document.createElement('div')
   const exportHost = document.createElement('div')
   let destroyViewer: () => void = () => {}
@@ -508,12 +645,16 @@ async function convertPresentationToPdf(file: File, onProgress: (value: number) 
       fitMode: 'none',
       zipLimits: RECOMMENDED_ZIP_LIMITS,
       pdfjs: false,
+      signal,
     })
     destroyViewer = () => viewer.destroy()
+    throwIfOfficeConversionAborted(signal)
 
     if (!viewer.slideCount || !viewer.slideWidth || !viewer.slideHeight) {
       throw new Error('PPTX_EMPTY')
     }
+    assertOfficePdfPageCount(viewer.slideCount)
+    assertOfficePdfRasterBudget(viewer.slideWidth, viewer.slideHeight)
 
     exportHost.style.width = `${viewer.slideWidth}px`
     exportHost.style.height = `${viewer.slideHeight}px`
@@ -522,15 +663,19 @@ async function convertPresentationToPdf(file: File, onProgress: (value: number) 
     const pageWidth = pageHeight * (viewer.slideWidth / viewer.slideHeight)
     const orientation = isLandscape ? 'landscape' : 'portrait'
     const pdf = new jsPDF({ unit: 'mm', format: [pageWidth, pageHeight], orientation })
+    let totalRasterPixels = 0
 
     for (let index = 0; index < viewer.slideCount; index += 1) {
+      throwIfOfficeConversionAborted(signal)
       exportHost.replaceChildren()
       const handle = viewer.renderSlideToContainer(index, exportHost)
       if (!handle) throw new Error('PPTX_SLIDE')
 
       try {
         await handle.ready
-        await waitForElementAssets(handle.element)
+        throwIfOfficeConversionAborted(signal)
+        await waitForElementAssets(handle.element, signal)
+        totalRasterPixels = assertOfficePdfRasterBudget(viewer.slideWidth, viewer.slideHeight, totalRasterPixels)
         const canvas = await html2canvas(handle.element, {
           backgroundColor: '#ffffff',
           scale: 1.5,
@@ -541,18 +686,24 @@ async function convertPresentationToPdf(file: File, onProgress: (value: number) 
           windowWidth: viewer.slideWidth,
           windowHeight: viewer.slideHeight,
         })
+        try {
+          throwIfOfficeConversionAborted(signal)
 
-        if (index > 0) pdf.addPage([pageWidth, pageHeight], orientation)
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
-        canvas.width = 1
-        canvas.height = 1
+          if (index > 0) pdf.addPage([pageWidth, pageHeight], orientation)
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+        } finally {
+          canvas.width = 1
+          canvas.height = 1
+        }
       } finally {
         handle.dispose()
       }
 
+      throwIfOfficeConversionAborted(signal)
       onProgress(Math.round(((index + 1) / viewer.slideCount) * 100))
     }
 
+    throwIfOfficeConversionAborted(signal)
     return pdf.output('blob')
   } finally {
     destroyViewer()
@@ -560,12 +711,27 @@ async function convertPresentationToPdf(file: File, onProgress: (value: number) 
     exportHost.remove()
   }
 }
-export async function convertOfficeToPdf(file: File, kind: OfficeFileKind, onProgress: (value: number) => void) {
-  if (kind === 'docx' || kind === 'pptx') {
-    await assertSafeOfficeArchive(await file.arrayBuffer())
+export async function convertOfficeToPdf(
+  file: File,
+  kind: OfficeFileKind,
+  onProgress: (value: number) => void,
+  signal?: AbortSignal,
+) {
+  throwIfOfficeConversionAborted(signal)
+  if (kind === 'docx') {
+    const documentBuffer = await file.arrayBuffer()
+    const { loadSafeOfficeArchive } = await import('./officeArchiveLimits')
+    const archive = await loadSafeOfficeArchive(documentBuffer, signal)
+    throwIfOfficeConversionAborted(signal)
+    return convertDocxToPdf(documentBuffer, archive.zip, onProgress, signal)
   }
 
-  if (kind === 'docx') return convertDocxToPdf(file, onProgress)
-  if (kind === 'xlsx') return convertSpreadsheetToPdf(file, onProgress)
-  return convertPresentationToPdf(file, onProgress)
+  if (kind === 'pptx' || (kind === 'xlsx' && file.name.toLowerCase().endsWith('.xlsx'))) {
+    const { assertSafeOfficeArchive } = await import('./officeArchiveLimits')
+    await assertSafeOfficeArchive(await file.arrayBuffer(), signal)
+    throwIfOfficeConversionAborted(signal)
+  }
+
+  if (kind === 'xlsx') return convertSpreadsheetToPdf(file, onProgress, signal)
+  return convertPresentationToPdf(file, onProgress, signal)
 }

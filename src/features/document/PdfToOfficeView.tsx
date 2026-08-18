@@ -188,7 +188,7 @@ export function PdfToOfficeView() {
           },
         )
       } else if (outputFormat === 'xlsx') {
-        blob = convertPdfStructureToXlsx(structure)
+        blob = await convertPdfStructureToXlsx(structure)
         if (!controller.signal.aborted) setProgress(100)
       } else {
         blob = await convertPdfToPptx(file, (completed, total) => {

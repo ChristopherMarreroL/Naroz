@@ -1,5 +1,6 @@
 import type { Locale } from '../i18n/LocaleProvider'
 import type { AppToolId } from '../types/app'
+import { seoPages as staticSeoPages } from '../../scripts/seo-pages.mjs'
 import { TOOL_PATHS, getToolPath } from './routes'
 
 export const SEO_SITE_NAME = 'Naroz'
@@ -18,120 +19,69 @@ export function getSiteUrl() {
     return normalizeSiteUrl(envUrl)
   }
 
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return normalizeSiteUrl(window.location.origin)
-  }
-
   return SEO_DEFAULT_SITE_URL
 }
 
 export function getCanonicalUrl(pathname = '/') {
-  return `${getSiteUrl()}${pathname === '/' ? '/' : pathname}`
+  const normalizedPath = pathname === '/' ? '/' : `${pathname.replace(/\/$/, '')}/`
+  return `${getSiteUrl()}${normalizedPath}`
 }
 
 export function getOgImageUrl() {
   return `${getSiteUrl()}${SEO_OG_IMAGE_PATH}`
 }
 
-const seoByTool: Record<AppToolId, Record<Locale, { title: string; description: string }>> = {
-  home: {
-    es: {
-      title: 'Naroz: herramientas online para PDF, video e imágenes',
-      description: 'Convierte, une y transforma PDF, Word, Excel, videos e imágenes gratis y de forma privada, directamente en tu navegador con Naroz.',
-    },
-    en: {
-      title: 'Naroz: online tools for PDF, video, and images',
-      description: 'Convert, merge, and transform PDF, Word, Excel, videos, and images for free and privately, directly in your browser with Naroz.',
-    },
-  },
-  'video-merge': {
-    es: { title: 'Unir videos - Naroz', description: 'Une varios videos MP4, MKV o MOV en una sola exportacion desde el navegador.' },
-    en: { title: 'Merge videos - Naroz', description: 'Merge multiple MP4, MKV, or MOV videos into one export directly in the browser.' },
-  },
-  'video-convert': {
-    es: { title: 'Convertir video - Naroz', description: 'Convierte videos entre MP4, MKV y MOV desde una sola herramienta web.' },
-    en: { title: 'Convert video - Naroz', description: 'Convert videos between MP4, MKV, and MOV from a single web tool.' },
-  },
-  'video-trim': {
-    es: { title: 'Recortar video - Naroz', description: 'Recorta un fragmento de video con vista previa y exportacion local.' },
-    en: { title: 'Trim video - Naroz', description: 'Trim a video segment with preview and local export.' },
-  },
-  'video-extract-audio': {
-    es: { title: 'Extraer audio - Naroz', description: 'Extrae el audio de un video MP4, MKV o MOV y descargalo como MP3 o WAV.' },
-    en: { title: 'Extract audio - Naroz', description: 'Extract audio from an MP4, MKV, or MOV video and download it as MP3 or WAV.' },
-  },
-  'video-remove-audio': {
-    es: { title: 'Eliminar audio - Naroz', description: 'Genera una copia silenciosa de un video manteniendo la imagen.' },
-    en: { title: 'Remove audio - Naroz', description: 'Generate a silent copy of a video while keeping the picture.' },
-  },
-  'video-resize': {
-    es: { title: 'Cambiar resolucion de video - Naroz', description: 'Redimensiona videos MP4, MKV o MOV con presets y exportacion local.' },
-    en: { title: 'Resize video - Naroz', description: 'Resize MP4, MKV, or MOV videos with presets and local export.' },
-  },
-  'video-speed': {
-    es: { title: 'Cambiar velocidad de video - Naroz', description: 'Ajusta videos MP4, MKV o MOV a 0.5x, 1x, 1.5x o 2x desde el navegador.' },
-    en: { title: 'Change video speed - Naroz', description: 'Adjust MP4, MKV, or MOV videos to 0.5x, 1x, 1.5x, or 2x directly in the browser.' },
-  },
-  'image-convert': {
-    es: { title: 'Convertir imagen - Naroz', description: 'Convierte imagenes entre JPG, PNG, WebP, AVIF, GIF e ICO.' },
-    en: { title: 'Convert image - Naroz', description: 'Convert images between JPG, PNG, WebP, AVIF, GIF, and ICO.' },
-  },
-  'image-remove-background': {
-    es: { title: 'Quitar fondo de imagen - Naroz', description: 'Intenta remover el fondo de una imagen y exportarla con transparencia.' },
-    en: { title: 'Remove image background - Naroz', description: 'Try to remove an image background and export it with transparency.' },
-  },
-  'image-crop': {
-    es: { title: 'Recortar imagen - Naroz', description: 'Recorta una imagen directamente desde el navegador.' },
-    en: { title: 'Crop image - Naroz', description: 'Crop an image directly in the browser.' },
-  },
-  'image-transform': {
-    es: { title: 'Rotar o voltear imagen - Naroz', description: 'Rota y voltea imagenes con vista previa inmediata.' },
-    en: { title: 'Rotate or flip image - Naroz', description: 'Rotate and flip images with instant preview.' },
-  },
-  'document-merge-pdf': {
-    es: { title: 'Unir PDF - Naroz', description: 'Combina varios archivos PDF en un solo documento final.' },
-    en: { title: 'Merge PDF - Naroz', description: 'Combine multiple PDF files into one final document.' },
-  },
-  'document-delete-pages': {
-    es: { title: 'Eliminar paginas PDF - Naroz', description: 'Selecciona y elimina paginas especificas de un archivo PDF.' },
-    en: { title: 'Delete PDF pages - Naroz', description: 'Select and remove specific pages from a PDF file.' },
-  },
-  'document-merge-docx': {
-    es: { title: 'Unir Word - Naroz', description: 'Combina varios archivos DOCX desde el navegador.' },
-    en: { title: 'Merge Word - Naroz', description: 'Combine multiple DOCX files in the browser.' },
-  },
-  'document-msg-to-pdf': {
-    es: { title: 'Convertir correo a PDF - Naroz', description: 'Convierte correos MSG o EML a PDF desde el navegador.' },
-    en: { title: 'Convert email to PDF - Naroz', description: 'Convert MSG or EML emails to PDF directly in the browser.' },
-  },
-  'document-markdown-converter': {
-    es: { title: 'Convertir Markdown a PDF o Word - Naroz', description: 'Convierte archivos Markdown MD a PDF o documentos Word DOCX directamente en el navegador.' },
-    en: { title: 'Convert Markdown to PDF or Word - Naroz', description: 'Convert Markdown MD files to PDF or Word DOCX documents directly in the browser.' },
-  },
-  'document-pdf-to-office': {
-    es: { title: 'Convertir PDF a Word, Excel o PowerPoint - Naroz', description: 'Convierte archivos PDF a DOCX, XLSX o PPTX directamente en el navegador.' },
-    en: { title: 'Convert PDF to Word, Excel, or PowerPoint - Naroz', description: 'Convert PDF files to DOCX, XLSX, or PPTX directly in the browser.' },
-  },
-  'document-office-to-pdf': {
-    es: { title: 'Convertir Word, Excel o PowerPoint a PDF - Naroz', description: 'Convierte archivos DOCX, XLS, XLSX o PPTX a PDF directamente en el navegador.' },
-    en: { title: 'Convert Word, Excel, or PowerPoint to PDF - Naroz', description: 'Convert DOCX, XLS, XLSX, or PPTX files to PDF directly in the browser.' },
-  },  'document-excel-column-builder': {
-    es: { title: 'Crear Excel desde columnas - Naroz', description: 'Sube varios archivos Excel, selecciona columnas especificas y genera un nuevo archivo Excel desde el navegador con Naroz.' },
-    en: { title: 'Create Excel from columns - Naroz', description: 'Upload multiple Excel files, select specific columns, and generate a new Excel file directly in the browser with Naroz.' },
-  },
-  'document-excel-join': {
-    es: { title: 'Cruzar Excel por columna clave - Naroz', description: 'Combina varios archivos Excel usando una columna en comun y genera un nuevo archivo cruzado desde el navegador con Naroz.' },
-    en: { title: 'Join Excel by key column - Naroz', description: 'Combine multiple Excel files using a shared key column and generate a joined file directly in the browser with Naroz.' },
-  },
-  'utility-qr-generator': {
-    es: { title: 'Generador de codigo QR - Naroz', description: 'Crea codigos QR desde enlaces o texto y descargalos como PNG o SVG directamente desde el navegador con Naroz.' },
-    en: { title: 'QR code generator - Naroz', description: 'Create QR codes from links or text and download them as PNG or SVG directly in the browser with Naroz.' },
-  },}
+export function getNotFoundSeoContent(locale: Locale) {
+  return locale === 'es'
+    ? {
+        title: 'Pagina no encontrada - Naroz',
+        description: 'La direccion solicitada no existe o fue movida.',
+      }
+    : {
+        title: 'Page not found - Naroz',
+        description: 'The requested address does not exist or has been moved.',
+      }
+}
+
+const englishSeoByTool: Record<AppToolId, { title: string; description: string }> = {
+  home: { title: 'Naroz: online tools for PDF, video, and images', description: 'Convert, merge, and transform PDF, Word, Excel, videos, and images for free and privately, directly in your browser with Naroz.' },
+  'video-merge': { title: 'Merge videos - Naroz', description: 'Merge multiple MP4, MKV, or MOV videos into one export directly in the browser.' },
+  'video-convert': { title: 'Convert video - Naroz', description: 'Convert videos between MP4, MKV, and MOV from a single web tool.' },
+  'video-trim': { title: 'Trim video - Naroz', description: 'Trim a video segment with preview and local export.' },
+  'video-extract-audio': { title: 'Extract audio - Naroz', description: 'Extract audio from an MP4, MKV, or MOV video and download it as MP3 or WAV.' },
+  'video-remove-audio': { title: 'Remove audio - Naroz', description: 'Generate a silent copy of a video while keeping the picture.' },
+  'video-resize': { title: 'Resize video - Naroz', description: 'Resize MP4, MKV, or MOV videos with presets and local export.' },
+  'video-speed': { title: 'Change video speed - Naroz', description: 'Adjust MP4, MKV, or MOV videos to 0.5x, 1x, 1.5x, or 2x directly in the browser.' },
+  'image-convert': { title: 'Convert image - Naroz', description: 'Convert images between JPG, PNG, WebP, AVIF, GIF, and ICO.' },
+  'image-remove-background': { title: 'Remove image background - Naroz', description: 'Try to remove an image background and export it with transparency.' },
+  'image-crop': { title: 'Crop image - Naroz', description: 'Crop an image directly in the browser.' },
+  'image-transform': { title: 'Rotate or flip image - Naroz', description: 'Rotate and flip images with instant preview.' },
+  'document-merge-pdf': { title: 'Merge PDF - Naroz', description: 'Combine multiple PDF files into one final document.' },
+  'document-delete-pages': { title: 'Delete PDF pages - Naroz', description: 'Select and remove specific pages from a PDF file.' },
+  'document-merge-docx': { title: 'Merge Word - Naroz', description: 'Combine multiple DOCX files in the browser.' },
+  'document-msg-to-pdf': { title: 'Convert email to PDF - Naroz', description: 'Convert MSG or EML emails to PDF directly in the browser.' },
+  'document-markdown-converter': { title: 'Convert Markdown to PDF or Word - Naroz', description: 'Convert Markdown MD files to PDF or Word DOCX documents directly in the browser.' },
+  'document-pdf-to-office': { title: 'Convert PDF to Word, Excel, or PowerPoint - Naroz', description: 'Convert PDF files to DOCX, XLSX, or PPTX directly in the browser.' },
+  'document-office-to-pdf': { title: 'Convert Word, Excel, or PowerPoint to PDF - Naroz', description: 'Convert DOCX, XLS, XLSX, or PPTX files to PDF directly in the browser.' },
+  'document-excel-column-builder': { title: 'Create Excel from columns - Naroz', description: 'Upload multiple Excel files, select specific columns, and generate a new Excel file directly in the browser with Naroz.' },
+  'document-excel-join': { title: 'Join Excel by key column - Naroz', description: 'Combine multiple Excel files using a shared key column and generate a joined file directly in the browser with Naroz.' },
+  'utility-qr-generator': { title: 'QR code generator - Naroz', description: 'Create QR codes from links or text and download them as PNG or SVG directly in the browser with Naroz.' },
+}
+
+interface StaticSeoPage {
+  id: AppToolId
+  path: string
+  title: string
+  description: string
+}
+
+const spanishSeoByTool = Object.fromEntries(
+  (staticSeoPages as StaticSeoPage[]).map((page) => [page.id, { title: page.title, description: page.description }]),
+) as Record<AppToolId, { title: string; description: string }>
 
 export function getSeoContent(locale: Locale, tool: AppToolId = 'home') {
-  const content = seoByTool[tool] ?? seoByTool.home
   return {
-    ...content[locale],
+    ...(locale === 'es' ? spanishSeoByTool[tool] : englishSeoByTool[tool]),
     canonicalPath: getToolPath(tool),
   }
 }
@@ -159,7 +109,7 @@ export function getStructuredData(locale: Locale, tool: AppToolId = 'home') {
         '@id': applicationId,
         url: `${siteUrl}/`,
         name: SEO_SITE_NAME,
-        description: seoByTool.home[locale].description,
+        description: getSeoContent(locale, 'home').description,
         applicationCategory: 'UtilitiesApplication',
         operatingSystem: 'Any',
         browserRequirements: 'Requires JavaScript and an HTML5-compatible browser.',

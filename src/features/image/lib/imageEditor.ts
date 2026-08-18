@@ -1,7 +1,8 @@
 import type { ImageUploadState } from '../types'
-import { assertSafeImageDimensions } from './imageLimits'
+import { assertSafeImageDimensions, assertSafeImageFile } from './imageLimits'
 
-export function loadImagePreview(file: File): Promise<ImageUploadState> {
+export async function loadImagePreview(file: File): Promise<ImageUploadState> {
+  await assertSafeImageFile(file)
   return new Promise((resolve, reject) => {
     const previewUrl = URL.createObjectURL(file)
     const image = new Image()
@@ -22,7 +23,8 @@ export function loadImagePreview(file: File): Promise<ImageUploadState> {
   })
 }
 
-export function loadImageElement(file: File): Promise<HTMLImageElement> {
+export async function loadImageElement(file: File): Promise<HTMLImageElement> {
+  await assertSafeImageFile(file)
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()

@@ -1,31 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { seoPages, SEO_SITE_URL } from './seo-pages.mjs'
 
-const DEFAULT_SITE_URL = 'https://www.naroz.app'
-const routes = [
-  '/',
-  '/video-merge',
-  '/video-convert',
-  '/video-trim',
-  '/video-extract-audio',
-  '/video-remove-audio',
-  '/video-resize',
-  '/video-speed',
-  '/image-convert',
-  '/image-remove-background',
-  '/image-crop',
-  '/image-transform',
-  '/document-merge-pdf',
-  '/document-delete-pages',
-  '/document-merge-docx',
-  '/msg-to-pdf',
-  '/markdown-converter',
-  '/pdf-to-office',
-  '/office-to-pdf',
-  '/excel-column-builder',
-  '/excel-join',
-  '/qr-generator',
-]
+const DEFAULT_SITE_URL = SEO_SITE_URL
 
 function normalizeSiteUrl(value) {
   return value.replace(/\/$/, '')
@@ -40,11 +17,11 @@ Allow: /
 Sitemap: ${siteUrl}/sitemap.xml
 `
 
-const sitemapEntries = routes
-  .map((route) => `  <url>
-    <loc>${siteUrl}${route === '/' ? '/' : route}</loc>
+const sitemapEntries = seoPages
+  .map((page) => `  <url>
+    <loc>${siteUrl}${page.path === '/' ? '/' : `${page.path}/`}</loc>
     <changefreq>weekly</changefreq>
-    <priority>${route === '/' ? '1.0' : '0.8'}</priority>
+    <priority>${page.path === '/' ? '1.0' : '0.8'}</priority>
   </url>`)
   .join('\n')
 
@@ -54,7 +31,7 @@ ${sitemapEntries}
 </urlset>
 `
 
-const redirects = `/*    /index.html   200
+const redirects = `/*    /404.html   404
 `
 
 await mkdir(publicDir, { recursive: true })

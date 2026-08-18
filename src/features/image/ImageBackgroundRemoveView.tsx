@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -8,10 +8,10 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
-import { preloadBackgroundRemoval, removeBackgroundFromImage } from './lib/backgroundRemoval'
+import { removeBackgroundFromImage } from './lib/backgroundRemoval'
 import { getImageExtensionLabel } from './lib/imageConverter'
 import type { ConvertedImageResult, ImageUploadState } from './types'
-import { assertSafeImageDimensions } from './lib/imageLimits'
+import { assertSafeImageDimensions, assertSafeImageFile } from './lib/imageLimits'
 
 const BACKGROUND_REMOVAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const BACKGROUND_REMOVAL_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
@@ -22,7 +22,8 @@ interface Notice {
   message: string
 }
 
-function loadImagePreview(file: File): Promise<ImageUploadState> {
+async function loadImagePreview(file: File): Promise<ImageUploadState> {
+  await assertSafeImageFile(file)
   return new Promise((resolve, reject) => {
     const previewUrl = URL.createObjectURL(file)
     const image = new Image()
@@ -63,14 +64,6 @@ export function ImageBackgroundRemoveView() {
     title: t('removeImageBackground'),
     message: t('removeBackgroundAutomaticHint'),
   })
-
-  useEffect(() => {
-    void preloadBackgroundRemoval((message) => {
-      setProgressMessage(message)
-    }).finally(() => {
-      setProgressMessage((current) => current)
-    })
-  }, [])
 
   const sourceLabel = useMemo(() => {
     if (!upload) {

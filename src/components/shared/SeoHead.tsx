@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom'
 
 import { useLocale } from '../../i18n/LocaleProvider'
 import { getCanonicalUrl, getOgImageUrl, getSeoContent, getStructuredData, SEO_OG_IMAGE_ALT, SEO_SITE_NAME } from '../../lib/seo'
-import { getToolFromPath } from '../../lib/routes'
+import { findToolFromPath } from '../../lib/routes'
+import { applyNotFoundSeo } from '../../lib/seoDom'
 
 function upsertMeta(selector: string, attributes: Record<string, string>) {
   let element = document.head.querySelector(selector) as HTMLMetaElement | null
@@ -49,7 +50,11 @@ export function SeoHead() {
   const location = useLocation()
 
   useEffect(() => {
-    const activeTool = getToolFromPath(location.pathname)
+    const activeTool = findToolFromPath(location.pathname)
+    if (!activeTool) {
+      applyNotFoundSeo(locale)
+      return
+    }
     const { title, description, canonicalPath } = getSeoContent(locale, activeTool)
     const canonicalUrl = getCanonicalUrl(canonicalPath)
     const imageUrl = getOgImageUrl()

@@ -8,6 +8,7 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
+import { DOCX_MERGE_LIMITS, validateBatchLimits } from '../../lib/batchLimits'
 import { DocumentQueue } from './components/DocumentQueue'
 import { useDocxMerger } from './hooks/useDocxMerger'
 import { createDocumentItem, getTotalSize, isSupportedDocx, moveDocument, type DocumentItem } from './lib/files'
@@ -30,6 +31,17 @@ export function DocxMergeView() {
     }
 
     const files = Array.from(fileList)
+    const batchError = validateBatchLimits([], files, DOCX_MERGE_LIMITS)
+    if (batchError) {
+      setNotice({
+        tone: 'error',
+        title: t('invalidFile'),
+        message: batchError === 'TOO_MANY_FILES'
+          ? `${t('tooManyFiles')} ${DOCX_MERGE_LIMITS.maxFiles}.`
+          : `${t('batchTooLarge')} ${formatBytes(DOCX_MERGE_LIMITS.maxTotalSize)}.`,
+      })
+      return
+    }
     const invalid = files.find((file) => !isSupportedDocx(file))
     if (invalid) {
       setNotice({ tone: 'error', title: t('unsupportedFile'), message: t('docxOnlyAccepted') })

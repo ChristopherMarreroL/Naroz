@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PDFDocument } from 'pdf-lib'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
@@ -9,6 +9,15 @@ interface PdfMergeResult {
   url: string
   fileName: string
   size: number
+}
+
+export const PDF_MERGE_MAX_PAGES = 1_000
+const PDF_MERGE_CANCELLED = 'PDF_MERGE_CANCELLED'
+
+export function assertPdfMergePageBudget(currentPages: number, incomingPages: number) {
+  if (currentPages + incomingPages > PDF_MERGE_MAX_PAGES) {
+    throw new Error('PDF_TOO_MANY_PAGES')
+  }
 }
 
 export function usePdfMerger() {
@@ -22,14 +31,25 @@ export function usePdfMerger() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<PdfMergeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  const resultRef = useRef<PdfMergeResult | null>(null)
+  const activeMergeControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    resultRef.current = result
+  }, [result])
+
+  useEffect(() => {
+    mountedRef.current = true
     return () => {
-      if (result?.url) {
-        URL.revokeObjectURL(result.url)
+      mountedRef.current = false
+      activeMergeControllerRef.current?.abort()
+      activeMergeControllerRef.current = null
+      if (resultRef.current?.url) {
+        URL.revokeObjectURL(resultRef.current.url)
       }
     }
-  }, [result])
+  }, [])
 
   useEffect(() => {
     setProgress((current) =>
@@ -50,6 +70,7 @@ export function usePdfMerger() {
         URL.revokeObjectURL(current.url)
       }
 
+      resultRef.current = null
       return null
     })
   }, [])
@@ -66,11 +87,22 @@ export function usePdfMerger() {
   }, [locale, resetResult])
 
   const mergePdfFiles = useCallback(async (files: File[]) => {
+    activeMergeControllerRef.current?.abort()
+    const controller = new AbortController()
+    activeMergeControllerRef.current = controller
+    const isCurrentMerge = () => mountedRef.current && activeMergeControllerRef.current === controller && !controller.signal.aborted
+    const ensureCurrentMerge = () => {
+      if (!isCurrentMerge()) {
+        throw new Error(PDF_MERGE_CANCELLED)
+      }
+    }
+
     setError(null)
     resetResult()
     setIsProcessing(true)
 
     try {
+      ensureCurrentMerge()
       setProgress({
         stage: 'preparing',
         percent: 10,
@@ -79,12 +111,19 @@ export function usePdfMerger() {
       })
 
       const mergedPdf = await PDFDocument.create()
+      let totalPages = 0
 
       for (const [index, file] of files.entries()) {
+        ensureCurrentMerge()
         const buffer = await file.arrayBuffer()
+        ensureCurrentMerge()
         const sourcePdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
+        ensureCurrentMerge()
         const pageIndices = sourcePdf.getPageIndices()
+        assertPdfMergePageBudget(totalPages, pageIndices.length)
+        totalPages += pageIndices.length
         const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices)
+        ensureCurrentMerge()
 
         copiedPages.forEach((page) => mergedPdf.addPage(page))
 
@@ -97,16 +136,24 @@ export function usePdfMerger() {
       }
 
       const bytes = await mergedPdf.save()
+      ensureCurrentMerge()
       const copy = new Uint8Array(bytes.byteLength)
       copy.set(bytes)
       const blob = new Blob([copy.buffer], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      if (!isCurrentMerge()) {
+        URL.revokeObjectURL(url)
+        throw new Error(PDF_MERGE_CANCELLED)
+      }
       const mergeResult: PdfMergeResult = {
         blob,
-        url: URL.createObjectURL(blob),
+        url,
         fileName: 'naroz-documentos-unidos.pdf',
         size: blob.size,
       }
 
+      ensureCurrentMerge()
+      resultRef.current = mergeResult
       setResult(mergeResult)
       setProgress({
         stage: 'finished',
@@ -117,17 +164,30 @@ export function usePdfMerger() {
 
       return mergeResult
     } catch (mergeError) {
-      setError(locale === 'es' ? 'No se pudieron unir los PDFs seleccionados.' : 'The selected PDFs could not be merged.')
+      if (!isCurrentMerge() || (mergeError instanceof Error && mergeError.message === PDF_MERGE_CANCELLED)) {
+        return null
+      }
+      const exceededPageLimit = mergeError instanceof Error && mergeError.message === 'PDF_TOO_MANY_PAGES'
+      setError(exceededPageLimit
+        ? t('pdfMergeTooManyPages')
+        : locale === 'es' ? 'No se pudieron unir los PDFs seleccionados.' : 'The selected PDFs could not be merged.')
       setProgress({
         stage: 'error',
         percent: 0,
         message: t('pdfMergeError'),
-        detail: locale === 'es' ? 'Verifica que todos los archivos sean PDFs validos.' : 'Make sure all files are valid PDFs.',
+        detail: exceededPageLimit
+          ? t('pdfMergeTooManyPages')
+          : locale === 'es' ? 'Verifica que todos los archivos sean PDFs validos.' : 'Make sure all files are valid PDFs.',
       })
       console.error(mergeError)
       return null
     } finally {
-      setIsProcessing(false)
+      if (activeMergeControllerRef.current === controller) {
+        activeMergeControllerRef.current = null
+        if (mountedRef.current) {
+          setIsProcessing(false)
+        }
+      }
     }
   }, [locale, resetResult, t])
 

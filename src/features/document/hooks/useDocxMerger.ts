@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import DocxMerger from 'docx-merger'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import { assertSafeOfficeArchive } from '../lib/officeArchiveLimits'
@@ -12,17 +11,96 @@ interface DocxMergeResult {
   size: number
 }
 
-function arrayBufferToBinaryString(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
+const DOCX_MERGE_MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024
+const DOCX_MERGE_TIMEOUT_MS = 30_000
+const DOCX_MERGE_CANCELLED = 'DOCX_MERGE_CANCELLED'
 
-  const chunkSize = 0x8000
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize)
-    binary += String.fromCharCode(...chunk)
-  }
+interface WorkerRef {
+  current: Worker | null
+}
 
-  return binary
+interface TimeoutRef {
+  current: number | null
+}
+
+function mergeDocxBuffersInWorker(
+  buffers: ArrayBuffer[],
+  signal: AbortSignal,
+  workerRef: WorkerRef,
+  timeoutRef: TimeoutRef,
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('../workers/docxMerge.worker.ts', import.meta.url), { type: 'module' })
+    } catch (error) {
+      reject(error)
+      return
+    }
+
+    let settled = false
+    let timeoutId: number | null = null
+
+    const finish = () => {
+      signal.removeEventListener('abort', onAbort)
+      if (timeoutId !== null && timeoutRef.current === timeoutId) {
+        window.clearTimeout(timeoutId)
+        timeoutRef.current = null
+      }
+      if (workerRef.current === worker) {
+        workerRef.current = null
+      }
+      worker.terminate()
+    }
+
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      finish()
+      callback()
+    }
+
+    const onAbort = () => {
+      settle(() => reject(new Error(DOCX_MERGE_CANCELLED)))
+    }
+
+    workerRef.current = worker
+    if (signal.aborted) {
+      onAbort()
+      return
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    timeoutId = window.setTimeout(() => {
+      settle(() => reject(new Error('DOCX_MERGE_TIMEOUT')))
+    }, DOCX_MERGE_TIMEOUT_MS)
+    timeoutRef.current = timeoutId
+
+    worker.onerror = () => {
+      settle(() => reject(new Error('DOCX_MERGE_WORKER_FAILED')))
+    }
+    worker.onmessage = (event: MessageEvent<{ buffer?: ArrayBuffer; error?: string }>) => {
+      settle(() => {
+        if (event.data.error || !event.data.buffer) {
+          reject(new Error(event.data.error || 'DOCX_MERGE_WORKER_FAILED'))
+          return
+        }
+
+        resolve(new Blob([event.data.buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }))
+      })
+    }
+
+    try {
+      worker.postMessage({ buffers }, buffers)
+    } catch (error) {
+      settle(() => reject(error))
+    }
+  })
 }
 
 export function useDocxMerger() {
@@ -36,14 +114,39 @@ export function useDocxMerger() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<DocxMergeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const workerRef = useRef<Worker | null>(null)
+  const timeoutRef = useRef<number | null>(null)
+  const mergeGenerationRef = useRef(0)
+  const activeMergeControllerRef = useRef<AbortController | null>(null)
+  const resultRef = useRef<DocxMergeResult | null>(null)
+  const isMountedRef = useRef(true)
+
+  const cancelActiveMerge = useCallback(() => {
+    mergeGenerationRef.current += 1
+    activeMergeControllerRef.current?.abort()
+    activeMergeControllerRef.current = null
+
+    const worker = workerRef.current
+    workerRef.current = null
+    worker?.terminate()
+
+    const timeoutId = timeoutRef.current
+    timeoutRef.current = null
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId)
+    }
+  }, [])
 
   useEffect(() => {
+    isMountedRef.current = true
     return () => {
-      if (result?.url) {
-        URL.revokeObjectURL(result.url)
+      isMountedRef.current = false
+      cancelActiveMerge()
+      if (resultRef.current?.url) {
+        URL.revokeObjectURL(resultRef.current.url)
       }
     }
-  }, [result])
+  }, [cancelActiveMerge])
 
   useEffect(() => {
     setProgress((current) =>
@@ -59,32 +162,49 @@ export function useDocxMerger() {
   }, [locale])
 
   const resetResult = useCallback(() => {
-    setResult((current) => {
-      if (current?.url) {
-        URL.revokeObjectURL(current.url)
-      }
-
-      return null
-    })
+    if (resultRef.current?.url) {
+      URL.revokeObjectURL(resultRef.current.url)
+    }
+    resultRef.current = null
+    setResult(null)
   }, [])
 
   const resetMergeState = useCallback(() => {
+    cancelActiveMerge()
     resetResult()
     setError(null)
+    setIsProcessing(false)
     setProgress({
       stage: 'idle',
       percent: 0,
       message: locale === 'es' ? 'Listo para unir documentos Word.' : 'Ready to merge Word documents.',
       detail: locale === 'es' ? 'Agrega dos o mas archivos DOCX.' : 'Add two or more DOCX files.',
     })
-  }, [locale, resetResult])
+  }, [cancelActiveMerge, locale, resetResult])
 
   const mergeDocxFiles = useCallback(async (files: File[]) => {
+    cancelActiveMerge()
+    const mergeGeneration = mergeGenerationRef.current
+    const controller = new AbortController()
+    activeMergeControllerRef.current = controller
+    const isCurrentMerge = () => (
+      isMountedRef.current
+      && mergeGeneration === mergeGenerationRef.current
+      && activeMergeControllerRef.current === controller
+      && !controller.signal.aborted
+    )
+    const ensureCurrentMerge = () => {
+      if (!isCurrentMerge()) {
+        throw new Error(DOCX_MERGE_CANCELLED)
+      }
+    }
+
     setError(null)
     resetResult()
     setIsProcessing(true)
 
     try {
+      ensureCurrentMerge()
       setProgress({
         stage: 'preparing',
         percent: 10,
@@ -92,11 +212,19 @@ export function useDocxMerger() {
         detail: locale === 'es' ? 'Leyendo los DOCX seleccionados.' : 'Reading the selected DOCX files.',
       })
 
-      const binaries: string[] = []
+      const buffers: ArrayBuffer[] = []
+      let totalUncompressedSize = 0
       for (const [index, file] of files.entries()) {
+        ensureCurrentMerge()
         const buffer = await file.arrayBuffer()
-        await assertSafeOfficeArchive(buffer)
-        binaries.push(arrayBufferToBinaryString(buffer))
+        ensureCurrentMerge()
+        const archive = await assertSafeOfficeArchive(buffer, controller.signal)
+        ensureCurrentMerge()
+        totalUncompressedSize += archive.totalUncompressed
+        if (totalUncompressedSize > DOCX_MERGE_MAX_UNCOMPRESSED_SIZE) {
+          throw new Error('DOCX_BATCH_EXPANSION_TOO_LARGE')
+        }
+        buffers.push(buffer)
 
         setProgress({
           stage: 'merging',
@@ -106,22 +234,22 @@ export function useDocxMerger() {
         })
       }
 
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        try {
-          const merger = new DocxMerger({ pageBreak: true }, binaries)
-          merger.save('blob', (data: Blob) => resolve(data))
-        } catch (mergeError) {
-          reject(mergeError)
-        }
-      })
+      const blob = await mergeDocxBuffersInWorker(buffers, controller.signal, workerRef, timeoutRef)
+      ensureCurrentMerge()
+      const url = URL.createObjectURL(blob)
+      if (!isCurrentMerge()) {
+        URL.revokeObjectURL(url)
+        throw new Error(DOCX_MERGE_CANCELLED)
+      }
 
       const mergeResult: DocxMergeResult = {
         blob,
-        url: URL.createObjectURL(blob),
+        url,
         fileName: 'naroz-documentos-unidos.docx',
         size: blob.size,
       }
 
+      resultRef.current = mergeResult
       setResult(mergeResult)
       setProgress({
         stage: 'finished',
@@ -132,19 +260,35 @@ export function useDocxMerger() {
 
       return mergeResult
     } catch (mergeError) {
-      setError(locale === 'es' ? 'No se pudieron unir los DOCX seleccionados.' : 'The selected DOCX files could not be merged.')
+      const exceededExpansionLimit = mergeError instanceof Error && mergeError.message === 'DOCX_BATCH_EXPANSION_TOO_LARGE'
+      const cancelled = mergeError instanceof Error && mergeError.message === DOCX_MERGE_CANCELLED
+      if (cancelled || !isCurrentMerge()) {
+        return null
+      }
+
+      setError(exceededExpansionLimit
+        ? t('docxBatchExpansionTooLarge')
+        : locale === 'es' ? 'No se pudieron unir los DOCX seleccionados.' : 'The selected DOCX files could not be merged.')
       setProgress({
         stage: 'error',
         percent: 0,
         message: t('docxMergeError'),
-        detail: locale === 'es' ? 'Algunos DOCX complejos pueden necesitar ajustes adicionales.' : 'Some complex DOCX files may need extra handling.',
+        detail: exceededExpansionLimit
+          ? t('docxBatchExpansionTooLarge')
+          : locale === 'es' ? 'Algunos DOCX complejos pueden necesitar ajustes adicionales.' : 'Some complex DOCX files may need extra handling.',
       })
       console.error(mergeError)
       return null
     } finally {
-      setIsProcessing(false)
+      const shouldResetProcessing = isCurrentMerge()
+      if (activeMergeControllerRef.current === controller) {
+        activeMergeControllerRef.current = null
+      }
+      if (shouldResetProcessing) {
+        setIsProcessing(false)
+      }
     }
-  }, [locale, resetResult, t])
+  }, [cancelActiveMerge, locale, resetResult, t])
 
   return { progress, isProcessing, result, error, mergeDocxFiles, resetMergeState }
 }

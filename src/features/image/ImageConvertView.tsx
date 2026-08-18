@@ -11,6 +11,7 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
+import { IMAGE_BATCH_LIMITS, validateBatchLimits } from '../../lib/batchLimits'
 import { convertImageFile, getImageExtensionLabel, isSupportedImageType } from './lib/imageConverter'
 import { loadImagePreview } from './lib/imageEditor'
 import type { ConvertedImageResult, ImageOutputFormat, ImageUploadState } from './types'
@@ -77,6 +78,7 @@ export function ImageConvertView() {
   const [batchStates, setBatchStates] = useState<Record<string, ImageBatchState>>({})
   const [batchDownload, setBatchDownload] = useState<BatchDownloadResult | null>(null)
   const [isConverting, setIsConverting] = useState(false)
+  const selectionIdRef = useRef(0)
   const previewUrlsRef = useRef(new Set<string>())
   const resultUrlsRef = useRef(new Set<string>())
   const batchUrlRef = useRef<string | null>(null)
@@ -138,6 +140,7 @@ export function ImageConvertView() {
   }
 
   const clearAll = () => {
+    selectionIdRef.current += 1
     clearResults()
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     previewUrlsRef.current.clear()
@@ -147,8 +150,22 @@ export function ImageConvertView() {
   }
 
   const handleSelectedFiles = async (fileList: FileList | null) => {
+    const selectionId = selectionIdRef.current + 1
+    selectionIdRef.current = selectionId
     const incomingFiles = Array.from(fileList ?? [])
     if (incomingFiles.length === 0) {
+      return
+    }
+
+    const batchError = validateBatchLimits([], incomingFiles, IMAGE_BATCH_LIMITS)
+    if (batchError) {
+      setNotice({
+        tone: 'error',
+        title: t('invalidFile'),
+        message: batchError === 'TOO_MANY_FILES'
+          ? `${t('tooManyFiles')} ${IMAGE_BATCH_LIMITS.maxFiles}.`
+          : `${t('batchTooLarge')} ${formatBytes(IMAGE_BATCH_LIMITS.maxTotalSize)}.`,
+      })
       return
     }
 
@@ -167,12 +184,23 @@ export function ImageConvertView() {
       previewUrlsRef.current.clear()
       setUploads([])
 
-      const previewResults = await Promise.allSettled(validFiles.map((file) => loadImagePreview(file)))
-      const nextUploads = previewResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
-      const unreadableFiles = previewResults.flatMap((result, index) => (result.status === 'rejected' ? [validFiles[index].name] : []))
+      const nextUploads: ImageUploadState[] = []
+      const unreadableFiles: string[] = []
+      for (const file of validFiles) {
+        try {
+          nextUploads.push(await loadImagePreview(file))
+        } catch {
+          unreadableFiles.push(file.name)
+        }
+
+        if (selectionId !== selectionIdRef.current) {
+          nextUploads.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+          return
+        }
+      }
       const skippedFiles = [...invalidFiles.map((file) => file.name), ...unreadableFiles]
 
-      if (!mountedRef.current) {
+      if (!mountedRef.current || selectionId !== selectionIdRef.current) {
         nextUploads.forEach((item) => URL.revokeObjectURL(item.previewUrl))
         return
       }

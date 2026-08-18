@@ -3,22 +3,188 @@ import JSZip from 'jszip'
 export const OFFICE_ARCHIVE_MAX_ENTRIES = 2_000
 export const OFFICE_ARCHIVE_MAX_UNCOMPRESSED_SIZE = 100 * 1024 * 1024
 export const OFFICE_ARCHIVE_MAX_COMPRESSION_RATIO = 250
+export const OFFICE_ARCHIVE_CANCELLED = 'OFFICE_ARCHIVE_CANCELLED'
 
-interface ZipEntryData {
-  compressedSize?: number
-  uncompressedSize?: number
+export interface OfficeArchiveStats {
+  entryCount: number
+  totalCompressed: number
+  totalUncompressed: number
 }
 
-function getEntrySizes(entry: unknown) {
-  const data = (entry as unknown as { _data?: ZipEntryData })._data
-  return {
-    compressed: Math.max(0, data?.compressedSize ?? 0),
-    uncompressed: Math.max(0, data?.uncompressedSize ?? 0),
+export type OfficeArchive = InstanceType<typeof JSZip>
+
+interface ZipEntryStream {
+  on(event: 'data', handler: (chunk: Uint8Array) => void): ZipEntryStream
+  on(event: 'error', handler: (error: Error) => void): ZipEntryStream
+  on(event: 'end', handler: () => void): ZipEntryStream
+  pause(): ZipEntryStream
+  resume(): ZipEntryStream
+}
+
+interface StreamableZipEntry {
+  internalStream(type: 'uint8array'): ZipEntryStream
+}
+
+interface CompressedZipEntryData {
+  compressedContent?: string | ArrayBuffer | ArrayBufferView
+}
+
+function getActualCompressedSize(entry: OfficeArchive['files'][string]) {
+  const data = (entry as unknown as { _data?: CompressedZipEntryData })._data
+  const compressedContent = data?.compressedContent
+
+  if (typeof compressedContent === 'string') {
+    return compressedContent.length
   }
+
+  if (compressedContent instanceof ArrayBuffer) {
+    return compressedContent.byteLength
+  }
+
+  if (ArrayBuffer.isView(compressedContent)) {
+    return compressedContent.byteLength
+  }
+
+  throw new Error('OFFICE_ARCHIVE_ENTRY_DATA_UNAVAILABLE')
 }
 
-export async function assertSafeOfficeArchive(buffer: ArrayBuffer) {
+function measureActualEntrySize(
+  entry: OfficeArchive['files'][string],
+  onChunk: (chunkSize: number) => void,
+  signal?: AbortSignal,
+) {
+  return new Promise<number>((resolve, reject) => {
+    let stream: ZipEntryStream | null = null
+    let total = 0
+    let settled = false
+    const cleanup = () => signal?.removeEventListener('abort', cancel)
+    const cancel = () => {
+      if (settled) return
+      settled = true
+      stream?.pause()
+      cleanup()
+      reject(new Error(OFFICE_ARCHIVE_CANCELLED))
+    }
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      stream?.pause()
+      cleanup()
+      reject(error)
+    }
+
+    if (signal?.aborted) {
+      cancel()
+      return
+    }
+
+    stream = (entry as unknown as StreamableZipEntry).internalStream('uint8array')
+    signal?.addEventListener('abort', cancel, { once: true })
+
+    stream
+      .on('data', (chunk: Uint8Array) => {
+        if (settled) return
+        if (signal?.aborted) {
+          cancel()
+          return
+        }
+        try {
+          total += chunk.byteLength
+          onChunk(chunk.byteLength)
+        } catch (error) {
+          fail(error)
+        }
+      })
+      .on('error', (error: Error) => {
+        fail(error)
+      })
+      .on('end', () => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(total)
+      })
+
+    if (!settled) stream.resume()
+  })
+}
+
+export function readOfficeArchiveEntryText(
+  entry: OfficeArchive['files'][string],
+  signal?: AbortSignal,
+) {
+  return new Promise<string>((resolve, reject) => {
+    let stream: ZipEntryStream | null = null
+    let settled = false
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+    const cleanup = () => signal?.removeEventListener('abort', cancel)
+    const cancel = () => {
+      if (settled) return
+      settled = true
+      stream?.pause()
+      cleanup()
+      reject(new Error(OFFICE_ARCHIVE_CANCELLED))
+    }
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      stream?.pause()
+      cleanup()
+      reject(error)
+    }
+
+    if (signal?.aborted) {
+      cancel()
+      return
+    }
+
+    try {
+      stream = (entry as unknown as StreamableZipEntry).internalStream('uint8array')
+    } catch (error) {
+      fail(error)
+      return
+    }
+
+    signal?.addEventListener('abort', cancel, { once: true })
+    stream
+      .on('data', (chunk: Uint8Array) => {
+        if (settled) return
+        if (signal?.aborted) {
+          cancel()
+          return
+        }
+        chunks.push(chunk)
+        totalBytes += chunk.byteLength
+      })
+      .on('error', (error: Error) => {
+        fail(error)
+      })
+      .on('end', () => {
+        if (settled) return
+        try {
+          const bytes = new Uint8Array(totalBytes)
+          let offset = 0
+          chunks.forEach((chunk) => {
+            bytes.set(chunk, offset)
+            offset += chunk.byteLength
+          })
+          settled = true
+          cleanup()
+          resolve(new TextDecoder().decode(bytes))
+        } catch (error) {
+          fail(error)
+        }
+      })
+
+    if (!settled) stream.resume()
+  })
+}
+
+export async function loadSafeOfficeArchive(buffer: ArrayBuffer, signal?: AbortSignal) {
+  if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
   const zip = await new JSZip().loadAsync(buffer)
+  if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
   const entries = Object.entries(zip.files)
     .filter(([name]) => !name.endsWith('/'))
     .map(([, entry]) => entry)
@@ -27,20 +193,44 @@ export async function assertSafeOfficeArchive(buffer: ArrayBuffer) {
     throw new Error('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
   }
 
-  let totalCompressed = 0
   let totalUncompressed = 0
   for (const entry of entries) {
-    const sizes = getEntrySizes(entry)
-    totalCompressed += sizes.compressed
-    totalUncompressed += sizes.uncompressed
+    if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
+    const actualCompressedSize = getActualCompressedSize(entry)
+    let entryUncompressed = 0
+    await measureActualEntrySize(entry, (chunkSize) => {
+      if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
+      entryUncompressed += chunkSize
+      totalUncompressed += chunkSize
+      if (entryUncompressed > OFFICE_ARCHIVE_MAX_UNCOMPRESSED_SIZE || totalUncompressed > OFFICE_ARCHIVE_MAX_UNCOMPRESSED_SIZE) {
+        throw new Error('OFFICE_ARCHIVE_TOO_LARGE')
+      }
 
-    if (totalUncompressed > OFFICE_ARCHIVE_MAX_UNCOMPRESSED_SIZE) {
-      throw new Error('OFFICE_ARCHIVE_TOO_LARGE')
-    }
+      const entryRatio = entryUncompressed / Math.max(actualCompressedSize, 1)
+      if (entryUncompressed > 1024 * 1024 && entryRatio > OFFICE_ARCHIVE_MAX_COMPRESSION_RATIO) {
+        throw new Error('OFFICE_ARCHIVE_SUSPICIOUS_COMPRESSION')
+      }
+
+      const actualRatio = totalUncompressed / Math.max(buffer.byteLength, 1)
+      if (totalUncompressed > 1024 * 1024 && actualRatio > OFFICE_ARCHIVE_MAX_COMPRESSION_RATIO) {
+        throw new Error('OFFICE_ARCHIVE_SUSPICIOUS_COMPRESSION')
+      }
+    }, signal)
   }
 
-  const ratio = totalUncompressed / Math.max(totalCompressed, 1)
-  if (totalUncompressed > 1024 * 1024 && ratio > OFFICE_ARCHIVE_MAX_COMPRESSION_RATIO) {
-    throw new Error('OFFICE_ARCHIVE_SUSPICIOUS_COMPRESSION')
-  }
+  return {
+    zip,
+    entryCount: entries.length,
+    totalCompressed: buffer.byteLength,
+    totalUncompressed,
+  } satisfies OfficeArchiveStats & { zip: OfficeArchive }
+}
+
+export async function assertSafeOfficeArchive(buffer: ArrayBuffer, signal?: AbortSignal) {
+  const archive = await loadSafeOfficeArchive(buffer, signal)
+  return {
+    entryCount: archive.entryCount,
+    totalCompressed: archive.totalCompressed,
+    totalUncompressed: archive.totalUncompressed,
+  } satisfies OfficeArchiveStats
 }

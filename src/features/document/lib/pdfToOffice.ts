@@ -11,10 +11,8 @@ import {
   VerticalPositionRelativeFrom,
 } from 'docx'
 import { GlobalWorkerOptions, Util, getDocument } from 'pdfjs-dist'
-import type { PDFPageProxy } from 'pdfjs-dist'
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import PptxGenJS from 'pptxgenjs'
-import * as XLSX from 'xlsx'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
@@ -71,6 +69,38 @@ export interface PdfStructure {
 }
 
 export type PdfConversionProgress = (completed: number, total: number) => void
+
+interface PdfLoadingTaskGuard {
+  destroy: () => Promise<void>
+  dispose: () => void
+}
+
+function guardPdfLoadingTask(loadingTask: PDFDocumentLoadingTask, signal?: AbortSignal): PdfLoadingTaskGuard {
+  let destroyPromise: Promise<void> | null = null
+  const destroy = () => {
+    if (destroyPromise) return destroyPromise
+
+    try {
+      destroyPromise = loadingTask.destroy().catch(() => undefined).then(() => undefined)
+    } catch {
+      destroyPromise = Promise.resolve()
+    }
+    return destroyPromise
+  }
+  const cancel = () => {
+    void destroy()
+  }
+
+  if (signal) {
+    signal.addEventListener('abort', cancel, { once: true })
+    if (signal.aborted) cancel()
+  }
+
+  return {
+    destroy,
+    dispose: () => signal?.removeEventListener('abort', cancel),
+  }
+}
 
 export function hasComplexPdfLayout(structure: PdfStructure) {
   return structure.pages.some((page) => {
@@ -278,14 +308,15 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     useWorkerFetch: true,
     disableStream: true,
     disableAutoFetch: true,
-    isEvalSupported: false,
     stopAtErrors: true,
   })
-  const pdf = await loadingTask.promise
-
+  const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
+  let pdf: PDFDocumentProxy | null = null
   try {
-    if (pdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
-      throw new Error(`PAGE_LIMIT:${pdf.numPages}`)
+    const loadedPdf = await loadingTask.promise
+    pdf = loadedPdf
+    if (loadedPdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
+      throw new Error(`PAGE_LIMIT:${loadedPdf.numPages}`)
     }
 
     const pages: PdfPageStructure[] = []
@@ -296,98 +327,101 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     let textItems = 0
     let textCharacters = 0
 
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    for (let pageNumber = 1; pageNumber <= loadedPdf.numPages; pageNumber += 1) {
       signal?.throwIfAborted()
-      const page = await pdf.getPage(pageNumber)
-      const viewport = page.getViewport({ scale: 1 })
-      const content = await page.getTextContent()
-      signal?.throwIfAborted()
-      if (extractedTextItems + content.items.length > PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
-        page.cleanup()
-        throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
-      }
-      extractedTextItems += content.items.length
-      const items: PdfTextSpan[] = []
-      const pageFontMetadata = new Map<string, PdfFontMetadata | null>()
+      const page = await loadedPdf.getPage(pageNumber)
 
-      for (const [sourceIndex, item] of content.items.entries()) {
-        if (!('str' in item)) {
-          continue
+      try {
+        const viewport = page.getViewport({ scale: 1 })
+        const content = await page.getTextContent()
+        signal?.throwIfAborted()
+        if (extractedTextItems + content.items.length > PDF_TO_OFFICE_MAX_TEXT_ITEMS) {
+          throw new Error(`TEXT_ITEM_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_ITEMS}`)
         }
+        extractedTextItems += content.items.length
+        const items: PdfTextSpan[] = []
+        const pageFontMetadata = new Map<string, PdfFontMetadata | null>()
 
-        if (textCharacters + item.str.length > PDF_TO_OFFICE_MAX_TEXT_CHARACTERS) {
-          page.cleanup()
-          throw new Error(`TEXT_CHARACTER_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_CHARACTERS}`)
-        }
-        textCharacters += item.str.length
-        const text = item.str.replace(/\s+/g, ' ')
-        if (!text.trim()) {
-          continue
-        }
-
-        const style = content.styles[item.fontName]
-        let metadata = fontMetadataCache.get(item.fontName) ?? pageFontMetadata.get(item.fontName)
-        if (metadata === undefined) {
-          const attempts = fontMetadataAttempts.get(item.fontName) ?? 0
-          if (
-            fontMetadataLookups < PDF_FONT_METADATA_MAX_LOOKUPS
-            && attempts < PDF_FONT_METADATA_MAX_ATTEMPTS_PER_FONT
-          ) {
-            signal?.throwIfAborted()
-            fontMetadataLookups += 1
-            fontMetadataAttempts.set(item.fontName, attempts + 1)
-            metadata = await resolveFontMetadata(page, item.fontName)
-            signal?.throwIfAborted()
-          } else {
-            metadata = null
+        for (const [sourceIndex, item] of content.items.entries()) {
+          if (!('str' in item)) {
+            continue
           }
-          pageFontMetadata.set(item.fontName, metadata)
-          if (metadata) fontMetadataCache.set(item.fontName, metadata)
-        }
-        const viewportTransform = Util.transform(viewport.transform, item.transform)
-        const viewportScale = Math.hypot(viewport.transform[0], viewport.transform[1])
-        const verticalFontScale = Math.hypot(viewportTransform[2], viewportTransform[3])
-        const transformedWidth = item.width * viewportScale
-        const transformedHeight = item.height * viewportScale
-        const fontSize = Math.max(1, verticalFontScale, transformedHeight)
-        if (![viewportTransform[4], viewportTransform[5], transformedWidth, transformedHeight, fontSize].every(Number.isFinite)) {
-          continue
-        }
-        const metadataName = metadata?.name
-        const cssFamily = metadata?.cssFontInfo?.fontFamily
 
-        items.push({
-          text,
-          x: viewportTransform[4],
-          y: viewport.height - viewportTransform[5],
-          width: transformedWidth,
-          height: Math.max(transformedHeight, fontSize * ((style?.ascent ?? 0.8) - (style?.descent ?? -0.2))),
-          fontFamily: normalizeFontFamily(cssFamily, metadataName, metadata?.systemFontInfo?.css, style?.fontFamily, metadata?.fallbackName),
-          fontSize,
-          bold: hasBoldStyle(metadata, metadataName, cssFamily, style?.fontFamily),
-          italics: hasItalicStyle(metadata, metadataName, cssFamily, style?.fontFamily),
-          ascent: style?.ascent ?? 0.8,
-          sourceIndex,
+          if (textCharacters + item.str.length > PDF_TO_OFFICE_MAX_TEXT_CHARACTERS) {
+            throw new Error(`TEXT_CHARACTER_LIMIT:${PDF_TO_OFFICE_MAX_TEXT_CHARACTERS}`)
+          }
+          textCharacters += item.str.length
+          const text = item.str.replace(/\s+/g, ' ')
+          if (!text.trim()) {
+            continue
+          }
+
+          const style = content.styles[item.fontName]
+          let metadata = fontMetadataCache.get(item.fontName) ?? pageFontMetadata.get(item.fontName)
+          if (metadata === undefined) {
+            const attempts = fontMetadataAttempts.get(item.fontName) ?? 0
+            if (
+              fontMetadataLookups < PDF_FONT_METADATA_MAX_LOOKUPS
+              && attempts < PDF_FONT_METADATA_MAX_ATTEMPTS_PER_FONT
+            ) {
+              signal?.throwIfAborted()
+              fontMetadataLookups += 1
+              fontMetadataAttempts.set(item.fontName, attempts + 1)
+              metadata = await resolveFontMetadata(page, item.fontName)
+              signal?.throwIfAborted()
+            } else {
+              metadata = null
+            }
+            pageFontMetadata.set(item.fontName, metadata)
+            if (metadata) fontMetadataCache.set(item.fontName, metadata)
+          }
+          const viewportTransform = Util.transform(viewport.transform, item.transform)
+          const viewportScale = Math.hypot(viewport.transform[0], viewport.transform[1])
+          const verticalFontScale = Math.hypot(viewportTransform[2], viewportTransform[3])
+          const transformedWidth = item.width * viewportScale
+          const transformedHeight = item.height * viewportScale
+          const fontSize = Math.max(1, verticalFontScale, transformedHeight)
+          if (![viewportTransform[4], viewportTransform[5], transformedWidth, transformedHeight, fontSize].every(Number.isFinite)) {
+            continue
+          }
+          const metadataName = metadata?.name
+          const cssFamily = metadata?.cssFontInfo?.fontFamily
+
+          items.push({
+            text,
+            x: viewportTransform[4],
+            y: viewport.height - viewportTransform[5],
+            width: transformedWidth,
+            height: Math.max(transformedHeight, fontSize * ((style?.ascent ?? 0.8) - (style?.descent ?? -0.2))),
+            fontFamily: normalizeFontFamily(cssFamily, metadataName, metadata?.systemFontInfo?.css, style?.fontFamily, metadata?.fallbackName),
+            fontSize,
+            bold: hasBoldStyle(metadata, metadataName, cssFamily, style?.fontFamily),
+            italics: hasItalicStyle(metadata, metadataName, cssFamily, style?.fontFamily),
+            ascent: style?.ascent ?? 0.8,
+            sourceIndex,
+          })
+        }
+
+        const lines = groupIntoLines(items)
+        textItems += items.length
+        pages.push({
+          pageNumber,
+          width: viewport.width,
+          height: viewport.height,
+          rows: lines.map((line) => mergeNearbyItems(line.spans)).filter((row) => row.some(Boolean)),
+          lines,
         })
+      } finally {
+        page.cleanup()
+        onProgress?.(pageNumber, loadedPdf.numPages)
       }
-
-      const lines = groupIntoLines(items)
-      textItems += items.length
-      pages.push({
-        pageNumber,
-        width: viewport.width,
-        height: viewport.height,
-        rows: lines.map((line) => mergeNearbyItems(line.spans)).filter((row) => row.some(Boolean)),
-        lines,
-      })
-      page.cleanup()
-      onProgress?.(pageNumber, pdf.numPages)
     }
 
-    return { pageCount: pdf.numPages, textItems, pages }
+    return { pageCount: loadedPdf.numPages, textItems, pages }
   } finally {
-    pdf.cleanup()
-    await loadingTask.destroy()
+    loadingTaskGuard.dispose()
+    pdf?.cleanup()
+    await loadingTaskGuard.destroy()
   }
 }
 
@@ -523,16 +557,18 @@ async function readPdfTextColors(
     useWorkerFetch: true,
     disableStream: true,
     disableAutoFetch: true,
-    isEvalSupported: false,
     stopAtErrors: true,
   })
-  const pdf = await loadingTask.promise
+  const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
   const pageColors = new Map<number, Map<number, string>>()
+  let pdf: PDFDocumentProxy | null = null
 
   try {
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const loadedPdf = await loadingTask.promise
+    pdf = loadedPdf
+    for (let pageNumber = 1; pageNumber <= loadedPdf.numPages; pageNumber += 1) {
       signal?.throwIfAborted()
-      const page = await pdf.getPage(pageNumber)
+      const page = await loadedPdf.getPage(pageNumber)
       const canvas = document.createElement('canvas')
 
       try {
@@ -589,14 +625,15 @@ async function readPdfTextColors(
         canvas.width = 1
         canvas.height = 1
         page.cleanup()
-        onProgress?.(pageNumber, pdf.numPages)
+        onProgress?.(pageNumber, loadedPdf.numPages)
       }
     }
 
     return pageColors
   } finally {
-    pdf.cleanup()
-    await loadingTask.destroy()
+    loadingTaskGuard.dispose()
+    pdf?.cleanup()
+    await loadingTaskGuard.destroy()
   }
 }
 
@@ -632,9 +669,9 @@ async function renderPdfPagesForWord(
     useWorkerFetch: true,
     disableStream: true,
     disableAutoFetch: true,
-    isEvalSupported: false,
     stopAtErrors: true,
   })
+  const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
   const pages: RenderedPdfPage[] = []
   let totalImageBytes = 0
 
@@ -697,7 +734,8 @@ async function renderPdfPagesForWord(
       pdf.cleanup()
     }
   } finally {
-    await loadingTask.destroy()
+    loadingTaskGuard.dispose()
+    await loadingTaskGuard.destroy()
   }
 
   return pages
@@ -889,7 +927,8 @@ function safeSheetName(pageNumber: number) {
   return `Pagina ${pageNumber}`.slice(0, 31)
 }
 
-export function convertPdfStructureToXlsx(structure: PdfStructure) {
+export async function convertPdfStructureToXlsx(structure: PdfStructure) {
+  const XLSX = await import('xlsx')
   const workbook = XLSX.utils.book_new()
 
   structure.pages.forEach((page) => {
@@ -916,6 +955,8 @@ export async function convertPdfToPptx(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted()
+  const { default: PptxGenJS } = await import('pptxgenjs')
+  signal?.throwIfAborted()
   const data = await file.arrayBuffer()
   signal?.throwIfAborted()
   const loadingTask = getDocument({
@@ -923,15 +964,17 @@ export async function convertPdfToPptx(
     useWorkerFetch: true,
     disableStream: true,
     disableAutoFetch: true,
-    isEvalSupported: false,
     stopAtErrors: true,
   })
-  const pdf = await loadingTask.promise
+  const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
+  let pdf: PDFDocumentProxy | null = null
 
   try {
+    const loadedPdf = await loadingTask.promise
+    pdf = loadedPdf
     signal?.throwIfAborted()
-    if (pdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
-      throw new Error(`PAGE_LIMIT:${pdf.numPages}`)
+    if (loadedPdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
+      throw new Error(`PAGE_LIMIT:${loadedPdf.numPages}`)
     }
 
     const presentation = new PptxGenJS()
@@ -944,9 +987,9 @@ export async function convertPdfToPptx(
     const slideWidth = 13.333
     const slideHeight = 7.5
 
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    for (let pageNumber = 1; pageNumber <= loadedPdf.numPages; pageNumber += 1) {
       signal?.throwIfAborted()
-      const page = await pdf.getPage(pageNumber)
+      const page = await loadedPdf.getPage(pageNumber)
       const canvas = document.createElement('canvas')
 
       try {
@@ -991,7 +1034,7 @@ export async function convertPdfToPptx(
         canvas.width = 1
         canvas.height = 1
       }
-      onProgress?.(pageNumber, pdf.numPages)
+      onProgress?.(pageNumber, loadedPdf.numPages)
     }
 
     signal?.throwIfAborted()
@@ -1003,7 +1046,8 @@ export async function convertPdfToPptx(
 
     return output
   } finally {
-    pdf.cleanup()
-    await loadingTask.destroy()
+    loadingTaskGuard.dispose()
+    pdf?.cleanup()
+    await loadingTaskGuard.destroy()
   }
 }

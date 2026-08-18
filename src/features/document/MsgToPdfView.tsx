@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import DOMPurify from 'dompurify'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -10,34 +9,9 @@ import { useToastNotice } from '../../hooks/useToastNotice'
 import { formatBytes } from '../../lib/format'
 import { createDocumentItem, isSupportedEml, isSupportedMailFile, type DocumentItem } from './lib/files'
 import { parseMailFile, type ParsedMsgData } from './lib/msgToPdf'
-import { isAllowedMailImageSource, MAIL_HTML_FORBIDDEN_ATTRIBUTES, MAIL_HTML_FORBIDDEN_TAGS } from './lib/mailHtmlPolicy'
+import { sanitizeMailHtml } from './lib/mailHtmlSanitizer'
 
 const MAIL_TO_PDF_MAX_SIZE = 25 * 1024 * 1024
-
-function sanitizeHtmlForExport(html: string) {
-  const sanitized = DOMPurify.sanitize(html.replace(/oklch\([^)]*\)/gi, '#1f2937'), {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: MAIL_HTML_FORBIDDEN_TAGS,
-    // Mail content is untrusted. Presentation attributes are intentionally
-    // discarded because CSS escapes and srcset candidates can hide requests.
-    FORBID_ATTR: MAIL_HTML_FORBIDDEN_ATTRIBUTES,
-  })
-  const document = new DOMParser().parseFromString(sanitized, 'text/html')
-
-  document.querySelectorAll<HTMLElement>('[src]').forEach((element) => {
-    if (!isAllowedMailImageSource(element.getAttribute('src'))) {
-      element.removeAttribute('src')
-    }
-  })
-
-  document.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
-    link.removeAttribute('href')
-    link.removeAttribute('target')
-    link.removeAttribute('rel')
-  })
-
-  return document.body.innerHTML
-}
 
 function escapeHtml(text: string) {
   return text
@@ -82,12 +56,6 @@ function buildPrintableMailDocument(title: string, sender: string, sentAt: strin
       </div>
       <div class="mail-html">${body}</div>
     </div>
-    <script>
-      window.onload = () => {
-        window.focus();
-        setTimeout(() => window.print(), 350);
-      };
-    </script>
   </body>
 </html>`
 }
@@ -106,7 +74,7 @@ export function MsgToPdfView() {
   const recipientCount = useMemo(() => parsed?.recipients.length ?? 0, [parsed])
   const senderSummary = useMemo(() => parsed?.senderName || parsed?.senderEmail || '-', [parsed?.senderEmail, parsed?.senderName])
   const senderDisplay = useMemo(() => parsed?.senderEmail || parsed?.senderName || '-', [parsed?.senderEmail, parsed?.senderName])
-  const renderHtml = useMemo(() => parsed?.bodyHtml ? sanitizeHtmlForExport(parsed.bodyHtml) : '', [parsed])
+  const renderHtml = useMemo(() => parsed?.bodyHtml ? sanitizeMailHtml(parsed.bodyHtml) : '', [parsed])
 
   const clearAll = () => {
     setItem(null)
@@ -137,7 +105,14 @@ export function MsgToPdfView() {
     } catch (msgError) {
       setItem(createDocumentItem(file, isSupportedEml(file) ? 'eml' : 'msg'))
       setParsed(null)
-      setError(msgError instanceof Error ? msgError.message : t('mailToPdfUnsupported'))
+      const message = msgError instanceof Error
+        ? {
+            MAIL_TOO_MANY_ATTACHMENTS: t('mailTooManyAttachments'),
+            MAIL_BODY_TOO_LARGE: t('mailBodyTooLarge'),
+            MAIL_ATTACHMENTS_TOO_LARGE: t('mailAttachmentsTooLarge'),
+          }[msgError.message] ?? t('mailToPdfUnsupported')
+        : t('mailToPdfUnsupported')
+      setError(message)
       setNotice(null)
     }
   }
@@ -164,7 +139,27 @@ export function MsgToPdfView() {
     const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8' })
     const blobUrl = URL.createObjectURL(blob)
     printWindow.location.replace(blobUrl)
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+    const deadline = Date.now() + 10_000
+    const printWhenReady = () => {
+      if (printWindow.closed || Date.now() > deadline) {
+        URL.revokeObjectURL(blobUrl)
+        return
+      }
+
+      try {
+        if (printWindow.document.readyState === 'complete') {
+          printWindow.focus()
+          printWindow.print()
+          window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+          return
+        }
+      } catch {
+        // The Blob navigation has not finished yet.
+      }
+
+      window.setTimeout(printWhenReady, 100)
+    }
+    window.setTimeout(printWhenReady, 100)
   }
 
   return (
