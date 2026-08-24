@@ -45,6 +45,8 @@ export function BackgroundMaskEditor({
   t,
 }: BackgroundMaskEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
+  const brushCursorRef = useRef<HTMLDivElement | null>(null)
   const sourceCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const initialImageRef = useRef<HTMLImageElement | null>(null)
   const undoRef = useRef<ImageData | null>(null)
@@ -58,6 +60,35 @@ export function BackgroundMaskEditor({
   const [isApplying, setIsApplying] = useState(false)
   const [isReady, setIsReady] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
+
+  const hideBrushCursor = () => {
+    const cursor = brushCursorRef.current
+    if (cursor) cursor.style.opacity = '0'
+  }
+
+  const updateBrushCursor = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    const stage = canvasStageRef.current
+    const cursor = brushCursorRef.current
+    if (!canvas || !stage || !cursor || !isReady || disabled || isApplying) {
+      hideBrushCursor()
+      return false
+    }
+
+    const canvasBounds = canvas.getBoundingClientRect()
+    const stageBounds = stage.getBoundingClientRect()
+    const isInside = event.clientX >= canvasBounds.left
+      && event.clientX <= canvasBounds.right
+      && event.clientY >= canvasBounds.top
+      && event.clientY <= canvasBounds.bottom
+    const x = Math.min(canvasBounds.width, Math.max(0, event.clientX - canvasBounds.left))
+    const y = Math.min(canvasBounds.height, Math.max(0, event.clientY - canvasBounds.top))
+
+    cursor.style.left = `${canvasBounds.left - stageBounds.left + x}px`
+    cursor.style.top = `${canvasBounds.top - stageBounds.top + y}px`
+    cursor.style.opacity = isInside || drawingRef.current ? '1' : '0'
+    return isInside
+  }
 
   useEffect(() => {
     let isCurrent = true
@@ -105,6 +136,10 @@ export function BackgroundMaskEditor({
       undoHadChangesRef.current = false
     }
   }, [resultUrl, sourceUrl])
+
+  useEffect(() => {
+    if (!isReady || disabled || isApplying) hideBrushCursor()
+  }, [disabled, isApplying, isReady])
 
   const getCanvasPoint = (event: ReactPointerEvent<HTMLCanvasElement>): Point | null => {
     const canvas = canvasRef.current
@@ -174,6 +209,7 @@ export function BackgroundMaskEditor({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!isReady || disabled || isApplying) return
+    updateBrushCursor(event)
     const point = getCanvasPoint(event)
     if (!point) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -184,6 +220,7 @@ export function BackgroundMaskEditor({
   }
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    updateBrushCursor(event)
     if (!drawingRef.current) return
     const point = getCanvasPoint(event)
     const previous = lastPointRef.current
@@ -198,6 +235,7 @@ export function BackgroundMaskEditor({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+    updateBrushCursor(event)
   }
 
   const handleUndo = () => {
@@ -254,6 +292,7 @@ export function BackgroundMaskEditor({
 
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:p-5">
         <div
+          ref={canvasStageRef}
           className="relative flex min-h-64 items-center justify-center overflow-hidden rounded-2xl border border-white/10"
           style={{
             backgroundColor: '#f8fafc',
@@ -264,13 +303,31 @@ export function BackgroundMaskEditor({
         >
           <canvas
             ref={canvasRef}
-            className="block max-h-[560px] max-w-full touch-none object-contain"
+            className={`block max-h-[560px] max-w-full touch-none object-contain ${isReady && !disabled && !isApplying ? 'cursor-none' : ''}`}
             aria-label={t('backgroundRefineCanvasLabel')}
             onPointerDown={handlePointerDown}
+            onPointerEnter={updateBrushCursor}
             onPointerMove={handlePointerMove}
+            onPointerLeave={() => {
+              if (!drawingRef.current) hideBrushCursor()
+            }}
             onPointerUp={stopDrawing}
             onPointerCancel={stopDrawing}
           />
+          <div
+            ref={brushCursorRef}
+            aria-hidden="true"
+            className={`pointer-events-none absolute z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white opacity-0 shadow-[0_0_0_1px_rgba(15,23,42,0.8)] transition-[width,height,background-color,opacity] duration-75 ${brushTool === 'erase' ? 'bg-rose-400/20' : 'bg-emerald-300/20'}`}
+            style={{
+              width: brushSize,
+              height: brushSize,
+              boxShadow: brushTool === 'erase'
+                ? '0 0 0 1px rgba(15,23,42,0.85), 0 0 0 3px rgba(251,113,133,0.65)'
+                : '0 0 0 1px rgba(15,23,42,0.85), 0 0 0 3px rgba(110,231,183,0.65)',
+            }}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full border border-slate-950/70 ${brushTool === 'erase' ? 'bg-rose-300' : 'bg-emerald-200'}`} />
+          </div>
           {!isReady ? (
             <div className="absolute inset-0 grid place-items-center bg-slate-950/75 px-6 text-center text-sm font-semibold text-white">
               {loadFailed ? t('backgroundRefineLoadError') : t('backgroundRefineLoading')}
@@ -308,7 +365,7 @@ export function BackgroundMaskEditor({
             <input
               type="range"
               min="8"
-              max="96"
+              max="128"
               step="2"
               value={brushSize}
               className="w-full cursor-pointer accent-white"
