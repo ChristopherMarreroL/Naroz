@@ -1,0 +1,192 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 74683dfccb3130e1f6430709f7a74ddbc8537620..502abbe3316457488f82be26812bdb18b86862c3 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -82,7 +82,91 @@ var require_ndarray = __commonJS({
+       }
+       return result;
+     }
++    function compileCspSafeConstructor(dtype, dimension) {
++      return function constructCspSafeView(data, shape, stride, offset) {
++        const nextShape = dimension < 1 ? [] : shape.slice();
++        const nextStride = dimension < 1 ? [] : stride.slice();
++        const view = {
++          data,
++          dtype,
++          dimension,
++          shape: nextShape,
++          stride: nextStride,
++          offset: offset | 0,
++          index(...indices) {
++            return indices.reduce((result, value, index) => result + nextStride[index] * value, this.offset);
++          },
++          hi(...limits) {
++            return constructCspSafeView(data, nextShape.map((value, index) => typeof limits[index] === "number" && limits[index] >= 0 ? limits[index] | 0 : value), nextStride, this.offset);
++          },
++          lo(...starts) {
++            const loShape = nextShape.slice();
++            let loOffset = this.offset;
++            for (let index = 0; index < loShape.length; index++) {
++              if (typeof starts[index] === "number" && starts[index] >= 0) {
++                const start = starts[index] | 0;
++                loOffset += nextStride[index] * start;
++                loShape[index] -= start;
++              }
++            }
++            return constructCspSafeView(data, loShape, nextStride, loOffset);
++          },
++          step(...steps) {
++            const stepShape = nextShape.slice();
++            const stepStride = nextStride.slice();
++            let stepOffset = this.offset;
++            for (let index = 0; index < stepShape.length; index++) {
++              if (typeof steps[index] === "number") {
++                const step = steps[index] | 0;
++                if (step < 0) {
++                  stepOffset += stepStride[index] * (stepShape[index] - 1);
++                  stepShape[index] = Math.ceil(-stepShape[index] / step);
++                } else {
++                  stepShape[index] = Math.ceil(stepShape[index] / step);
++                }
++                stepStride[index] *= step;
++              }
++            }
++            return constructCspSafeView(data, stepShape, stepStride, stepOffset);
++          },
++          transpose(...axes) {
++            const normalizedAxes = nextShape.map((_, index) => axes[index] === void 0 ? index : axes[index] | 0);
++            return constructCspSafeView(data, normalizedAxes.map((index) => nextShape[index]), normalizedAxes.map((index) => nextStride[index]), this.offset);
++          },
++          pick(...indices) {
++            const pickedShape = [];
++            const pickedStride = [];
++            let pickedOffset = this.offset;
++            for (let index = 0; index < nextShape.length; index++) {
++              if (typeof indices[index] === "number" && indices[index] >= 0) {
++                pickedOffset += nextStride[index] * (indices[index] | 0);
++              } else {
++                pickedShape.push(nextShape[index]);
++                pickedStride.push(nextStride[index]);
++              }
++            }
++            return compileCspSafeConstructor(dtype, pickedShape.length)(data, pickedShape, pickedStride, pickedOffset);
++          }
++        };
++        Object.defineProperty(view, "size", { get: () => nextShape.reduce((result, value) => result * value, dimension < 0 ? 0 : 1) });
++        Object.defineProperty(view, "order", { get: () => order.call(view) });
++        const read = (index) => dtype === "generic" ? data.get(index) : data[index];
++        const write = (index, value) => dtype === "generic" ? data.set(index, value) : data[index] = value;
++        if (dimension === 3) {
++          view.get = (i0, i1, i2) => read(view.offset + nextStride[0] * i0 + nextStride[1] * i1 + nextStride[2] * i2);
++          view.set = (i0, i1, i2, value) => write(view.offset + nextStride[0] * i0 + nextStride[1] * i1 + nextStride[2] * i2, value);
++        } else {
++          view.get = (...indices) => read(view.index(...indices));
++          view.set = (...args) => write(view.index(...args.slice(0, -1)), args.at(-1));
++        }
++        if (dimension === 0) {
++          view.valueOf = view.get;
++        }
++        return view;
++      };
++    }
+     function compileConstructor(dtype, dimension) {
++      return compileCspSafeConstructor(dtype, dimension);
+       var className = ["View", dimension, "d", dtype].join("");
+       if (dimension < 0) {
+         className = "View_Nil" + dtype;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0ea9fb5118c12e92fe3168a28aa8f494e6a18eb5..691f647f1650dd2c52ca70c168156e30b374f47f 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -77,7 +77,91 @@ var require_ndarray = __commonJS({
+       }
+       return result;
+     }
++    function compileCspSafeConstructor(dtype, dimension) {
++      return function constructCspSafeView(data, shape, stride, offset) {
++        const nextShape = dimension < 1 ? [] : shape.slice();
++        const nextStride = dimension < 1 ? [] : stride.slice();
++        const view = {
++          data,
++          dtype,
++          dimension,
++          shape: nextShape,
++          stride: nextStride,
++          offset: offset | 0,
++          index(...indices) {
++            return indices.reduce((result, value, index) => result + nextStride[index] * value, this.offset);
++          },
++          hi(...limits) {
++            return constructCspSafeView(data, nextShape.map((value, index) => typeof limits[index] === "number" && limits[index] >= 0 ? limits[index] | 0 : value), nextStride, this.offset);
++          },
++          lo(...starts) {
++            const loShape = nextShape.slice();
++            let loOffset = this.offset;
++            for (let index = 0; index < loShape.length; index++) {
++              if (typeof starts[index] === "number" && starts[index] >= 0) {
++                const start = starts[index] | 0;
++                loOffset += nextStride[index] * start;
++                loShape[index] -= start;
++              }
++            }
++            return constructCspSafeView(data, loShape, nextStride, loOffset);
++          },
++          step(...steps) {
++            const stepShape = nextShape.slice();
++            const stepStride = nextStride.slice();
++            let stepOffset = this.offset;
++            for (let index = 0; index < stepShape.length; index++) {
++              if (typeof steps[index] === "number") {
++                const step = steps[index] | 0;
++                if (step < 0) {
++                  stepOffset += stepStride[index] * (stepShape[index] - 1);
++                  stepShape[index] = Math.ceil(-stepShape[index] / step);
++                } else {
++                  stepShape[index] = Math.ceil(stepShape[index] / step);
++                }
++                stepStride[index] *= step;
++              }
++            }
++            return constructCspSafeView(data, stepShape, stepStride, stepOffset);
++          },
++          transpose(...axes) {
++            const normalizedAxes = nextShape.map((_, index) => axes[index] === void 0 ? index : axes[index] | 0);
++            return constructCspSafeView(data, normalizedAxes.map((index) => nextShape[index]), normalizedAxes.map((index) => nextStride[index]), this.offset);
++          },
++          pick(...indices) {
++            const pickedShape = [];
++            const pickedStride = [];
++            let pickedOffset = this.offset;
++            for (let index = 0; index < nextShape.length; index++) {
++              if (typeof indices[index] === "number" && indices[index] >= 0) {
++                pickedOffset += nextStride[index] * (indices[index] | 0);
++              } else {
++                pickedShape.push(nextShape[index]);
++                pickedStride.push(nextStride[index]);
++              }
++            }
++            return compileCspSafeConstructor(dtype, pickedShape.length)(data, pickedShape, pickedStride, pickedOffset);
++          }
++        };
++        Object.defineProperty(view, "size", { get: () => nextShape.reduce((result, value) => result * value, dimension < 0 ? 0 : 1) });
++        Object.defineProperty(view, "order", { get: () => order.call(view) });
++        const read = (index) => dtype === "generic" ? data.get(index) : data[index];
++        const write = (index, value) => dtype === "generic" ? data.set(index, value) : data[index] = value;
++        if (dimension === 3) {
++          view.get = (i0, i1, i2) => read(view.offset + nextStride[0] * i0 + nextStride[1] * i1 + nextStride[2] * i2);
++          view.set = (i0, i1, i2, value) => write(view.offset + nextStride[0] * i0 + nextStride[1] * i1 + nextStride[2] * i2, value);
++        } else {
++          view.get = (...indices) => read(view.index(...indices));
++          view.set = (...args) => write(view.index(...args.slice(0, -1)), args.at(-1));
++        }
++        if (dimension === 0) {
++          view.valueOf = view.get;
++        }
++        return view;
++      };
++    }
+     function compileConstructor(dtype, dimension) {
++      return compileCspSafeConstructor(dtype, dimension);
+       var className = ["View", dimension, "d", dtype].join("");
+       if (dimension < 0) {
+         className = "View_Nil" + dtype;

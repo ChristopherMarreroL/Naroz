@@ -1,4 +1,4 @@
-import type { AppToolId } from '../types/app'
+import type { AppToolId } from '../types/app.ts'
 
 export const TOOL_PATHS: Record<AppToolId, string> = {
   home: '/',

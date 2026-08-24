@@ -56,6 +56,30 @@ describe('SEO identity', () => {
     expect(`${html}\n${robots}\n${sitemap}`).not.toContain('naroz.vercel.app')
     expect(html).not.toContain('fonts.googleapis.com')
     expect(vercel).not.toContain('fonts.gstatic.com')
+    const vercelConfig = JSON.parse(vercel) as {
+      headers: Array<{ headers: Array<{ key: string; value: string }> }>
+    }
+    const contentSecurityPolicy = vercelConfig.headers
+      .flatMap((entry) => entry.headers)
+      .find((header) => header.key === 'Content-Security-Policy')?.value
+
+    expect(contentSecurityPolicy).toContain("script-src 'self' 'wasm-unsafe-eval';")
+    expect(contentSecurityPolicy).toContain("script-src-elem 'self' blob:;")
+    expect(contentSecurityPolicy).toContain("connect-src 'self' blob: https://staticimgly.com;")
+    expect(contentSecurityPolicy).toContain("worker-src 'self' blob:;")
+    expect(contentSecurityPolicy?.match(/script-src (.*?);/)?.[1]).not.toContain('blob:')
+    expect(contentSecurityPolicy).not.toContain("'unsafe-eval'")
+
+    const packageJson = JSON.parse(await Bun.file('package.json').text()) as {
+      dependencies: Record<string, string>
+      patchedDependencies: Record<string, string>
+    }
+
+    expect(packageJson.dependencies['@imgly/background-removal']).toBe('1.7.0')
+    expect(packageJson.dependencies['onnxruntime-web']).toBe('1.21.0-dev.20250206-d981b153d3')
+    expect(packageJson.patchedDependencies['@imgly/background-removal@1.7.0']).toBe(
+      'patches/@imgly%2Fbackground-removal@1.7.0.patch',
+    )
   })
 
   test('generates unique static metadata for every public route', async () => {
