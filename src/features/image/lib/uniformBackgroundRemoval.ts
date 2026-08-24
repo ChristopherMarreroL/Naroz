@@ -9,6 +9,16 @@ export interface UniformBackgroundResult {
 const MIN_AUTO_BORDER_UNIFORMITY = 0.78
 const MIN_AUTO_REMOVED_RATIO = 0.04
 const MAX_AUTO_REMOVED_RATIO = 0.96
+const MIN_AUTO_OPAQUE_BORDER_COVERAGE = 0.5
+export const MAX_UNIFORM_BACKGROUND_PIXELS = 8_000_000
+
+export function isUniformBackgroundPassAllowed(width: number, height: number) {
+  return Number.isFinite(width)
+    && Number.isFinite(height)
+    && width > 0
+    && height > 0
+    && width * height <= MAX_UNIFORM_BACKGROUND_PIXELS
+}
 
 function colorDistance(
   pixels: Uint8ClampedArray,
@@ -102,8 +112,12 @@ export function removeUniformBackgroundPixels(
   )).length
   const opaqueBorderPixels = borderOffsets.filter((offset) => pixels[offset + 3] >= 128).length
   const borderUniformity = opaqueBorderPixels > 0 ? borderMatches / opaqueBorderPixels : 0
+  const opaqueBorderCoverage = borderOffsets.length > 0 ? opaqueBorderPixels / borderOffsets.length : 0
 
-  if (!force && borderUniformity < MIN_AUTO_BORDER_UNIFORMITY) {
+  if (
+    opaqueBorderCoverage < MIN_AUTO_OPAQUE_BORDER_COVERAGE
+    || (!force && borderUniformity < MIN_AUTO_BORDER_UNIFORMITY)
+  ) {
     return { accepted: false, borderColor, borderUniformity, pixels, removedRatio: 0 }
   }
 
@@ -249,18 +263,24 @@ export async function removeUniformBackground(
   removeEnclosedAreas = false,
 ) {
   const objectUrl = typeof createImageBitmap === 'function' ? null : URL.createObjectURL(file)
-  const image = typeof createImageBitmap === 'function'
-    ? await createImageBitmap(file)
-    : await new Promise<HTMLImageElement>((resolve, reject) => {
-        const element = new Image()
-        element.onload = () => resolve(element)
-        element.onerror = () => reject(new Error('BACKGROUND_IMAGE_DECODE_FAILED'))
-        element.src = objectUrl!
-      })
+  let image: ImageBitmap | HTMLImageElement | null = null
   try {
+    image = typeof createImageBitmap === 'function'
+      ? await createImageBitmap(file)
+      : await new Promise<HTMLImageElement>((resolve, reject) => {
+          const element = new Image()
+          element.onload = () => resolve(element)
+          element.onerror = () => reject(new Error('BACKGROUND_IMAGE_DECODE_FAILED'))
+          element.src = objectUrl!
+        })
+
+    const width = 'naturalWidth' in image ? image.naturalWidth : image.width
+    const height = 'naturalHeight' in image ? image.naturalHeight : image.height
+    if (!isUniformBackgroundPassAllowed(width, height)) return null
+
     const canvas = document.createElement('canvas')
-    canvas.width = 'naturalWidth' in image ? image.naturalWidth : image.width
-    canvas.height = 'naturalHeight' in image ? image.naturalHeight : image.height
+    canvas.width = width
+    canvas.height = height
     const context = canvas.getContext('2d', { willReadFrequently: true })
     if (!context) throw new Error('BACKGROUND_CANVAS_UNAVAILABLE')
 
@@ -285,7 +305,7 @@ export async function removeUniformBackground(
       removedRatio: result.removedRatio,
     }
   } finally {
-    if ('close' in image) image.close()
+    if (image && 'close' in image) image.close()
     if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
 }

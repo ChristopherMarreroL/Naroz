@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { removeUniformBackgroundPixels } from '../src/features/image/lib/uniformBackgroundRemoval'
+import {
+  isUniformBackgroundPassAllowed,
+  removeUniformBackground,
+  removeUniformBackgroundPixels,
+} from '../src/features/image/lib/uniformBackgroundRemoval'
 
 function createPixels(width: number, height: number, color: readonly [number, number, number, number]) {
   const pixels = new Uint8ClampedArray(width * height * 4)
@@ -25,6 +29,73 @@ function alphaAt(pixels: Uint8ClampedArray, width: number, x: number, y: number)
 }
 
 describe('uniform background removal', () => {
+  test('bounds the full-resolution pass before allocating its pixel mask', () => {
+    expect(isUniformBackgroundPassAllowed(4_000, 2_000)).toBe(true)
+    expect(isUniformBackgroundPassAllowed(4_001, 2_000)).toBe(false)
+    expect(isUniformBackgroundPassAllowed(Number.POSITIVE_INFINITY, 100)).toBe(false)
+  })
+
+  test('revokes the fallback Blob URL when browser image decoding fails', async () => {
+    const createBitmapDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap')
+    const imageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Image')
+    const createUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    const revokeUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+    const revokedUrls: string[] = []
+
+    class FailingImage {
+      onerror: (() => void) | null = null
+      onload: (() => void) | null = null
+
+      set src(_value: string) {
+        this.onerror?.()
+      }
+    }
+
+    Object.defineProperty(globalThis, 'createImageBitmap', { configurable: true, value: undefined })
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: FailingImage })
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: () => 'blob:naroz-test' })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: (url: string) => revokedUrls.push(url),
+    })
+
+    try {
+      await expect(removeUniformBackground(new File(['invalid'], 'invalid.png'), 55)).rejects.toThrow(
+        'BACKGROUND_IMAGE_DECODE_FAILED',
+      )
+      expect(revokedUrls).toEqual(['blob:naroz-test'])
+    } finally {
+      if (createBitmapDescriptor) Object.defineProperty(globalThis, 'createImageBitmap', createBitmapDescriptor)
+      else Reflect.deleteProperty(globalThis, 'createImageBitmap')
+      if (imageDescriptor) Object.defineProperty(globalThis, 'Image', imageDescriptor)
+      else Reflect.deleteProperty(globalThis, 'Image')
+      if (createUrlDescriptor) Object.defineProperty(URL, 'createObjectURL', createUrlDescriptor)
+      else Reflect.deleteProperty(URL, 'createObjectURL')
+      if (revokeUrlDescriptor) Object.defineProperty(URL, 'revokeObjectURL', revokeUrlDescriptor)
+      else Reflect.deleteProperty(URL, 'revokeObjectURL')
+    }
+  })
+
+  test('rejects automatic uniform removal when most border samples are transparent', () => {
+    const width = 10
+    const height = 10
+    const pixels = createPixels(width, height, [0, 0, 0, 0])
+
+    for (let y = 2; y <= 7; y += 1) {
+      for (let x = 0; x <= 3; x += 1) {
+        setPixel(pixels, width, x, y, [220, 30, 30, 255])
+      }
+    }
+
+    const result = removeUniformBackgroundPixels(pixels, width, height, 55)
+    const forcedResult = removeUniformBackgroundPixels(pixels, width, height, 55, true)
+
+    expect(result?.accepted).toBe(false)
+    expect(forcedResult?.accepted).toBe(false)
+    expect(alphaAt(result!.pixels, width, 0, 4)).toBe(255)
+    expect(alphaAt(result!.pixels, width, 3, 4)).toBe(255)
+  })
+
   test('removes an edge-connected black background without deleting enclosed black artwork', () => {
     const width = 9
     const height = 9

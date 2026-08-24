@@ -84,6 +84,7 @@ export function ImageBackgroundRemoveView() {
     return getImageExtensionLabel(upload.file)
   }, [upload])
   const canRefineResult = upload ? upload.width * upload.height <= MAX_MASK_EDITOR_PIXELS : false
+  const controlsLocked = isProcessing || isRefining
 
   useEffect(() => () => {
     if (upload?.previewUrl) URL.revokeObjectURL(upload.previewUrl)
@@ -181,7 +182,13 @@ export function ImageBackgroundRemoveView() {
       }
       const nextResult = await removeBackgroundFromImage(
         upload.file,
-        { mode: removalMode, removeEnclosedAreas, sensitivity },
+        {
+          height: upload.height,
+          mode: removalMode,
+          removeEnclosedAreas,
+          sensitivity,
+          width: upload.width,
+        },
         (progress) => setProgressMessage(describeProgress(progress)),
       )
       setResult(nextResult)
@@ -230,7 +237,7 @@ export function ImageBackgroundRemoveView() {
               buttonLabel={t('selectImage')}
               uploadLabel={t('uploadImageDropzone')}
               accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-              disabled={isProcessing}
+              disabled={controlsLocked}
               aside={<span className="badge">JPG / PNG / WebP</span>}
               onSelect={(files) => {
                 void handleSelectedFile(files?.[0])
@@ -295,7 +302,7 @@ export function ImageBackgroundRemoveView() {
                       <select
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                         value={removalMode}
-                        disabled={isProcessing}
+                        disabled={controlsLocked}
                         onChange={(event) => {
                           clearResult()
                           setRemovalMode(event.target.value as BackgroundRemovalMode)
@@ -319,7 +326,7 @@ export function ImageBackgroundRemoveView() {
                         max="100"
                         step="1"
                         value={sensitivity}
-                        disabled={isProcessing || removalMode === 'ai'}
+                        disabled={controlsLocked || removalMode === 'ai'}
                         className="w-full cursor-pointer accent-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
                         onChange={(event) => {
                           clearResult()
@@ -333,7 +340,7 @@ export function ImageBackgroundRemoveView() {
                       <input
                         type="checkbox"
                         checked={removeEnclosedAreas}
-                        disabled={isProcessing || removalMode === 'ai'}
+                        disabled={controlsLocked || removalMode === 'ai'}
                         className="mt-0.5 h-4 w-4 shrink-0 accent-slate-950 disabled:opacity-50"
                         onChange={(event) => {
                           clearResult()
@@ -358,7 +365,7 @@ export function ImageBackgroundRemoveView() {
                   </div>
 
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                    <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleRemoveBackground} disabled={isProcessing}>
+                    <button type="button" className="btn-primary w-full sm:w-auto" onClick={handleRemoveBackground} disabled={controlsLocked}>
                       <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                         <path d="M5 19V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12" />
                         <path d="m8 14 2.5-2.5L13 14l2-2 2 2" />
@@ -366,7 +373,7 @@ export function ImageBackgroundRemoveView() {
                       </svg>
                       {isProcessing ? t('removingBackground') : t('removeBackgroundBtn')}
                     </button>
-                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={isProcessing}>
+                    <button type="button" className="btn-secondary w-full sm:w-auto" onClick={clearAll} disabled={controlsLocked}>
                       {t('clearContent')}
                     </button>
                     {result ? (
@@ -374,14 +381,14 @@ export function ImageBackgroundRemoveView() {
                         type="button"
                         className="btn-secondary w-full sm:w-auto"
                         onClick={() => setIsRefining(true)}
-                        disabled={isProcessing || !canRefineResult}
+                        disabled={controlsLocked || !canRefineResult}
                         title={canRefineResult ? undefined : t('backgroundRefineTooLarge')}
                       >
                         {t('backgroundRefineAction')}
                       </button>
                     ) : null}
                     {result ? (
-                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
+                      <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)} disabled={controlsLocked}>
                         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                           <path d="M12 4v10" />
                           <path d="m8 10 4 4 4-4" />
@@ -402,12 +409,13 @@ export function ImageBackgroundRemoveView() {
                 t={t}
                 onClose={() => setIsRefining(false)}
                 onApply={(blob) => {
-                  setResult((current) => current ? {
-                    ...current,
+                  const refinedUrl = URL.createObjectURL(blob)
+                  setResult({
+                    ...result,
                     blob,
-                    url: URL.createObjectURL(blob),
+                    url: refinedUrl,
                     size: blob.size,
-                  } : current)
+                  })
                   setIsRefining(false)
                   setNotice({
                     tone: 'success',

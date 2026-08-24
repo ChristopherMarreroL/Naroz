@@ -1,7 +1,7 @@
 import { preload, removeBackground, type Config } from '@imgly/background-removal'
 
 import type { ConvertedImageResult } from '../types'
-import { removeUniformBackground } from './uniformBackgroundRemoval'
+import { isUniformBackgroundPassAllowed, removeUniformBackground } from './uniformBackgroundRemoval'
 
 export type BackgroundRemovalMode = 'auto' | 'uniform' | 'ai'
 export type BackgroundRemovalMethod = 'uniform' | 'ai'
@@ -13,9 +13,11 @@ export interface BackgroundRemovalProgress {
 }
 
 export interface BackgroundRemovalOptions {
+  height?: number
   mode?: BackgroundRemovalMode
   removeEnclosedAreas?: boolean
   sensitivity?: number
+  width?: number
 }
 
 export interface BackgroundRemovalResult extends ConvertedImageResult {
@@ -66,9 +68,12 @@ export async function removeBackgroundFromImage(
   const mode = options.mode ?? 'auto'
   const removeEnclosedAreas = options.removeEnclosedAreas ?? false
   const sensitivity = options.sensitivity ?? 55
+  const uniformPassAllowed = options.width === undefined || options.height === undefined
+    ? true
+    : isUniformBackgroundPassAllowed(options.width, options.height)
 
   try {
-    if (mode !== 'ai') {
+    if (mode !== 'ai' && uniformPassAllowed) {
       onProgress?.({ stage: 'analyzing' })
       let uniformResult = null
       try {
