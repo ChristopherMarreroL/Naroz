@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -8,13 +8,20 @@ import { useLocale } from '../../i18n/LocaleProvider'
 import { useToastNotice } from '../../hooks/useToastNotice'
 import { downloadFromUrl } from '../../lib/download'
 import { formatBytes } from '../../lib/format'
-import { removeBackgroundFromImage } from './lib/backgroundRemoval'
+import {
+  removeBackgroundFromImage,
+  type BackgroundRemovalMode,
+  type BackgroundRemovalProgress,
+  type BackgroundRemovalResult,
+} from './lib/backgroundRemoval'
 import { getImageExtensionLabel } from './lib/imageConverter'
-import type { ConvertedImageResult, ImageUploadState } from './types'
+import type { ImageUploadState } from './types'
 import { assertSafeImageDimensions, assertSafeImageFile } from './lib/imageLimits'
+import { BackgroundMaskEditor } from './components/BackgroundMaskEditor'
 
 const BACKGROUND_REMOVAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const BACKGROUND_REMOVAL_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+const MAX_MASK_EDITOR_PIXELS = 16_000_000
 
 interface Notice {
   tone: 'error' | 'warning' | 'success' | 'info'
@@ -56,7 +63,11 @@ function isSupportedBackgroundRemovalImage(file: File) {
 export function ImageBackgroundRemoveView() {
   const { t } = useLocale()
   const [upload, setUpload] = useState<ImageUploadState | null>(null)
-  const [result, setResult] = useState<ConvertedImageResult | null>(null)
+  const [result, setResult] = useState<BackgroundRemovalResult | null>(null)
+  const [removalMode, setRemovalMode] = useState<BackgroundRemovalMode>('auto')
+  const [sensitivity, setSensitivity] = useState(55)
+  const [removeEnclosedAreas, setRemoveEnclosedAreas] = useState(false)
+  const [isRefining, setIsRefining] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [notice, setNotice] = useToastNotice<Notice | null>({
@@ -72,8 +83,18 @@ export function ImageBackgroundRemoveView() {
 
     return getImageExtensionLabel(upload.file)
   }, [upload])
+  const canRefineResult = upload ? upload.width * upload.height <= MAX_MASK_EDITOR_PIXELS : false
+
+  useEffect(() => () => {
+    if (upload?.previewUrl) URL.revokeObjectURL(upload.previewUrl)
+  }, [upload])
+
+  useEffect(() => () => {
+    if (result?.url) URL.revokeObjectURL(result.url)
+  }, [result])
 
   const clearResult = () => {
+    setIsRefining(false)
     setResult((current) => {
       if (current?.url) {
         URL.revokeObjectURL(current.url)
@@ -151,20 +172,29 @@ export function ImageBackgroundRemoveView() {
     clearResult()
 
     try {
-      const nextResult = await removeBackgroundFromImage(upload.file, (message) => {
-        setProgressMessage(message)
-      })
+      const describeProgress = (progress: BackgroundRemovalProgress) => {
+        if (progress.stage === 'analyzing') return t('backgroundAnalyzingEdges')
+        if (progress.stage === 'segmenting') return t('backgroundAiSegmenting')
+        return progress.percent === undefined
+          ? t('backgroundModelPreparing')
+          : `${t('backgroundModelLoading')} ${progress.percent}%`
+      }
+      const nextResult = await removeBackgroundFromImage(
+        upload.file,
+        { mode: removalMode, removeEnclosedAreas, sensitivity },
+        (progress) => setProgressMessage(describeProgress(progress)),
+      )
       setResult(nextResult)
       setNotice({
         tone: 'success',
         title: t('removedBackgroundReady'),
         message: t('transparentPngOutput'),
       })
-    } catch (error) {
+    } catch {
       setNotice({
         tone: 'error',
         title: t('imageBackgroundRemoveErrorTitle'),
-        message: error instanceof Error ? error.message : t('imageConvertErrorMessage'),
+        message: t('imageBackgroundRemoveErrorMessage'),
       })
     } finally {
       setIsProcessing(false)
@@ -211,6 +241,7 @@ export function ImageBackgroundRemoveView() {
           {notice ? <div className="mt-6"><AlertBanner tone={notice.tone} title={notice.title} message={notice.message} /></div> : null}
 
           {upload ? (
+            <>
             <div className="mt-6 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
               <div className="grid gap-4">
                 <div className="panel-subtle overflow-hidden p-3">
@@ -258,7 +289,65 @@ export function ImageBackgroundRemoveView() {
                 </div>
 
                 <div className="panel-subtle p-5 sm:p-6">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-sm font-semibold text-slate-900">{t('backgroundRemovalMode')}</span>
+                      <select
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                        value={removalMode}
+                        disabled={isProcessing}
+                        onChange={(event) => {
+                          clearResult()
+                          setRemovalMode(event.target.value as BackgroundRemovalMode)
+                        }}
+                      >
+                        <option value="auto">{t('backgroundModeAuto')}</option>
+                        <option value="uniform">{t('backgroundModeUniform')}</option>
+                        <option value="ai">{t('backgroundModeAi')}</option>
+                      </select>
+                      <span className="text-xs leading-5 text-slate-500">{t(`backgroundMode${removalMode === 'auto' ? 'Auto' : removalMode === 'uniform' ? 'Uniform' : 'Ai'}Desc`)}</span>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-900">
+                        {t('backgroundSensitivity')}
+                        <span className="text-slate-500">{sensitivity}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={sensitivity}
+                        disabled={isProcessing || removalMode === 'ai'}
+                        className="w-full cursor-pointer accent-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                        onChange={(event) => {
+                          clearResult()
+                          setSensitivity(Number(event.target.value))
+                        }}
+                      />
+                      <span className="text-xs leading-5 text-slate-500">{t('backgroundSensitivityDesc')}</span>
+                    </label>
+
+                    <label className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={removeEnclosedAreas}
+                        disabled={isProcessing || removalMode === 'ai'}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-slate-950 disabled:opacity-50"
+                        onChange={(event) => {
+                          clearResult()
+                          setRemoveEnclosedAreas(event.target.checked)
+                        }}
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-900">{t('backgroundRemoveEnclosed')}</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">{t('backgroundRemoveEnclosedDesc')}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     <p className="font-semibold text-slate-900">{t('automaticDetection')}</p>
                     <p className="mt-2">{t('backgroundAutomaticDescription')}</p>
                   </div>
@@ -281,6 +370,17 @@ export function ImageBackgroundRemoveView() {
                       {t('clearContent')}
                     </button>
                     {result ? (
+                      <button
+                        type="button"
+                        className="btn-secondary w-full sm:w-auto"
+                        onClick={() => setIsRefining(true)}
+                        disabled={isProcessing || !canRefineResult}
+                        title={canRefineResult ? undefined : t('backgroundRefineTooLarge')}
+                      >
+                        {t('backgroundRefineAction')}
+                      </button>
+                    ) : null}
+                    {result ? (
                       <button type="button" className="btn-download w-full sm:w-auto" onClick={() => downloadFromUrl(result.url, result.fileName)}>
                         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                           <path d="M12 4v10" />
@@ -294,6 +394,30 @@ export function ImageBackgroundRemoveView() {
                 </div>
               </div>
             </div>
+            {result && isRefining && canRefineResult ? (
+              <BackgroundMaskEditor
+                sourceUrl={upload.previewUrl}
+                resultUrl={result.url}
+                disabled={isProcessing}
+                t={t}
+                onClose={() => setIsRefining(false)}
+                onApply={(blob) => {
+                  setResult((current) => current ? {
+                    ...current,
+                    blob,
+                    url: URL.createObjectURL(blob),
+                    size: blob.size,
+                  } : current)
+                  setIsRefining(false)
+                  setNotice({
+                    tone: 'success',
+                    title: t('backgroundRefinementApplied'),
+                    message: t('backgroundRefinementAppliedDesc'),
+                  })
+                }}
+              />
+            ) : null}
+            </>
           ) : (
             <div className="mt-6">
               <EmptyState badge={t('noImage')} title={t('emptyRemoveBackgroundTitle')} description={t('emptyRemoveBackgroundDesc')} />
@@ -324,6 +448,9 @@ export function ImageBackgroundRemoveView() {
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-semibold text-emerald-700">{t('removedBackgroundReady')}</p>
                 <p className="mt-2 text-sm leading-6 text-emerald-700">{result.fileName} · {formatBytes(result.size)}</p>
+                <p className="mt-1 text-sm leading-6 text-emerald-700">
+                  {result.method === 'uniform' ? t('backgroundUsedUniform') : t('backgroundUsedAi')}
+                </p>
               </div>
             ) : null}
             <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-700">

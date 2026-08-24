@@ -3,7 +3,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { TOOL_PATHS } from './src/lib/routes'
+import { TOOL_PATHS } from './src/lib/routes.ts'
 
 const previewPaths = new Set(Object.values(TOOL_PATHS))
 const previewDistRoot = resolve(process.cwd(), 'dist')
