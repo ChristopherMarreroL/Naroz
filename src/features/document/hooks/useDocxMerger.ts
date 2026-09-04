@@ -13,7 +13,7 @@ interface DocxMergeResult {
 }
 
 const DOCX_MERGE_MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024
-const DOCX_MERGE_TIMEOUT_MS = 30_000
+const DOCX_MERGE_TIMEOUT_MS = 60_000
 const DOCX_MERGE_CANCELLED = 'DOCX_MERGE_CANCELLED'
 
 interface WorkerRef {

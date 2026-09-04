@@ -249,7 +249,7 @@ test('Word UI merges synthetic documents through the real worker and validates i
   await page.getByRole('button', { name: 'Merge Word', exact: true }).click()
   const button = page.getByRole('button', { name: 'Download merged Word file', exact: true })
   // CI pays the first-load cost for both the DOCX worker and its ZIP/XML modules.
-  await expect(button).toBeVisible({ timeout: 20_000 })
+  await expect(button).toBeVisible({ timeout: 70_000 })
   const download = page.waitForEvent('download')
   await button.click()
   const path = testInfo.outputPath('synthetic-merged.docx')
