@@ -1,4 +1,4 @@
-export const SEO_SITE_URL = 'https://naroz.app'
+export const SEO_SITE_URL = 'https://www.naroz.app'
 
 function getCanonicalUrl(path, siteUrl = SEO_SITE_URL) {
   return `${siteUrl}${path === '/' ? '/' : `${path}/`}`
@@ -38,7 +38,7 @@ export function createStructuredData(page, siteUrl = SEO_SITE_URL) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'WebSite', '@id': `${siteUrl}/#website`, url: `${siteUrl}/`, name: 'Naroz', alternateName: ['Naroz App'], inLanguage: ['es', 'en'] },
+      { '@type': 'WebSite', '@id': `${siteUrl}/#website`, url: `${siteUrl}/`, name: 'Naroz', alternateName: ['Naroz App', 'naroz.app'], inLanguage: ['es', 'en'] },
       {
         '@type': 'WebApplication', '@id': `${siteUrl}/#webapp`, url: `${siteUrl}/`, name: 'Naroz',
         description: seoPages[0].description, applicationCategory: 'UtilitiesApplication', operatingSystem: 'Any',

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://naroz.app/sitemap.xml
+Sitemap: https://www.naroz.app/sitemap.xml

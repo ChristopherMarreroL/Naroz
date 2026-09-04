@@ -13,8 +13,8 @@ import { findToolFromPath } from '../src/lib/routes'
 
 describe('SEO identity', () => {
   test('uses the official domain as the single canonical host', () => {
-    expect(SEO_DEFAULT_SITE_URL).toBe('https://naroz.app')
-    expect(getCanonicalUrl('/video-convert')).toBe('https://naroz.app/video-convert/')
+    expect(SEO_DEFAULT_SITE_URL).toBe('https://www.naroz.app')
+    expect(getCanonicalUrl('/video-convert')).toBe('https://www.naroz.app/video-convert/')
   })
 
   test('describes Naroz as a website and free web application', () => {
@@ -23,12 +23,17 @@ describe('SEO identity', () => {
 
     expect(graph[0]).toMatchObject({
       '@type': 'WebSite',
+      '@id': 'https://www.naroz.app/#website',
       name: 'Naroz',
-      url: 'https://naroz.app/',
+      url: 'https://www.naroz.app/',
+      alternateName: ['Naroz App', 'naroz.app'],
     })
     expect(graph[1]).toMatchObject({
       '@type': 'WebApplication',
+      '@id': 'https://www.naroz.app/#webapp',
       name: 'Naroz',
+      url: 'https://www.naroz.app/',
+      image: 'https://www.naroz.app/og-image.png',
       applicationCategory: 'UtilitiesApplication',
       isAccessibleForFree: true,
       offers: { price: '0', priceCurrency: 'USD' },
@@ -43,15 +48,18 @@ describe('SEO identity', () => {
       Bun.file('vercel.json').text(),
     ])
 
-    expect(html).toContain('<link rel="canonical" href="https://naroz.app/"')
+    expect(html).toContain('<link rel="canonical" href="https://www.naroz.app/"')
+    expect(html).toContain('<meta property="og:url" content="https://www.naroz.app/"')
+    expect(html).toContain('<meta property="og:image" content="https://www.naroz.app/og-image.png"')
+    expect(html).toContain('<meta name="twitter:image" content="https://www.naroz.app/og-image.png"')
     expect(html).toContain('"@type": "WebSite"')
     expect(html).toContain('"@type": "WebApplication"')
-    expect(robots).toContain('Sitemap: https://naroz.app/sitemap.xml')
-    expect(sitemap).toContain('<loc>https://naroz.app/</loc>')
+    expect(robots).toContain('Sitemap: https://www.naroz.app/sitemap.xml')
+    expect(sitemap).toContain('<loc>https://www.naroz.app/</loc>')
     const sitemapUrls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1])
-    expect(sitemapUrls).toEqual(seoPages.map((page) => `https://naroz.app${page.path === '/' ? '/' : `${page.path}/`}`))
+    expect(sitemapUrls).toEqual(seoPages.map((page) => `https://www.naroz.app${page.path === '/' ? '/' : `${page.path}/`}`))
     expect(vercel).toContain('"cleanUrls": true')
-    expect(`${html}\n${robots}\n${sitemap}`).not.toContain('www.naroz.app')
+    expect(`${html}\n${robots}\n${sitemap}`).not.toMatch(/https:\/\/naroz\.app(?:\/|$)/)
     expect(`${html}\n${robots}\n${sitemap}`).not.toContain('naroz.netlify.app')
     expect(`${html}\n${robots}\n${sitemap}`).not.toContain('naroz.vercel.app')
     expect(html).not.toContain('fonts.googleapis.com')
@@ -96,9 +104,9 @@ describe('SEO identity', () => {
     expect(rendered).toContain('<meta name="description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
     expect(rendered).toContain('<meta property="og:description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
     expect(rendered).toContain('<meta name="twitter:description" content="Convierte videos entre MP4, MKV y MOV gratis y directamente en tu navegador." />')
-    expect(rendered).toContain('<link rel="canonical" href="https://naroz.app/video-convert/" />')
-    expect(rendered).toContain('"@id": "https://naroz.app/video-convert/#webpage"')
-    expect(rendered).not.toContain('<link rel="canonical" href="https://naroz.app/" />')
+    expect(rendered).toContain('<link rel="canonical" href="https://www.naroz.app/video-convert/" />')
+    expect(rendered).toContain('"@id": "https://www.naroz.app/video-convert/#webpage"')
+    expect(rendered).not.toContain('<link rel="canonical" href="https://www.naroz.app/" />')
   })
 
   test('keeps one canonical, description, title, and valid JSON-LD graph per public page', async () => {
@@ -117,7 +125,7 @@ describe('SEO identity', () => {
       expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebSite')).toHaveLength(1)
       expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebApplication')).toHaveLength(1)
       expect(structuredData['@graph'].filter((item: { '@type': string }) => item['@type'] === 'WebPage')).toHaveLength(1)
-      expect(document.documentElement.outerHTML).not.toContain('www.naroz.app')
+      expect(document.documentElement.outerHTML).not.toMatch(/https:\/\/naroz\.app(?:\/|$)/)
     }
   })
 
@@ -154,10 +162,10 @@ describe('SEO identity', () => {
       <meta name="description" content="Old description" />
       <meta property="og:title" content="Old page" />
       <meta property="og:description" content="Old description" />
-      <meta property="og:url" content="https://naroz.app/old-page/" />
+      <meta property="og:url" content="https://www.naroz.app/old-page/" />
       <meta name="twitter:title" content="Old page" />
       <meta name="twitter:description" content="Old description" />
-      <link rel="canonical" href="https://naroz.app/old-page/" />
+      <link rel="canonical" href="https://www.naroz.app/old-page/" />
       <script id="naroz-structured-data" type="application/ld+json">{"old":true}</script>
     </head><body></body></html>`)
     const hadDocument = 'document' in globalThis

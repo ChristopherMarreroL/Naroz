@@ -1,10 +1,10 @@
 import type { Locale } from '../i18n/LocaleProvider'
 import type { AppToolId } from '../types/app'
-import { seoPages as staticSeoPages } from '../../scripts/seo-pages.mjs'
+import { SEO_SITE_URL, seoPages as staticSeoPages } from '../../scripts/seo-pages.mjs'
 import { TOOL_PATHS, getToolPath } from './routes'
 
 export const SEO_SITE_NAME = 'Naroz'
-export const SEO_DEFAULT_SITE_URL = 'https://naroz.app'
+export const SEO_DEFAULT_SITE_URL = SEO_SITE_URL
 export const SEO_OG_IMAGE_PATH = '/og-image.png'
 export const SEO_OG_IMAGE_ALT = 'Naroz logo'
 
@@ -101,7 +101,7 @@ export function getStructuredData(locale: Locale, tool: AppToolId = 'home') {
         '@id': websiteId,
         url: `${siteUrl}/`,
         name: SEO_SITE_NAME,
-        alternateName: ['Naroz App'],
+        alternateName: ['Naroz App', 'naroz.app'],
         inLanguage: ['es', 'en'],
       },
       {
