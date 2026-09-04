@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
-import { assertSafeOfficeArchive } from '../lib/officeArchiveLimits'
+import { preflightOffice } from '../../../lib/fileCompatibility/office'
+import { compatibilityErrorKey } from '../../../lib/fileCompatibility/core'
 import type { MergeProgress } from '../../../types/video'
 
 interface DocxMergeResult {
@@ -218,7 +219,7 @@ export function useDocxMerger() {
         ensureCurrentMerge()
         const buffer = await file.arrayBuffer()
         ensureCurrentMerge()
-        const archive = await assertSafeOfficeArchive(buffer, controller.signal)
+        const archive = await preflightOffice(buffer, 'docx', controller.signal)
         ensureCurrentMerge()
         totalUncompressedSize += archive.totalUncompressed
         if (totalUncompressedSize > DOCX_MERGE_MAX_UNCOMPRESSED_SIZE) {
@@ -235,6 +236,8 @@ export function useDocxMerger() {
       }
 
       const blob = await mergeDocxBuffersInWorker(buffers, controller.signal, workerRef, timeoutRef)
+      ensureCurrentMerge()
+      await preflightOffice(await blob.arrayBuffer(), 'docx', controller.signal)
       ensureCurrentMerge()
       const url = URL.createObjectURL(blob)
       if (!isCurrentMerge()) {
@@ -266,7 +269,8 @@ export function useDocxMerger() {
         return null
       }
 
-      setError(exceededExpansionLimit
+      const errorKey = compatibilityErrorKey(mergeError)
+      setError(errorKey ? t(errorKey) : exceededExpansionLimit
         ? t('docxBatchExpansionTooLarge')
         : locale === 'es' ? 'No se pudieron unir los DOCX seleccionados.' : 'The selected DOCX files could not be merged.')
       setProgress({
@@ -277,7 +281,6 @@ export function useDocxMerger() {
           ? t('docxBatchExpansionTooLarge')
           : locale === 'es' ? 'Algunos DOCX complejos pueden necesitar ajustes adicionales.' : 'Some complex DOCX files may need extra handling.',
       })
-      console.error(mergeError)
       return null
     } finally {
       const shouldResetProcessing = isCurrentMerge()

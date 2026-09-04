@@ -1,3 +1,4 @@
+import { compatibilityErrorKey } from '../../lib/fileCompatibility/core'
 import { useEffect, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -138,7 +139,7 @@ export function PdfToOfficeView() {
       setNotice({
         tone: 'error',
         title: t('pdfOfficeReadErrorTitle'),
-        message: isPageLimit ? t('pdfOfficePageLimitMessage') : t('pdfOfficeReadErrorMessage'),
+        message: compatibilityErrorKey(error) ? t(compatibilityErrorKey(error)!) : isPageLimit ? t('pdfOfficePageLimitMessage') : t('pdfOfficeReadErrorMessage'),
       })
     } finally {
       if (readControllerRef.current === controller) {
@@ -215,7 +216,7 @@ export function PdfToOfficeView() {
       setNotice({
         tone: 'error',
         title: t('pdfOfficeConvertErrorTitle'),
-        message: isVisualImageLimit ? t('pdfOfficeVisualWordLimitMessage') : t('pdfOfficeConvertErrorMessage'),
+        message: compatibilityErrorKey(error) ? t(compatibilityErrorKey(error)!) : isVisualImageLimit ? t('pdfOfficeVisualWordLimitMessage') : t('pdfOfficeConvertErrorMessage'),
       })
     } finally {
       if (conversionControllerRef.current === controller) {

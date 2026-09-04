@@ -169,9 +169,12 @@ export function readOfficeArchiveEntryText(
             bytes.set(chunk, offset)
             offset += chunk.byteLength
           })
+          const encoding = bytes[0] === 0xff && bytes[1] === 0xfe || bytes[0] === 0x3c && bytes[1] === 0 ? 'utf-16le'
+            : bytes[0] === 0xfe && bytes[1] === 0xff || bytes[0] === 0 && bytes[1] === 0x3c ? 'utf-16be' : 'utf-8'
+          const text = new TextDecoder(encoding, { fatal: true }).decode(bytes)
           settled = true
           cleanup()
-          resolve(new TextDecoder().decode(bytes))
+          resolve(text)
         } catch (error) {
           fail(error)
         }

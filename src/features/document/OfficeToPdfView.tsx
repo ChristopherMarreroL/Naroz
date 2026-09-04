@@ -1,3 +1,4 @@
+import { compatibilityErrorKey } from '../../lib/fileCompatibility/core'
 import { useEffect, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -110,9 +111,9 @@ export function OfficeToPdfView() {
       setResult(nextResult)
       setProgress(100)
       setNotice({ tone: 'success', title: t('officePdfConvertedTitle'), message: t('officePdfConvertedMessage') })
-    } catch {
+    } catch (error) {
       if (!mountedRef.current || controller.signal.aborted || conversionControllerRef.current !== controller) return
-      setNotice({ tone: 'error', title: t('officePdfConvertErrorTitle'), message: t('officePdfConvertErrorMessage') })
+      setNotice({ tone: 'error', title: t('officePdfConvertErrorTitle'), message: t(compatibilityErrorKey(error) ?? 'officePdfConvertErrorMessage') })
       setProgress(0)
     } finally {
       if (conversionControllerRef.current === controller) {

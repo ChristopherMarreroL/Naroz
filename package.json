@@ -8,9 +8,11 @@
     "seo:generate": "node scripts/generate-seo.mjs",
     "build": "node scripts/generate-seo.mjs && tsc -b && vite build && node scripts/generate-static-pages.mjs",
     "lint": "eslint .",
-    "test": "bun test",
+    "test": "bun test tests/*.test.ts",
     "preview": "vite preview",
-    "preview:prod": "vite preview --host 127.0.0.1"
+    "preview:prod": "vite preview --host 127.0.0.1",
+    "verify": "bun run lint && bun run test && bun run build",
+    "test:browser": "node node_modules/@playwright/test/cli.js test --project=chromium"
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "^1.2.4",
@@ -53,6 +55,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.62.1",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.13.3",
     "@types/qrcode": "^1.5.6",

@@ -1,3 +1,4 @@
+import { compatibilityErrorKey } from '../../lib/fileCompatibility/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
@@ -182,7 +183,7 @@ export function PdfDeletePagesView() {
       if (loadError instanceof Error && loadError.message === 'PDF_LOAD_CANCELLED') {
         return
       }
-      const message = loadError instanceof Error && loadError.message === 'PDF_TOO_MANY_PAGES'
+      const message = compatibilityErrorKey(loadError) ? t(compatibilityErrorKey(loadError)!) : loadError instanceof Error && loadError.message === 'PDF_TOO_MANY_PAGES'
         ? t('pdfTooManyPages')
         : t('pdfMergeError')
       setNotice({
@@ -368,7 +369,7 @@ export function PdfDeletePagesView() {
           <div className="mt-6 grid gap-4">
             <div className="panel-subtle p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('progressDetail')}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{progress.detail ?? t('waitingFile')}</p>
+              <p role="status" aria-live="polite" className="mt-2 text-sm leading-6 text-slate-600">{progress.detail ?? t('waitingFile')}</p>
             </div>
             {result ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

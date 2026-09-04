@@ -1,3 +1,4 @@
+import { compatibilityErrorKey } from '../../lib/fileCompatibility/core'
 import { useMemo, useState } from 'react'
 
 import { AlertBanner } from '../../components/shared/AlertBanner'
@@ -201,10 +202,13 @@ export function ExcelJoinView() {
     try {
       const loadedFiles: ExcelFileData[] = []
       const failedFiles: string[] = []
+      const failureReasons = new Set<string>()
       for (const file of validFiles) {
         try {
           loadedFiles.push(await readExcelFile(file))
-        } catch {
+        } catch (error) {
+          const key = compatibilityErrorKey(error)
+          if (key) failureReasons.add(t(key))
           failedFiles.push(file.name)
         }
       }
@@ -215,7 +219,7 @@ export function ExcelJoinView() {
         setNotice({
           tone: 'error',
           title: t('excelReadError'),
-          message: skippedFiles.length > 0 ? `${t('excelSkippedFiles')} ${joinFileNames(skippedFiles)}` : t('excelReadErrorDesc'),
+          message: skippedFiles.length > 0 ? `${t('excelSkippedFiles')} ${joinFileNames(skippedFiles)} ${[...failureReasons].join(' ')}` : t('excelReadErrorDesc'),
         })
         return
       }
@@ -243,7 +247,7 @@ export function ExcelJoinView() {
           title: t('excelFilesLoadedWarning'),
           message: [
             `${t('excelFilesLoaded')} ${loadedFiles.length}.`,
-            skippedFiles.length > 0 ? `${t('excelSkippedFiles')} ${joinFileNames(skippedFiles)}.` : '',
+            skippedFiles.length > 0 ? `${t('excelSkippedFiles')} ${joinFileNames(skippedFiles)}. ${[...failureReasons].join(' ')}` : '',
             largeFiles.length > 0 ? `${t('excelLargeFileWarning')} ${joinFileNames(largeFiles)}.` : '',
           ].filter(Boolean).join(' '),
         })

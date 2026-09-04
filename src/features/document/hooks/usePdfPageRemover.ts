@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  GlobalWorkerOptions,
-  getDocument,
   type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
   type PDFPageProxy,
   type RenderTask,
 } from 'pdfjs-dist'
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { createPdfLoadingTask } from '../../../lib/fileCompatibility/pdfRuntime'
 import { PDFDocument } from 'pdf-lib'
+import { openPdfForEditing, validatePdfOutput } from '../../../lib/fileCompatibility/pdf'
+import { compatibilityErrorKey } from '../../../lib/fileCompatibility/core'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import { assertSafeImageDimensions } from '../../image/lib/imageLimits'
@@ -19,7 +19,6 @@ const PDF_LOAD_CANCELLED = 'PDF_LOAD_CANCELLED'
 const PDF_PREVIEW_CANCELLED = 'PDF_PREVIEW_CANCELLED'
 const PDF_DELETE_CANCELLED = 'PDF_DELETE_CANCELLED'
 
-GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
 interface PdfPagePreview {
   pageNumber: number
@@ -67,6 +66,7 @@ async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number, si
   throwIfPreviewAborted(signal)
   const page = await pdf.getPage(pageNumber)
   let renderTask: RenderTask | null = null
+  let canvas: HTMLCanvasElement | null = null
   const cancelRender = () => {
     renderTask?.cancel()
   }
@@ -75,7 +75,7 @@ async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number, si
   try {
     throwIfPreviewAborted(signal)
     const viewport = page.getViewport({ scale: 0.22 })
-    const canvas = document.createElement('canvas')
+    canvas = document.createElement('canvas')
     const context = canvas.getContext('2d', { willReadFrequently: true })
 
     if (!context) {
@@ -112,6 +112,7 @@ async function renderPageThumbnail(pdf: PDFDocumentProxy, pageNumber: number, si
   } finally {
     signal?.removeEventListener('abort', cancelRender)
     renderTask?.cancel()
+    if (canvas) { canvas.width = 0; canvas.height = 0 }
     page.cleanup?.()
   }
 }
@@ -120,17 +121,12 @@ export async function renderPdfPagePreview(file: File, pageNumber: number, scale
   throwIfPreviewAborted(signal)
   const buffer = await file.arrayBuffer()
   throwIfPreviewAborted(signal)
-  const loadingTask = getDocument({
-    data: buffer,
-    useWorkerFetch: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    stopAtErrors: true,
-  })
+  const loadingTask = createPdfLoadingTask(buffer)
   let destroyPromise: Promise<void> | null = null
   let pdf: PDFDocumentProxy | null = null
   let page: PDFPageProxy | null = null
   let renderTask: RenderTask | null = null
+  let canvas: HTMLCanvasElement | null = null
   const destroyActiveLoadingTask = () => {
     if (!destroyPromise) {
       destroyPromise = loadingTask.destroy().catch(() => undefined).then(() => undefined)
@@ -151,7 +147,7 @@ export async function renderPdfPagePreview(file: File, pageNumber: number, scale
     throwIfPreviewAborted(signal)
     try {
       const viewport = page.getViewport({ scale })
-      const canvas = document.createElement('canvas')
+      canvas = document.createElement('canvas')
       const context = canvas.getContext('2d', { willReadFrequently: true })
 
       if (!context) {
@@ -186,12 +182,12 @@ export async function renderPdfPagePreview(file: File, pageNumber: number, scale
 
       return previewUrl
     } finally {
+      if (canvas) { canvas.width = 0; canvas.height = 0 }
       page.cleanup?.()
     }
   } finally {
     signal?.removeEventListener('abort', cancelPreview)
     renderTask?.cancel()
-    pdf?.cleanup()
     await destroyActiveLoadingTask()
   }
 }
@@ -326,13 +322,7 @@ export function usePdfPageRemover() {
     try {
       const buffer = await file.arrayBuffer()
       ensureCurrentLoad()
-      loadingTask = getDocument({
-        data: buffer,
-        useWorkerFetch: true,
-        disableStream: true,
-        disableAutoFetch: true,
-        stopAtErrors: true,
-      })
+      loadingTask = createPdfLoadingTask(buffer)
       activeLoadingTaskRef.current = loadingTask
       pdf = await loadingTask.promise
       ensureCurrentLoad()
@@ -380,7 +370,6 @@ export function usePdfPageRemover() {
       }
       throw error
     } finally {
-      pdf?.cleanup()
       if (loadingTask) {
         await destroyLoadingTask(loadingTask)
         if (activeLoadingTaskRef.current === loadingTask) {
@@ -452,73 +441,78 @@ export function usePdfPageRemover() {
 
       const buffer = await file.arrayBuffer()
       ensureCurrentDelete()
-      const sourcePdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
-      ensureCurrentDelete()
-      const total = sourcePdf.getPageCount()
-      setPageCount(total)
+      const source = await openPdfForEditing(buffer, controller.signal, PDF_PREVIEW_MAX_PAGES)
+      try {
+        ensureCurrentDelete()
+        const total = source.pageCount
+        setPageCount(total)
 
-      const validPages = Array.from(new Set(pagesToDelete)).filter((page) => page > 0 && page <= total).sort((a, b) => a - b)
-      if (validPages.length === 0) {
-        throw new Error('EMPTY_SELECTION')
+        const validPages = Array.from(new Set(pagesToDelete)).filter((page) => page > 0 && page <= total).sort((a, b) => a - b)
+        if (validPages.length === 0) {
+          throw new Error('EMPTY_SELECTION')
+        }
+
+        if (validPages.length === total) {
+          throw new Error('DELETE_ALL')
+        }
+
+        const remainingPageIndices = Array.from({ length: total }, (_, page) => page).filter((pageIndex) => !validPages.includes(pageIndex + 1))
+        if (remainingPageIndices.length === 0) {
+          throw new Error('DELETE_ALL')
+        }
+
+        setProgress({
+          stage: 'preparing',
+          percent: 18,
+          message: locale === 'es' ? 'Preparando PDF...' : 'Preparing PDF...',
+          detail: locale === 'es' ? 'Calculando las paginas que se conservaran.' : 'Calculating which pages will be kept.',
+        })
+
+        const outputPdf = await PDFDocument.create()
+        await source.appendTo(outputPdf, remainingPageIndices, { pixels: 0, bytes: 0 })
+        ensureCurrentDelete()
+
+        setProgress({
+          stage: 'merging',
+          percent: 80,
+          message: locale === 'es' ? 'Eliminando paginas...' : 'Deleting pages...',
+          detail: locale === 'es' ? `Quitando ${validPages.length} paginas del PDF.` : `Removing ${validPages.length} pages from the PDF.`,
+        })
+
+        const bytes = await outputPdf.save()
+        if (source.preflight.canNormalize) await validatePdfOutput(bytes, remainingPageIndices.length, [1], controller.signal)
+        ensureCurrentDelete()
+        const copy = new Uint8Array(bytes.byteLength)
+        copy.set(bytes)
+        const blob = new Blob([copy.buffer], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        if (!isCurrentDelete()) {
+          URL.revokeObjectURL(url)
+          throw new Error(PDF_DELETE_CANCELLED)
+        }
+        const deleteResult: PdfDeleteResult = {
+          blob,
+          url,
+          fileName: createOutputName(file.name),
+          size: blob.size,
+          removedPages: validPages,
+          totalPages: total,
+        }
+
+        ensureCurrentDelete()
+        resultRef.current = deleteResult
+        setResult(deleteResult)
+        setProgress({
+          stage: 'finished',
+          percent: 100,
+          message: locale === 'es' ? 'Paginas eliminadas correctamente.' : 'Pages deleted successfully.',
+          detail: source.preflight.canNormalize ? t('compatibilityPdfNormalized') : t('pdfReadyToDownload'),
+        })
+
+        return deleteResult
+      } finally {
+        await source.dispose()
       }
-
-      if (validPages.length === total) {
-        throw new Error('DELETE_ALL')
-      }
-
-      const remainingPageIndices = sourcePdf.getPageIndices().filter((pageIndex) => !validPages.includes(pageIndex + 1))
-      if (remainingPageIndices.length === 0) {
-        throw new Error('DELETE_ALL')
-      }
-
-      setProgress({
-        stage: 'preparing',
-        percent: 18,
-        message: locale === 'es' ? 'Preparando PDF...' : 'Preparing PDF...',
-        detail: locale === 'es' ? 'Calculando las paginas que se conservaran.' : 'Calculating which pages will be kept.',
-      })
-
-      const outputPdf = await PDFDocument.create()
-      const copiedPages = await outputPdf.copyPages(sourcePdf, remainingPageIndices)
-      ensureCurrentDelete()
-      copiedPages.forEach((page) => outputPdf.addPage(page))
-
-      setProgress({
-        stage: 'merging',
-        percent: 80,
-        message: locale === 'es' ? 'Eliminando paginas...' : 'Deleting pages...',
-        detail: locale === 'es' ? `Quitando ${validPages.length} paginas del PDF.` : `Removing ${validPages.length} pages from the PDF.`,
-      })
-
-      const bytes = await outputPdf.save()
-      ensureCurrentDelete()
-      const copy = new Uint8Array(bytes.byteLength)
-      copy.set(bytes)
-      const blob = new Blob([copy.buffer], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      if (!isCurrentDelete()) {
-        URL.revokeObjectURL(url)
-        throw new Error(PDF_DELETE_CANCELLED)
-      }
-      const deleteResult: PdfDeleteResult = {
-        blob,
-        url,
-        fileName: createOutputName(file.name),
-        size: blob.size,
-        removedPages: validPages,
-        totalPages: total,
-      }
-
-      ensureCurrentDelete()
-      setResult(deleteResult)
-      setProgress({
-        stage: 'finished',
-        percent: 100,
-        message: locale === 'es' ? 'Paginas eliminadas correctamente.' : 'Pages deleted successfully.',
-        detail: locale === 'es' ? 'Tu nuevo PDF ya esta listo para descargar.' : 'Your new PDF is ready to download.',
-      })
-
-      return deleteResult
     } catch (deleteError) {
       if (!isCurrentDelete() || (deleteError instanceof Error && deleteError.message === PDF_DELETE_CANCELLED)) {
         return null
@@ -533,7 +527,8 @@ export function usePdfPageRemover() {
         }
       }
 
-      setError(message)
+      const errorKey = compatibilityErrorKey(deleteError)
+      setError(errorKey ? t(errorKey) : message)
       setProgress({
         stage: 'error',
         percent: 0,
