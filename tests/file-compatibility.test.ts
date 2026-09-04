@@ -27,10 +27,30 @@ async function officeSamples() {
 describe('Office compatibility integration', () => {
   test('rejects missing, incorrect and external package main relationships', async () => {
     const bytes = (await officeSamples()).docx
-    for (const target of [null, 'word/missing.xml', 'https://example.invalid/main.xml']) {
+    for (const target of [null, 'word/missing.xml', 'https://example.invalid/main.xml',
+      'https://opc.invalid/word/document.xml', '//opc.invalid/word/document.xml']) {
       const zip = await JSZip.loadAsync(bytes)
       if (target === null) zip.remove('_rels/.rels')
       else zip.file('_rels/.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="${target}"${target.startsWith('https:') ? ' TargetMode="External"' : ''}/></Relationships>`)
+      await expect(preflightOffice(await zip.generateAsync({ type: 'arraybuffer' }), 'docx')).rejects.toThrow('OFFICE_ARCHIVE_INVALID')
+    }
+  })
+
+  test('resolves valid package-root relationship URI references', async () => {
+    const bytes = (await officeSamples()).docx
+    for (const target of ['./word/document.xml', 'folder/../word/document.xml', '/word/document.xml']) {
+      const zip = await JSZip.loadAsync(bytes)
+      zip.file('_rels/.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="${target}"/></Relationships>`)
+      await expect(preflightOffice(await zip.generateAsync({ type: 'arraybuffer' }), 'docx')).resolves.toHaveProperty('preflight.detectedType', 'docx')
+    }
+  })
+
+  test('rejects absolute relationship URI references without relying on TargetMode', async () => {
+    const bytes = (await officeSamples()).docx
+    for (const target of ['https://opc.invalid/word/document.xml', 'https:word/document.xml',
+      'https:/word/document.xml', '//opc.invalid/word/document.xml', ' ./word/document.xml']) {
+      const zip = await JSZip.loadAsync(bytes)
+      zip.file('_rels/.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="${target}"/></Relationships>`)
       await expect(preflightOffice(await zip.generateAsync({ type: 'arraybuffer' }), 'docx')).rejects.toThrow('OFFICE_ARCHIVE_INVALID')
     }
   })

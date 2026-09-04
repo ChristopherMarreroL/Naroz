@@ -44,6 +44,18 @@ function parseXml(text: string) {
   return doc
 }
 
+function resolvesToPackagePart(target: string | null, expectedPart: string) {
+  // eslint-disable-next-line no-control-regex -- OPC targets containing controls are invalid URI references.
+  if (!target || /[\\\s\u0000-\u001f\u007f]/u.test(target) || /^[a-z][a-z0-9+.-]*:/iu.test(target) || target.startsWith('//')) return false
+  try {
+    const resolved = new URL(target, 'https://opc.invalid/')
+    return resolved.origin === 'https://opc.invalid' && !resolved.search && !resolved.hash
+      && resolved.pathname === `/${expectedPart}`
+  } catch {
+    return false
+  }
+}
+
 /** Returns the already bounded archive so consumers do not inflate it again for validation. */
 export async function preflightOffice(buffer: ArrayBuffer, expected: OpenXmlKind, signal?: AbortSignal) {
   assertNotAborted(signal)
@@ -94,8 +106,10 @@ export async function preflightOffice(buffer: ArrayBuffer, expected: OpenXmlKind
   }
   const mainRelationships = Array.from(relationships.getElementsByTagNameNS('*', 'Relationship')).filter((entry) =>
     entry.getAttribute('Type') === 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument')
-  if (mainRelationships.length !== 1 || mainRelationships[0].getAttribute('TargetMode') === 'External'
-    || mainRelationships[0].getAttribute('Target')?.replace(/^\//, '') !== format.part) {
+  const mainRelationship = mainRelationships[0]
+  const targetMode = mainRelationship?.getAttribute('TargetMode')
+  if (mainRelationships.length !== 1 || targetMode && targetMode !== 'Internal'
+    || !resolvesToPackagePart(mainRelationship?.getAttribute('Target') ?? null, format.part)) {
     throw new FileCompatibilityError('OFFICE_ARCHIVE_INVALID')
   }
   let protectedDocument = false

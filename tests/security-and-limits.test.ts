@@ -404,6 +404,48 @@ describe('Office archive guard', () => {
     await expect(assertSafeOfficeArchive(buffer)).resolves.toMatchObject({ entryCount: 1 })
   })
 
+  test('rejects duplicate central-directory entries before JSZip collapses their names', async () => {
+    const zip = new JSZip()
+    for (let index = 0; index <= 2_000; index += 1) zip.file(`item-${index.toString().padStart(4, '0')}.xml`, '<x/>')
+    const generated = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+    const duplicateName = new TextEncoder().encode('same-name.xml')
+    const view = new DataView(generated.buffer, generated.byteOffset, generated.byteLength)
+    for (let offset = 0; offset <= generated.length - 46; offset += 1) {
+      if (view.getUint32(offset, true) !== 0x02014b50) continue
+      const nameLength = view.getUint16(offset + 28, true)
+      if (nameLength === duplicateName.length) generated.set(duplicateName, offset + 46)
+    }
+    await expect(loadSafeOfficeArchive(generated.buffer)).rejects.toThrow('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+  })
+
+  test('rejects underreported and ZIP64 central-directory counts before JSZip', async () => {
+    const zip = new JSZip()
+    zip.file('first.xml', '<x/>')
+    zip.file('second.xml', '<x/>')
+    const generated = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+    const findEocd = (bytes: Uint8Array) => {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+      for (let offset = bytes.length - 22; offset >= 0; offset -= 1) {
+        if (view.getUint32(offset, true) === 0x06054b50) return offset
+      }
+      throw new Error('Synthetic ZIP has no EOCD')
+    }
+    const underreported = generated.slice()
+    const underreportedView = new DataView(underreported.buffer)
+    const underreportedEocd = findEocd(underreported)
+    const directoryOffset = underreportedView.getUint32(underreportedEocd + 16, true)
+    const firstRecordSize = 46 + underreportedView.getUint16(directoryOffset + 28, true)
+      + underreportedView.getUint16(directoryOffset + 30, true) + underreportedView.getUint16(directoryOffset + 32, true)
+    underreportedView.setUint16(underreportedEocd + 8, 1, true)
+    underreportedView.setUint16(underreportedEocd + 10, 1, true)
+    underreportedView.setUint32(underreportedEocd + 12, firstRecordSize, true)
+    await expect(loadSafeOfficeArchive(underreported.buffer)).rejects.toThrow('OFFICE_ARCHIVE_INVALID')
+
+    const zip64Sentinel = generated.slice()
+    new DataView(zip64Sentinel.buffer).setUint16(findEocd(zip64Sentinel) + 8, 0xffff, true)
+    await expect(loadSafeOfficeArchive(zip64Sentinel.buffer)).rejects.toThrow('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+  })
+
   test('reuses a validated archive and cancels XML entry reads', async () => {
     const zip = new JSZip()
     zip.file('word/document.xml', '<document><paragraph>fixture</paragraph></document>')
@@ -418,6 +460,15 @@ describe('Office archive guard', () => {
     controller.abort()
     await expect(readOfficeArchiveEntryText(documentEntry!, controller.signal))
       .rejects.toThrow(OFFICE_ARCHIVE_CANCELLED)
+  })
+
+  test('stops buffering an XML entry at its streaming byte limit', async () => {
+    const zip = new JSZip()
+    zip.file('word/document.xml', 'A'.repeat(64))
+    const loaded = await loadSafeOfficeArchive(await zip.generateAsync({ type: 'arraybuffer', compression: 'STORE' }))
+    const entry = loaded.zip.file('word/document.xml')!
+
+    await expect(readOfficeArchiveEntryText(entry, undefined, 32)).rejects.toThrow('OFFICE_ARCHIVE_TOO_LARGE')
   })
 
   test('stops ZIP generation immediately when its stream is aborted', async () => {

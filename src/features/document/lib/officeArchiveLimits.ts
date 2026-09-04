@@ -3,6 +3,7 @@ import JSZip from 'jszip'
 export const OFFICE_ARCHIVE_MAX_ENTRIES = 2_000
 export const OFFICE_ARCHIVE_MAX_UNCOMPRESSED_SIZE = 100 * 1024 * 1024
 export const OFFICE_ARCHIVE_MAX_COMPRESSION_RATIO = 250
+export const OFFICE_ARCHIVE_MAX_XML_SIZE = 8 * 1024 * 1024
 export const OFFICE_ARCHIVE_CANCELLED = 'OFFICE_ARCHIVE_CANCELLED'
 
 export interface OfficeArchiveStats {
@@ -46,6 +47,43 @@ function getActualCompressedSize(entry: OfficeArchive['files'][string]) {
   }
 
   throw new Error('OFFICE_ARCHIVE_ENTRY_DATA_UNAVAILABLE')
+}
+
+/** Count central-directory records before JSZip can allocate or collapse duplicate names. */
+function assertSafeCentralDirectory(buffer: ArrayBuffer) {
+  const view = new DataView(buffer)
+  const minimumEocdSize = 22
+  const firstCandidate = Math.max(0, buffer.byteLength - minimumEocdSize - 0xffff - 4 * 1024 * 1024)
+  let eocd = -1
+  for (let offset = buffer.byteLength - minimumEocdSize; offset >= firstCandidate; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50
+      && offset + minimumEocdSize + view.getUint16(offset + 20, true) <= buffer.byteLength
+      && view.getUint16(offset + 4, true) === 0 && view.getUint16(offset + 6, true) === 0
+      && view.getUint32(offset + 16, true) + view.getUint32(offset + 12, true) === offset) {
+      eocd = offset
+      break
+    }
+  }
+  if (eocd < 0) throw new Error('OFFICE_ARCHIVE_INVALID')
+  const declaredEntries = view.getUint16(eocd + 10, true)
+  const entriesOnDisk = view.getUint16(eocd + 8, true)
+  const directorySize = view.getUint32(eocd + 12, true)
+  const directoryOffset = view.getUint32(eocd + 16, true)
+  if (entriesOnDisk !== declaredEntries || declaredEntries === 0xffff || declaredEntries > OFFICE_ARCHIVE_MAX_ENTRIES
+    || directorySize === 0xffffffff || directoryOffset === 0xffffffff) {
+    throw new Error('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+  }
+  const directoryEnd = directoryOffset + directorySize
+  if (directoryEnd !== eocd || directoryEnd < directoryOffset) throw new Error('OFFICE_ARCHIVE_INVALID')
+  let offset = directoryOffset
+  let actualEntries = 0
+  while (offset < directoryEnd) {
+    if (offset + 46 > directoryEnd || view.getUint32(offset, true) !== 0x02014b50) throw new Error('OFFICE_ARCHIVE_INVALID')
+    actualEntries += 1
+    if (actualEntries > OFFICE_ARCHIVE_MAX_ENTRIES) throw new Error('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+    offset += 46 + view.getUint16(offset + 28, true) + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true)
+  }
+  if (offset !== directoryEnd || actualEntries !== declaredEntries) throw new Error('OFFICE_ARCHIVE_INVALID')
 }
 
 function measureActualEntrySize(
@@ -112,6 +150,7 @@ function measureActualEntrySize(
 export function readOfficeArchiveEntryText(
   entry: OfficeArchive['files'][string],
   signal?: AbortSignal,
+  maxBytes = OFFICE_ARCHIVE_MAX_XML_SIZE,
 ) {
   return new Promise<string>((resolve, reject) => {
     let stream: ZipEntryStream | null = null
@@ -154,8 +193,12 @@ export function readOfficeArchiveEntryText(
           cancel()
           return
         }
-        chunks.push(chunk)
         totalBytes += chunk.byteLength
+        if (totalBytes > maxBytes) {
+          fail(new Error('OFFICE_ARCHIVE_TOO_LARGE'))
+          return
+        }
+        chunks.push(chunk)
       })
       .on('error', (error: Error) => {
         fail(error)
@@ -186,6 +229,7 @@ export function readOfficeArchiveEntryText(
 
 export async function loadSafeOfficeArchive(buffer: ArrayBuffer, signal?: AbortSignal) {
   if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
+  assertSafeCentralDirectory(buffer)
   const zip = await new JSZip().loadAsync(buffer)
   if (signal?.aborted) throw new Error(OFFICE_ARCHIVE_CANCELLED)
   const entries = Object.entries(zip.files)
