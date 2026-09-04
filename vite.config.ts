@@ -55,6 +55,9 @@ const canonicalPreviewRoutes = (): Plugin => ({
 
 export default defineConfig({
   plugins: [canonicalPreviewRoutes(), react(), tailwindcss()],
+  optimizeDeps: {
+    include: ['docx-merger'],
+  },
   build: {
     modulePreload: {
       polyfill: false,
