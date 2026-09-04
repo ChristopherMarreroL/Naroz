@@ -1,3 +1,4 @@
+import { compatibilityErrorKey } from '../../lib/fileCompatibility/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -68,6 +69,8 @@ function createUploadId() {
 }
 
 function getOfficeErrorKey(error: unknown) {
+  const compatibilityKey = compatibilityErrorKey(error)
+  if (compatibilityKey) return compatibilityKey
   if (!(error instanceof Error)) return 'officePdfConvertErrorMessage'
   if (error.message === 'DOCX_EMPTY') return 'officePdfDocxEmptyError'
   if (error.message === 'XLSX_EMPTY') return 'officePdfXlsxEmptyError'

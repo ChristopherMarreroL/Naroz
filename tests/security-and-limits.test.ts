@@ -5,6 +5,8 @@ import DocxMerger from 'docx-merger'
 import { JSDOM } from 'jsdom'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
+import { preflightOffice } from '../src/lib/fileCompatibility/office'
+import { compoundStreamNames } from '../src/lib/fileCompatibility/compound'
 
 import {
   isAllowedMailImageSource,
@@ -15,6 +17,7 @@ import {
   MAX_IMAGE_DIMENSION,
   MAX_IMAGE_PIXELS,
   assertSafeImageFile,
+  preflightImage,
   validateImageDimensions,
 } from '../src/features/image/lib/imageLimits'
 import {
@@ -42,6 +45,32 @@ import { generateCancellableZipBlob, ZIP_GENERATION_CANCELLED } from '../src/fea
 import { EXCEL_MAX_ROWS, readExcelFile } from '../src/features/excel/lib/excelColumnBuilder'
 import { limitExcelRange } from '../src/features/excel/lib/excelLimits'
 import { validateBatchLimits } from '../src/lib/batchLimits'
+
+describe('compatibility parser resource limits', () => {
+  test('rejects CFB directory pointer and FAT cycles without recursive traversal', () => {
+    const compound = XLSX.CFB.utils.cfb_new()
+    XLSX.CFB.utils.cfb_add(compound, 'SyntheticStream', new Uint8Array(32))
+    const bytes = Uint8Array.from(XLSX.CFB.write(compound, { type: 'buffer' })).buffer
+    expect(compoundStreamNames(bytes)).toContain('SyntheticStream')
+    const pointers = bytes.slice(0)
+    const pointerView = new DataView(pointers)
+    const directorySector = pointerView.getUint32(48, true)
+    pointerView.setUint32((directorySector + 1) * 512 + 76, 0, true)
+    expect(() => compoundStreamNames(pointers)).toThrow('FILE_CORRUPT')
+    const fatCycle = bytes.slice(0)
+    const fatView = new DataView(fatCycle)
+    const fatSector = fatView.getUint32(76, true)
+    fatView.setUint32((fatSector + 1) * 512 + directorySector * 4, directorySector, true)
+    expect(() => compoundStreamNames(fatCycle)).toThrow('FILE_CORRUPT')
+  })
+
+  test('bounds XML node allocation even when ZIP expansion itself is safe', async () => {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+    zip.file('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + '<w:p/>'.repeat(100_001) + '</w:body></w:document>')
+    await expect(preflightOffice(await zip.generateAsync({ type: 'arraybuffer', compression: 'STORE' }), 'docx')).rejects.toThrow('OFFICE_ARCHIVE_TOO_LARGE')
+  })
+})
 
 describe('mail HTML policy', () => {
   test('only permits embedded image data URLs', () => {
@@ -113,6 +142,28 @@ describe('PDF page budgets', () => {
 })
 
 describe('image limits', () => {
+  function pngHeader(width: number, height: number) {
+    const bytes = new Uint8Array(24)
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    const view = new DataView(bytes.buffer)
+    view.setUint32(8, 13)
+    bytes.set([0x49, 0x48, 0x44, 0x52], 12)
+    view.setUint32(16, width)
+    view.setUint32(20, height)
+    return bytes
+  }
+
+  test('preflights the PNG signature independently of MIME/extension and estimates RGBA memory', async () => {
+    const file = new File([pngHeader(640, 480)], 'synthetic.jpeg', { type: 'application/pdf' })
+    expect(await preflightImage(file)).toEqual({
+      detectedType: 'png', status: 'normal', canProcessDirectly: true, canNormalize: false,
+      warnings: [], width: 640, height: 480, estimatedDecodedBytes: 640 * 480 * 4, validation: 'header',
+    })
+    await expect(assertSafeImageFile(file)).resolves.toBeUndefined()
+    await expect(preflightImage(new File([pngHeader(8_000, 5_001)], 'synthetic.txt')))
+      .rejects.toThrow('IMAGE_DIMENSIONS_TOO_LARGE')
+  })
+
   test('accepts ordinary images and rejects invalid or oversized canvases', () => {
     expect(validateImageDimensions(4_000, 3_000)).toBeNull()
     expect(validateImageDimensions(0, 100)).toBe('INVALID_IMAGE_DIMENSIONS')
@@ -121,15 +172,7 @@ describe('image limits', () => {
   })
 
   test('rejects oversized image headers before browser decoding', async () => {
-    const pngHeader = new Uint8Array(24)
-    pngHeader.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-    const view = new DataView(pngHeader.buffer)
-    view.setUint32(12, 13)
-    pngHeader.set([0x49, 0x48, 0x44, 0x52], 12)
-    view.setUint32(16, MAX_IMAGE_DIMENSION + 1)
-    view.setUint32(20, 1)
-
-    await expect(assertSafeImageFile(new File([pngHeader], 'oversized.png', { type: 'image/png' })))
+    await expect(assertSafeImageFile(new File([pngHeader(MAX_IMAGE_DIMENSION + 1, 1)], 'oversized.png', { type: 'image/png' })))
       .rejects.toThrow('IMAGE_DIMENSIONS_TOO_LARGE')
   })
 
@@ -361,6 +404,48 @@ describe('Office archive guard', () => {
     await expect(assertSafeOfficeArchive(buffer)).resolves.toMatchObject({ entryCount: 1 })
   })
 
+  test('rejects duplicate central-directory entries before JSZip collapses their names', async () => {
+    const zip = new JSZip()
+    for (let index = 0; index <= 2_000; index += 1) zip.file(`item-${index.toString().padStart(4, '0')}.xml`, '<x/>')
+    const generated = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+    const duplicateName = new TextEncoder().encode('same-name.xml')
+    const view = new DataView(generated.buffer, generated.byteOffset, generated.byteLength)
+    for (let offset = 0; offset <= generated.length - 46; offset += 1) {
+      if (view.getUint32(offset, true) !== 0x02014b50) continue
+      const nameLength = view.getUint16(offset + 28, true)
+      if (nameLength === duplicateName.length) generated.set(duplicateName, offset + 46)
+    }
+    await expect(loadSafeOfficeArchive(generated.buffer)).rejects.toThrow('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+  })
+
+  test('rejects underreported and ZIP64 central-directory counts before JSZip', async () => {
+    const zip = new JSZip()
+    zip.file('first.xml', '<x/>')
+    zip.file('second.xml', '<x/>')
+    const generated = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+    const findEocd = (bytes: Uint8Array) => {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+      for (let offset = bytes.length - 22; offset >= 0; offset -= 1) {
+        if (view.getUint32(offset, true) === 0x06054b50) return offset
+      }
+      throw new Error('Synthetic ZIP has no EOCD')
+    }
+    const underreported = generated.slice()
+    const underreportedView = new DataView(underreported.buffer)
+    const underreportedEocd = findEocd(underreported)
+    const directoryOffset = underreportedView.getUint32(underreportedEocd + 16, true)
+    const firstRecordSize = 46 + underreportedView.getUint16(directoryOffset + 28, true)
+      + underreportedView.getUint16(directoryOffset + 30, true) + underreportedView.getUint16(directoryOffset + 32, true)
+    underreportedView.setUint16(underreportedEocd + 8, 1, true)
+    underreportedView.setUint16(underreportedEocd + 10, 1, true)
+    underreportedView.setUint32(underreportedEocd + 12, firstRecordSize, true)
+    await expect(loadSafeOfficeArchive(underreported.buffer)).rejects.toThrow('OFFICE_ARCHIVE_INVALID')
+
+    const zip64Sentinel = generated.slice()
+    new DataView(zip64Sentinel.buffer).setUint16(findEocd(zip64Sentinel) + 8, 0xffff, true)
+    await expect(loadSafeOfficeArchive(zip64Sentinel.buffer)).rejects.toThrow('OFFICE_ARCHIVE_TOO_MANY_ENTRIES')
+  })
+
   test('reuses a validated archive and cancels XML entry reads', async () => {
     const zip = new JSZip()
     zip.file('word/document.xml', '<document><paragraph>fixture</paragraph></document>')
@@ -375,6 +460,15 @@ describe('Office archive guard', () => {
     controller.abort()
     await expect(readOfficeArchiveEntryText(documentEntry!, controller.signal))
       .rejects.toThrow(OFFICE_ARCHIVE_CANCELLED)
+  })
+
+  test('stops buffering an XML entry at its streaming byte limit', async () => {
+    const zip = new JSZip()
+    zip.file('word/document.xml', 'A'.repeat(64))
+    const loaded = await loadSafeOfficeArchive(await zip.generateAsync({ type: 'arraybuffer', compression: 'STORE' }))
+    const entry = loaded.zip.file('word/document.xml')!
+
+    await expect(readOfficeArchiveEntryText(entry, undefined, 32)).rejects.toThrow('OFFICE_ARCHIVE_TOO_LARGE')
   })
 
   test('stops ZIP generation immediately when its stream is aborted', async () => {

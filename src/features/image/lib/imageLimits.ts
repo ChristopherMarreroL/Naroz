@@ -1,3 +1,5 @@
+import type { FilePreflightResult } from '../../../lib/fileCompatibility/core'
+
 export const MAX_IMAGE_PIXELS = 40_000_000
 export const MAX_IMAGE_DIMENSION = 32_767
 const IMAGE_HEADER_MAX_BYTES = 1024 * 1024
@@ -364,21 +366,36 @@ function readImageHeaderDimensions(bytes: Uint8Array, file: File) {
   const extension = getImageExtension(file.name)
   const type = file.type.toLowerCase()
 
-  return readPngDimensions(bytes)
-    ?? readGifDimensions(bytes)
-    ?? readJpegDimensions(bytes)
-    ?? readWebpDimensions(bytes)
-    ?? readBmpDimensions(bytes)
-    ?? readIcoDimensions(bytes)
-    ?? ((type === 'image/svg+xml' || extension === 'svg') ? readSvgDimensions(bytes) : null)
-    ?? ((type === 'image/avif' || extension === 'avif') ? readAvifDimensions(bytes) : null)
+  const readers: [string, (bytes: Uint8Array) => ImageDimensions | null][] = [
+    ['png', readPngDimensions], ['gif', readGifDimensions], ['jpeg', readJpegDimensions],
+    ['webp', readWebpDimensions], ['bmp', readBmpDimensions], ['ico', readIcoDimensions],
+  ]
+  if (type === 'image/svg+xml' || extension === 'svg') readers.push(['svg', readSvgDimensions])
+  if (type === 'image/avif' || extension === 'avif') readers.push(['avif', readAvifDimensions])
+  for (const [detectedType, read] of readers) {
+    const dimensions = read(bytes)
+    if (dimensions) return { ...dimensions, detectedType }
+  }
+  return null
 }
 
-export async function assertSafeImageFile(file: File) {
+/** Header preflight; each existing decoder still validates the complete image afterward. */
+export async function preflightImage(file: File) {
   const header = new Uint8Array(await file.slice(0, IMAGE_HEADER_MAX_BYTES).arrayBuffer())
   const dimensions = readImageHeaderDimensions(header, file)
   if (!dimensions) {
     throw new Error('IMAGE_DIMENSIONS_UNAVAILABLE')
   }
   assertSafeImageDimensions(dimensions.width, dimensions.height)
+  return {
+    detectedType: dimensions.detectedType, status: 'normal',
+    canProcessDirectly: true, canNormalize: false, warnings: [],
+    width: dimensions.width, height: dimensions.height,
+    estimatedDecodedBytes: dimensions.width * dimensions.height * 4,
+    validation: 'header',
+  } satisfies FilePreflightResult & ImageDimensions & { estimatedDecodedBytes: number; validation: 'header' }
+}
+
+export async function assertSafeImageFile(file: File) {
+  await preflightImage(file)
 }

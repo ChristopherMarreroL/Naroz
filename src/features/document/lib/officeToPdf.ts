@@ -1,3 +1,4 @@
+import { preflightOffice, assertOfficeNotEncrypted } from '../../../lib/fileCompatibility/office'
 import type { jsPDF as JsPdfDocument } from 'jspdf'
 import { limitExcelRange } from '../../excel/lib/excelLimits'
 import type { OfficeArchive } from './officeArchiveLimits'
@@ -720,18 +721,19 @@ export async function convertOfficeToPdf(
   throwIfOfficeConversionAborted(signal)
   if (kind === 'docx') {
     const documentBuffer = await file.arrayBuffer()
-    const { loadSafeOfficeArchive } = await import('./officeArchiveLimits')
-    const archive = await loadSafeOfficeArchive(documentBuffer, signal)
+    const archive = await preflightOffice(documentBuffer, 'docx', signal)
     throwIfOfficeConversionAborted(signal)
     return convertDocxToPdf(documentBuffer, archive.zip, onProgress, signal)
   }
 
   if (kind === 'pptx' || (kind === 'xlsx' && file.name.toLowerCase().endsWith('.xlsx'))) {
-    const { assertSafeOfficeArchive } = await import('./officeArchiveLimits')
-    await assertSafeOfficeArchive(await file.arrayBuffer(), signal)
+    await preflightOffice(await file.arrayBuffer(), kind, signal)
     throwIfOfficeConversionAborted(signal)
   }
 
-  if (kind === 'xlsx') return convertSpreadsheetToPdf(file, onProgress, signal)
+  if (kind === 'xlsx') {
+    if (file.name.toLowerCase().endsWith('.xls')) await assertOfficeNotEncrypted(await file.arrayBuffer(), signal)
+    return convertSpreadsheetToPdf(file, onProgress, signal)
+  }
   return convertPresentationToPdf(file, onProgress, signal)
 }

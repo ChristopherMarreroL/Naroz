@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    name: TypeScript, lint, and build
+    name: TypeScript, lint, tests, and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -34,6 +34,15 @@ jobs:
 
       - name: Run ESLint
         run: bun run lint
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Install Chromium
+        run: bun x playwright install --with-deps chromium
+
+      - name: Browser compatibility tests
+        run: bun run test:browser
 
       - name: Build production bundle
         run: bun run build

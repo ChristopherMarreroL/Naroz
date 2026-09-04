@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { assertSafeOfficeArchive } from '../../document/lib/officeArchiveLimits'
+import { preflightOffice, assertOfficeNotEncrypted } from '../../../lib/fileCompatibility/office'
 
 export type ExcelCellValue = string | number | boolean | Date | null
 
@@ -121,8 +121,9 @@ export async function readExcelFile(file: File): Promise<ExcelFileData> {
   } else {
     const buffer = await file.arrayBuffer()
     if (extension === 'xlsx') {
-      await assertSafeOfficeArchive(buffer)
+      await preflightOffice(buffer, 'xlsx')
     }
+    await assertOfficeNotEncrypted(buffer)
     workbook = XLSX.read(buffer, { ...readOptions, type: 'array' })
   }
 

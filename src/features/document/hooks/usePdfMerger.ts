@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PDFDocument } from 'pdf-lib'
+import { openPdfForEditing, validatePdfOutput } from '../../../lib/fileCompatibility/pdf'
+import { compatibilityErrorKey } from '../../../lib/fileCompatibility/core'
 
 import { useLocale } from '../../../i18n/LocaleProvider'
 import type { MergeProgress } from '../../../types/video'
@@ -76,6 +78,9 @@ export function usePdfMerger() {
   }, [])
 
   const resetMergeState = useCallback(() => {
+    activeMergeControllerRef.current?.abort()
+    activeMergeControllerRef.current = null
+    setIsProcessing(false)
     resetResult()
     setError(null)
     setProgress({
@@ -112,20 +117,24 @@ export function usePdfMerger() {
 
       const mergedPdf = await PDFDocument.create()
       let totalPages = 0
+      const compatibilityPages: number[] = []
+      const budget = { pixels: 0, bytes: 0 }
 
       for (const [index, file] of files.entries()) {
         ensureCurrentMerge()
         const buffer = await file.arrayBuffer()
         ensureCurrentMerge()
-        const sourcePdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
+        const source = await openPdfForEditing(buffer, controller.signal, PDF_MERGE_MAX_PAGES - totalPages)
+        try {
+          ensureCurrentMerge()
+          assertPdfMergePageBudget(totalPages, source.pageCount)
+          if (source.preflight.canNormalize) compatibilityPages.push(totalPages + 1)
+          await source.appendTo(mergedPdf, Array.from({ length: source.pageCount }, (_, page) => page), budget)
+          totalPages += source.pageCount
+        } finally {
+          await source.dispose()
+        }
         ensureCurrentMerge()
-        const pageIndices = sourcePdf.getPageIndices()
-        assertPdfMergePageBudget(totalPages, pageIndices.length)
-        totalPages += pageIndices.length
-        const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices)
-        ensureCurrentMerge()
-
-        copiedPages.forEach((page) => mergedPdf.addPage(page))
 
         setProgress({
           stage: 'merging',
@@ -136,6 +145,7 @@ export function usePdfMerger() {
       }
 
       const bytes = await mergedPdf.save()
+      if (compatibilityPages.length) await validatePdfOutput(bytes, totalPages, compatibilityPages, controller.signal)
       ensureCurrentMerge()
       const copy = new Uint8Array(bytes.byteLength)
       copy.set(bytes)
@@ -159,7 +169,7 @@ export function usePdfMerger() {
         stage: 'finished',
         percent: 100,
         message: t('pdfMergeCompleted'),
-        detail: t('pdfReadyToDownload'),
+        detail: t(compatibilityPages.length ? 'compatibilityPdfNormalized' : 'pdfReadyToDownload'),
       })
 
       return mergeResult
@@ -168,7 +178,8 @@ export function usePdfMerger() {
         return null
       }
       const exceededPageLimit = mergeError instanceof Error && mergeError.message === 'PDF_TOO_MANY_PAGES'
-      setError(exceededPageLimit
+      const errorKey = compatibilityErrorKey(mergeError)
+      setError(errorKey ? t(errorKey) : exceededPageLimit
         ? t('pdfMergeTooManyPages')
         : locale === 'es' ? 'No se pudieron unir los PDFs seleccionados.' : 'The selected PDFs could not be merged.')
       setProgress({
@@ -179,7 +190,6 @@ export function usePdfMerger() {
           ? t('pdfMergeTooManyPages')
           : locale === 'es' ? 'Verifica que todos los archivos sean PDFs validos.' : 'Make sure all files are valid PDFs.',
       })
-      console.error(mergeError)
       return null
     } finally {
       if (activeMergeControllerRef.current === controller) {

@@ -10,11 +10,10 @@ import {
   TextRun,
   VerticalPositionRelativeFrom,
 } from 'docx'
-import { GlobalWorkerOptions, Util, getDocument } from 'pdfjs-dist'
-import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { Util } from 'pdfjs-dist'
+import type { PDFDocumentLoadingTask, PDFPageProxy } from 'pdfjs-dist'
+import { createPdfLoadingTask } from '../../../lib/fileCompatibility/pdfRuntime'
 
-GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
 export const PDF_TO_OFFICE_MAX_SIZE = 25 * 1024 * 1024
 export const PDF_TO_OFFICE_MAX_PAGES = 100
@@ -303,18 +302,10 @@ function hasItalicStyle(metadata: PdfFontMetadata | null, ...names: Array<string
 
 export async function readPdfStructure(file: File, onProgress?: PdfConversionProgress, signal?: AbortSignal): Promise<PdfStructure> {
   const data = await file.arrayBuffer()
-  const loadingTask = getDocument({
-    data,
-    useWorkerFetch: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    stopAtErrors: true,
-  })
+  const loadingTask = createPdfLoadingTask(data)
   const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
-  let pdf: PDFDocumentProxy | null = null
   try {
     const loadedPdf = await loadingTask.promise
-    pdf = loadedPdf
     if (loadedPdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
       throw new Error(`PAGE_LIMIT:${loadedPdf.numPages}`)
     }
@@ -420,7 +411,6 @@ export async function readPdfStructure(file: File, onProgress?: PdfConversionPro
     return { pageCount: loadedPdf.numPages, textItems, pages }
   } finally {
     loadingTaskGuard.dispose()
-    pdf?.cleanup()
     await loadingTaskGuard.destroy()
   }
 }
@@ -552,20 +542,12 @@ async function readPdfTextColors(
   onProgress?: PdfConversionProgress,
   signal?: AbortSignal,
 ) {
-  const loadingTask = getDocument({
-    data: await file.arrayBuffer(),
-    useWorkerFetch: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    stopAtErrors: true,
-  })
+  const loadingTask = createPdfLoadingTask(await file.arrayBuffer())
   const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
   const pageColors = new Map<number, Map<number, string>>()
-  let pdf: PDFDocumentProxy | null = null
 
   try {
     const loadedPdf = await loadingTask.promise
-    pdf = loadedPdf
     for (let pageNumber = 1; pageNumber <= loadedPdf.numPages; pageNumber += 1) {
       signal?.throwIfAborted()
       const page = await loadedPdf.getPage(pageNumber)
@@ -632,7 +614,6 @@ async function readPdfTextColors(
     return pageColors
   } finally {
     loadingTaskGuard.dispose()
-    pdf?.cleanup()
     await loadingTaskGuard.destroy()
   }
 }
@@ -664,13 +645,7 @@ async function renderPdfPagesForWord(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted()
-  const loadingTask = getDocument({
-    data: await file.arrayBuffer(),
-    useWorkerFetch: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    stopAtErrors: true,
-  })
+  const loadingTask = createPdfLoadingTask(await file.arrayBuffer())
   const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
   const pages: RenderedPdfPage[] = []
   let totalImageBytes = 0
@@ -679,59 +654,55 @@ async function renderPdfPagesForWord(
     const pdf = await loadingTask.promise
     signal?.throwIfAborted()
 
-    try {
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-        signal?.throwIfAborted()
-        const page = await pdf.getPage(pageNumber)
-        const canvas = document.createElement('canvas')
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      signal?.throwIfAborted()
+      const page = await pdf.getPage(pageNumber)
+      const canvas = document.createElement('canvas')
 
+      try {
+        const baseViewport = page.getViewport({ scale: 1 })
+        const renderScale = getBoundedRenderScale(
+          baseViewport.width,
+          baseViewport.height,
+          PDF_VISUAL_DOCX_RENDER_SCALE,
+        )
+        const viewport = page.getViewport({ scale: renderScale })
+        const context = canvas.getContext('2d', { alpha: false })
+        if (!context) throw new Error('CANVAS_UNAVAILABLE')
+
+        canvas.width = Math.max(1, Math.ceil(viewport.width))
+        canvas.height = Math.max(1, Math.ceil(viewport.height))
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+
+        const renderTask = page.render({ canvasContext: context, viewport, canvas })
+        const cancelRender = () => renderTask.cancel()
+        signal?.addEventListener('abort', cancelRender, { once: true })
         try {
-          const baseViewport = page.getViewport({ scale: 1 })
-          const renderScale = getBoundedRenderScale(
-            baseViewport.width,
-            baseViewport.height,
-            PDF_VISUAL_DOCX_RENDER_SCALE,
-          )
-          const viewport = page.getViewport({ scale: renderScale })
-          const context = canvas.getContext('2d', { alpha: false })
-          if (!context) throw new Error('CANVAS_UNAVAILABLE')
-
-          canvas.width = Math.max(1, Math.ceil(viewport.width))
-          canvas.height = Math.max(1, Math.ceil(viewport.height))
-          context.fillStyle = '#ffffff'
-          context.fillRect(0, 0, canvas.width, canvas.height)
-
-          const renderTask = page.render({ canvasContext: context, viewport, canvas })
-          const cancelRender = () => renderTask.cancel()
-          signal?.addEventListener('abort', cancelRender, { once: true })
-          try {
-            await renderTask.promise
-          } finally {
-            signal?.removeEventListener('abort', cancelRender)
-          }
-          signal?.throwIfAborted()
-
-          const blob = await canvasToPng(canvas)
-          signal?.throwIfAborted()
-          const data = new Uint8Array(await blob.arrayBuffer())
-          totalImageBytes += data.byteLength
-          if (totalImageBytes > PDF_VISUAL_DOCX_MAX_IMAGE_BYTES) {
-            throw new Error('VISUAL_DOCX_IMAGE_LIMIT')
-          }
-          pages.push({
-            data,
-            width: baseViewport.width,
-            height: baseViewport.height,
-          })
+          await renderTask.promise
         } finally {
-          canvas.width = 1
-          canvas.height = 1
-          page.cleanup()
-          onProgress?.(pageNumber, pdf.numPages)
+          signal?.removeEventListener('abort', cancelRender)
         }
+        signal?.throwIfAborted()
+
+        const blob = await canvasToPng(canvas)
+        signal?.throwIfAborted()
+        const data = new Uint8Array(await blob.arrayBuffer())
+        totalImageBytes += data.byteLength
+        if (totalImageBytes > PDF_VISUAL_DOCX_MAX_IMAGE_BYTES) {
+          throw new Error('VISUAL_DOCX_IMAGE_LIMIT')
+        }
+        pages.push({
+          data,
+          width: baseViewport.width,
+          height: baseViewport.height,
+        })
+      } finally {
+        canvas.width = 1
+        canvas.height = 1
+        page.cleanup()
+        onProgress?.(pageNumber, pdf.numPages)
       }
-    } finally {
-      pdf.cleanup()
     }
   } finally {
     loadingTaskGuard.dispose()
@@ -959,19 +930,11 @@ export async function convertPdfToPptx(
   signal?.throwIfAborted()
   const data = await file.arrayBuffer()
   signal?.throwIfAborted()
-  const loadingTask = getDocument({
-    data,
-    useWorkerFetch: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    stopAtErrors: true,
-  })
+  const loadingTask = createPdfLoadingTask(data)
   const loadingTaskGuard = guardPdfLoadingTask(loadingTask, signal)
-  let pdf: PDFDocumentProxy | null = null
 
   try {
     const loadedPdf = await loadingTask.promise
-    pdf = loadedPdf
     signal?.throwIfAborted()
     if (loadedPdf.numPages > PDF_TO_OFFICE_MAX_PAGES) {
       throw new Error(`PAGE_LIMIT:${loadedPdf.numPages}`)
@@ -1047,7 +1010,6 @@ export async function convertPdfToPptx(
     return output
   } finally {
     loadingTaskGuard.dispose()
-    pdf?.cleanup()
     await loadingTaskGuard.destroy()
   }
 }

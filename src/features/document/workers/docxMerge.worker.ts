@@ -20,9 +20,9 @@ workerScope.onmessage = (event: MessageEvent<DocxMergeRequest>) => {
       const response: DocxMergeResponse = { buffer }
       workerScope.postMessage(response, [buffer])
     })
-  } catch (error) {
+  } catch {
     const response: DocxMergeResponse = {
-      error: error instanceof Error ? error.message : 'DOCX_MERGE_FAILED',
+      error: 'DOCX_MERGE_FAILED',
     }
     workerScope.postMessage(response)
   }

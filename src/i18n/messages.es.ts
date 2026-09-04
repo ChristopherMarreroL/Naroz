@@ -1,6 +1,15 @@
 import type { Messages } from './LocaleProvider'
 
 const messages: Messages = {
+    compatibilityPdfPassword: "Este PDF está protegido con contraseña. Utiliza una versión desbloqueada para poder procesarlo.",
+    compatibilityOfficePassword: "Este documento de Office está protegido con contraseña. Utiliza una versión desbloqueada para poder procesarlo.",
+    compatibilityTypeMismatch: "El contenido del archivo no coincide con el formato esperado.",
+    compatibilityUnsupported: "Este formato o estructura de archivo no es compatible con esta herramienta.",
+    compatibilityCorrupt: "El archivo está dañado o su estructura está incompleta. Intenta exportarlo de nuevo.",
+    compatibilityOutputInvalid: "No se pudo validar el resultado. No se generó ninguna descarga.",
+    compatibilityLimit: "El archivo supera los límites de procesamiento seguro. Utiliza un archivo más pequeño.",
+    compatibilityPdfNormalized: "Se normalizaron uno o más PDFs protegidos para garantizar compatibilidad. Sus páginas se conservan como imágenes; el texto ya no es seleccionable.",
+
     brandTagline: 'Una aplicación web para convertir y transformar documentos y archivos multimedia directamente desde el navegador.',
     seoTitle: 'Naroz: herramientas para convertir y transformar archivos',
     seoDescription: 'Naroz es una aplicación web para convertir, combinar y transformar PDF, Word, Excel, imágenes, videos y audio desde el navegador.',
