@@ -22,6 +22,7 @@
     "@imgly/background-removal": "1.7.0",
     "@kenjiuno/msgreader": "^1.28.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@vercel/analytics": "^2.0.1",
     "@xmldom/xmldom": "0.8.13",
     "buffer": "^6.0.3",
     "docx": "^9.7.1",
