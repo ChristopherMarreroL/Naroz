@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { AppToolId } from '../../types/app'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { getToolHref } from '../../lib/routes'
 import { ToolIcon } from '../../components/shared/ToolIcon'
 import { HomeProductDemo } from './HomeProductDemo'
 
@@ -227,11 +228,16 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         <div className="tools-grid">
           {filteredTools.map((tool) => (
             <article key={tool.id} className={`tool-card ${categoryStyles[tool.category as keyof typeof categoryStyles]}`}>
-              <button
-                type="button"
+              <a
+                href={getToolHref(tool.id)}
                 className="tool-card-link"
                 aria-label={`${t('openTool')}: ${getToolTitle(tool.id, locale)}`}
-                onClick={() => onNavigate(tool.id)}
+                onClick={(event) => {
+                  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+
+                  event.preventDefault()
+                  onNavigate(tool.id)
+                }}
               />
               <div className="tool-card-topline">
                 <span className="tool-category">{tool.categoryLabel}</span>

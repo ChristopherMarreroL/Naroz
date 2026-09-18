@@ -96,15 +96,11 @@ Run lint:
 bun run lint
 ```
 
-## Environment
+## Canonical domain
 
-You can define the public site URL for SEO metadata and generated files:
-
-```bash
-VITE_SITE_URL=https://your-domain.com
-```
-
-Use `.env.example` as a reference.
+SEO metadata, generated crawler files, and static pages use the single production
+canonical domain `https://www.naroz.app`. Keep the Vercel apex domain redirecting
+permanently to that host instead of overriding the canonical domain at build time.
 
 ## Generated SEO Files
 

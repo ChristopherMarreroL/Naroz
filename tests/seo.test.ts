@@ -9,12 +9,24 @@ import {
 } from '../src/lib/seo'
 import { applyNotFoundSeo } from '../src/lib/seoDom'
 import { renderNotFoundHtml, renderSeoPageHtml, seoPages } from '../scripts/seo-pages.mjs'
-import { findToolFromPath } from '../src/lib/routes'
+import { findToolFromPath, getToolHref } from '../src/lib/routes'
 
 describe('SEO identity', () => {
   test('uses the official domain as the single canonical host', () => {
     expect(SEO_DEFAULT_SITE_URL).toBe('https://www.naroz.app')
     expect(getCanonicalUrl('/video-convert')).toBe('https://www.naroz.app/video-convert/')
+    expect(getToolHref('home')).toBe('/')
+    expect(getToolHref('video-convert')).toBe('/video-convert/')
+  })
+
+  test('does not allow build environment variables to split canonical signals', async () => {
+    const [runtimeSeo, generator] = await Promise.all([
+      Bun.file('src/lib/seo.ts').text(),
+      Bun.file('scripts/generate-seo.mjs').text(),
+    ])
+
+    expect(runtimeSeo).not.toContain('VITE_SITE_URL')
+    expect(generator).not.toContain('VITE_SITE_URL')
   })
 
   test('describes Naroz as a website and free web application', () => {

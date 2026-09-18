@@ -31,6 +31,11 @@ export function getToolPath(tool: AppToolId) {
   return TOOL_PATHS[tool]
 }
 
+export function getToolHref(tool: AppToolId) {
+  const path = getToolPath(tool)
+  return path === '/' ? path : `${path}/`
+}
+
 export function getToolFromPath(pathname: string): AppToolId {
   return findToolFromPath(pathname) ?? 'home'
 }

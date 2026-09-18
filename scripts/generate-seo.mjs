@@ -3,12 +3,7 @@ import { resolve } from 'node:path'
 import { seoPages, SEO_SITE_URL } from './seo-pages.mjs'
 
 const DEFAULT_SITE_URL = SEO_SITE_URL
-
-function normalizeSiteUrl(value) {
-  return value.replace(/\/$/, '')
-}
-
-const siteUrl = normalizeSiteUrl(process.env.VITE_SITE_URL || DEFAULT_SITE_URL)
+const siteUrl = DEFAULT_SITE_URL
 const publicDir = resolve(process.cwd(), 'public')
 
 const robots = `User-agent: *

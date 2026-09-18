@@ -1,5 +1,6 @@
 import type { AppSectionId, AppToolId, SidebarItem } from '../../types/app'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { getToolHref } from '../../lib/routes'
 import narozLogo from '../../assets/naroz-logo.jpg'
 import { ToolIcon } from '../shared/ToolIcon'
 
@@ -85,10 +86,14 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
                             : '.'
 
                   return (
-                    <button
+                    <a
                       key={item.id}
-                      type="button"
-                      onClick={() => {
+                      href={getToolHref(item.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={(event) => {
+                        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+
+                        event.preventDefault()
                         onNavigate(item.id)
                         onClose()
                       }}
@@ -106,7 +111,7 @@ export function Sidebar({ items, activeTool, activeSection, onNavigate, onClose 
                       <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${badgeClass}`}>
                         {badgeLabel}
                       </span>
-                    </button>
+                    </a>
                   )
                 })}
               </div>

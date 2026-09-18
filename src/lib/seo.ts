@@ -8,17 +8,7 @@ export const SEO_DEFAULT_SITE_URL = SEO_SITE_URL
 export const SEO_OG_IMAGE_PATH = '/og-image.png'
 export const SEO_OG_IMAGE_ALT = 'Naroz logo'
 
-function normalizeSiteUrl(value: string) {
-  return value.replace(/\/$/, '')
-}
-
 export function getSiteUrl() {
-  const envUrl = import.meta.env.VITE_SITE_URL?.trim()
-
-  if (envUrl) {
-    return normalizeSiteUrl(envUrl)
-  }
-
   return SEO_DEFAULT_SITE_URL
 }
 

@@ -7,7 +7,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
 import { useLocale } from './i18n/LocaleProvider'
 import { notify } from './lib/notifications'
-import { findToolFromPath, getToolPath } from './lib/routes'
+import { findToolFromPath, getToolHref } from './lib/routes'
 import type { AppSectionId, AppToolId, SidebarItem } from './types/app'
 import { NotFoundView } from './features/not-found/NotFoundView'
 
@@ -216,7 +216,7 @@ function App() {
   }, [location.pathname])
 
   const handleNavigate = (tool: AppToolId) => {
-    const nextPath = getToolPath(tool)
+    const nextPath = getToolHref(tool)
     if (location.pathname !== nextPath) {
       navigate(nextPath)
     }
