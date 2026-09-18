@@ -1,5 +1,7 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { SeoHead } from './components/shared/SeoHead'
@@ -263,6 +265,8 @@ function App() {
   return (
     <>
       <SeoHead />
+      <Analytics />
+      <SpeedInsights />
       <AppLayout items={sidebarItems} activeTool={activeTool} activeSection={activeSection} onNavigate={handleNavigate} onGoHome={handleGoHome}>
         {isNotFound ? <NotFoundView onGoHome={handleGoHome} /> : null}
         {!isNotFound && activeTool === 'home' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><HomeView onNavigate={handleNavigate} /></Suspense></div> : null}
