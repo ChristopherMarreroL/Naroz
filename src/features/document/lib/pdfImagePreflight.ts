@@ -1,7 +1,7 @@
 import { createPdfLoadingTask } from '../../../lib/fileCompatibility/pdfRuntime'
 import { PDF_EDITOR_LOADING_LIMITS, PdfInputLimitError } from './pdfEditor'
 
-/** Use the native content parser to inspect inline images, forms and image masks without raster decoding. */
+/** Use the native content parser to inspect inline images, forms and image masks without raster decoding. The worker stops once decoded content or operator count exceeds its preflight budget. */
 export async function preflightPdfEditorImages(bytes: Uint8Array, signal: AbortSignal) {
   signal.throwIfAborted()
   const task = createPdfLoadingTask(bytes.slice(), {
@@ -23,7 +23,7 @@ export async function preflightPdfEditorImages(bytes: Uint8Array, signal: AbortS
     }
   } catch (error) {
     signal.throwIfAborted()
-    if (error instanceof Error && error.message.includes('Image resource budget exceeded.')) throw new PdfInputLimitError('image budget')
+    if (error instanceof Error && (error.message.includes('Image resource budget exceeded.') || error.message.includes('Content resource budget exceeded.'))) throw new PdfInputLimitError('image budget')
     throw error
   } finally {
     signal.removeEventListener('abort', cancel)

@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
-import { constrainOverlay } from '../src/features/document/lib/pdfEditor'
-import { appendHistory, fitOverlay, overlayBounds, resizeOverlay, sameElements, snapOverlay, type ResizeCorner } from '../src/features/document/lib/pdfEditorState'
+import { bakeAnnotationsUnderOverlays, constrainOverlay } from '../src/features/document/lib/pdfEditor'
+import { appendHistory, fitOverlay, overlayBounds, overlayRevision, resizeOverlay, sameElements, snapOverlay, type ResizeCorner } from '../src/features/document/lib/pdfEditorState'
 
 test('overlay remains inside page when moved beyond any edge', () => {
   const item = { id: '1', page: 1, src: '', x: -2, y: 2, width: .4, height: .2 }
@@ -37,6 +37,32 @@ test('rotation fitting and alignment snapping remain inside cropped page space',
   const fitted = fitOverlay({ ...item, x: -.5, y: .9, width: 1, height: 1, rotation: 45 }, .7)
   const bounds = overlayBounds(fitted, .7)
   expect(bounds.left).toBeGreaterThanOrEqual(-1e-8); expect(bounds.bottom).toBeLessThanOrEqual(1 + 1e-8)
+})
+
+test('downloaded revisions identify images without retaining their payloads', () => {
+  const item = { id: '1', page: 1, src: 'x'.repeat(100_000), x: .1, y: .1, width: .2, height: .1 }
+  const saved = overlayRevision([item])
+  expect(saved.length).toBeLessThan(400)
+  expect(saved.includes(item.src)).toBe(false)
+  expect(overlayRevision([{ ...item }])).toBe(saved)
+  expect(overlayRevision([{ ...item, src: 'y'.repeat(100_000) }])).not.toBe(saved)
+  expect(overlayRevision([])).toBe('')
+})
+
+test('visible stamp appearances move into page content while links stay annotations', async () => {
+  const { PDFDocument, PDFName } = await import('pdf-lib')
+  const pdf = await PDFDocument.create()
+  const page = pdf.addPage([600, 800])
+  const form = pdf.context.register(pdf.context.flateStream('0 0 0 rg 0 0 100 80 re f', { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 100, 80] }))
+  const link = pdf.context.register(pdf.context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [0, 0, 10, 10] }))
+  const stamp = pdf.context.register(pdf.context.obj({ Type: 'Annot', Subtype: 'Stamp', Rect: [10, 20, 110, 100], F: 4, AP: { N: form } }))
+  page.node.set(PDFName.of('Annots'), pdf.context.obj([stamp, link]))
+  bakeAnnotationsUnderOverlays(page)
+  const annots = page.node.Annots()!
+  expect(annots.size()).toBe(1)
+  expect(pdf.context.lookup(annots.get(0)).lookup(PDFName.of('Subtype'))).toBe(PDFName.of('Link'))
+  const resources = page.node.Resources()!
+  expect(resources.lookup(PDFName.of('XObject')).entries().length).toBe(1)
 })
 
 test('text revisions do not consume image budget; oversized retained history is pruned safely', () => {

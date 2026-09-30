@@ -108,6 +108,66 @@ test('metadata preflight never emits decoded image operators and counts images a
   expect(result.operations.filter(op => [83, 84, 85, 86, 87, 88, 89, 90].includes(op))).toHaveLength(0)
 })
 
+test('compressed operator bombs are rejected before an editor session opens', async ({ page }) => {
+  const pdf = await PDFDocument.create()
+  const sheet = pdf.addPage([600, 800])
+  const stream = pdf.context.register(pdf.context.flateStream(Buffer.from('n\n'.repeat(500_001))))
+  sheet.node.set(PDFName.of('Contents'), stream)
+  const buffer = Buffer.from(await pdf.save())
+  expect(buffer.length).toBeLessThan(50 * 1024 * 1024)
+  await upload(page, buffer)
+  await expect(page.getByRole('alert')).toContainText("exceeds the editor's page or image resolution limits", { timeout: 20000 })
+  await expect(page.locator('.pdf-editor-controls')).toHaveCount(0)
+  await expect(page.locator('.pdf-editor-canvas')).toHaveCount(0)
+})
+
+test('exported overlays paint above stamp annotations', async ({ page }) => {
+  const pdf = await PDFDocument.create()
+  const sheet = pdf.addPage([600, 800])
+  sheet.drawText('Original PDF content', { x: 40, y: 760, size: 18 })
+  const form = pdf.context.register(pdf.context.flateStream('0 0 0 rg 0 0 160 120 re f', { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 160, 120] }))
+  const stamp = pdf.context.register(pdf.context.obj({ Type: 'Annot', Subtype: 'Stamp', Rect: [180, 320, 340, 440], F: 4, AP: { N: form } }))
+  sheet.node.set(PDFName.of('Annots'), pdf.context.obj([stamp]))
+  await page.goto('/tests/browser/harness.html')
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true')
+  const result = await page.evaluate(async (input) => {
+    const { exportEditedPdf } = await import('/src/features/document/lib/pdfEditor.ts')
+    const { createPdfLoadingTask } = await import('/src/lib/fileCompatibility/pdfRuntime.ts')
+    const original = createPdfLoadingTask(new Uint8Array(input))
+    let exported: ReturnType<typeof createPdfLoadingTask> | undefined
+    const canvas = document.createElement('canvas')
+    canvas.width = 80
+    canvas.height = 40
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#00aa00'
+    context.fillRect(0, 0, 80, 40)
+    try {
+      const source = await original.promise
+      const output = await exportEditedPdf(new Uint8Array(input), source, [{ id: '1', page: 1, src: canvas.toDataURL('image/png'), x: .35, y: .45, width: .2, height: .1 }])
+      exported = createPdfLoadingTask(output.slice())
+      const final = await exported.promise
+      const rendered = await final.getPage(1)
+      const viewport = rendered.getViewport({ scale: 1 })
+      canvas.width = Math.ceil(viewport.width)
+      canvas.height = Math.ceil(viewport.height)
+      await rendered.render({ canvas, viewport }).promise
+      const sample = (x: number, y: number) => Array.from(context.getImageData(Math.floor(x * viewport.width), Math.floor(y * viewport.height), 1, 1).data)
+      return {
+        center: sample(.45, .5),
+        stamp: sample(.32, .58),
+        text: (await rendered.getTextContent()).items.some((item: { str?: string }) => item.str?.includes('Original PDF content')),
+      }
+    } finally {
+      canvas.width = canvas.height = 0
+      await original.destroy()
+      await exported?.destroy()
+    }
+  }, Array.from(await pdf.save()))
+  expect(result.center).toEqual([0, 170, 0, 255])
+  expect(result.stamp).toEqual([0, 0, 0, 255])
+  expect(result.text).toBe(true)
+})
+
 test('hidden print-only annotation images are included in editor preflight', async ({ page }) => {
   const pdf = await PDFDocument.load(await inlineFixture(4001, 1))
   const sheet = pdf.getPage(0), appearance = sheet.node.get(PDFName.of('Contents'))!

@@ -4,6 +4,38 @@ export type EditorHistory = { entries: PdfOverlay[][]; index: number }
 export type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se'
 export type AlignmentGuides = { x?: number; y?: number }
 
+const sourceDigests = new Map<string, string>()
+
+function sourceDigest(src: string) {
+  const cached = sourceDigests.get(src)
+  if (cached !== undefined) return cached
+  let first = 0x811c9dc5
+  let second = 0x811c9dc5
+  for (let index = 0; index < src.length; index++) {
+    const code = src.charCodeAt(index)
+    first = Math.imul(first ^ code, 0x01000193)
+    second = Math.imul(second ^ code, 0x01000193) ^ index
+  }
+  const digest = `${src.length}:${first >>> 0}:${second >>> 0}`
+  sourceDigests.set(src, digest)
+  return digest
+}
+
+/** Compact identity for the downloaded snapshot. Image payloads stay in history only. */
+export function overlayRevision(items: PdfOverlay[]) {
+  const live = new Set<string>()
+  const revision = items.map((item) => Object.keys(item).sort().map((key) => {
+    const value = item[key as keyof PdfOverlay]
+    if (key === 'src' && typeof value === 'string') {
+      live.add(value)
+      return `src:${sourceDigest(value)}`
+    }
+    return `${key}:${String(value)}`
+  }).join('\0')).join('\n')
+  for (const src of sourceDigests.keys()) if (!live.has(src)) sourceDigests.delete(src)
+  return revision
+}
+
 export function sameElements(a: PdfOverlay[], b: PdfOverlay[]) {
   return a.length === b.length && a.every((item, index) => {
     const other = b[index]

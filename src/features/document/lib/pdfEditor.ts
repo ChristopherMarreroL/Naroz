@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, PDFNumber, PDFRawStream, StandardFonts, concatTransformationMatrix, pushGraphicsState, popGraphicsState, rgb } from 'pdf-lib'
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFRef, type PDFPage, StandardFonts, concatTransformationMatrix, drawObject, pushGraphicsState, popGraphicsState, rgb } from 'pdf-lib'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { preflightImage } from '../../image/lib/imageLimits'
 import { pdfFontFamily } from './pdfFonts'
@@ -47,13 +47,82 @@ export function constrainOverlay(item: PdfOverlay): PdfOverlay {
   return { ...item, width, height, x: Math.max(0, Math.min(1 - width, item.x)), y: Math.max(0, Math.min(1 - height, item.y)) }
 }
 
+function numericArray(document: PDFDocument, array: PDFArray) {
+  return array.asArray().map((entry) => {
+    const value = entry instanceof PDFRef ? document.context.lookup(entry) : entry
+    return value instanceof PDFNumber ? value.asNumber() : Number.NaN
+  })
+}
+
+function transformedBounds(bbox: number[], matrix: number[]) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const [x, y] of [[bbox[0], bbox[1]], [bbox[2], bbox[1]], [bbox[0], bbox[3]], [bbox[2], bbox[3]]]) {
+    const px = matrix[0] * x + matrix[2] * y + matrix[4]
+    const py = matrix[1] * x + matrix[3] * y + matrix[5]
+    minX = Math.min(minX, px); minY = Math.min(minY, py); maxX = Math.max(maxX, px); maxY = Math.max(maxY, py)
+  }
+  return [minX, minY, maxX, maxY]
+}
+
+function normalAppearance(annot: PDFDict) {
+  const appearances = annot.lookupMaybe(PDFName.of('AP'), PDFDict)
+  const normal = appearances?.lookup(PDFName.of('N'))
+  if (normal instanceof PDFRawStream) return normal
+  if (!(normal instanceof PDFDict)) return
+  const state = annot.lookupMaybe(PDFName.of('AS'), PDFName) ?? PDFName.of('Off')
+  for (const key of [state, PDFName.of('Off')]) {
+    if (!normal.has(key)) continue
+    const value = normal.lookup(key)
+    if (value instanceof PDFRawStream) return value
+  }
+}
+
+/** Paint visible annotation appearances into the page, then remove them so later overlays stay on top. */
+export function bakeAnnotationsUnderOverlays(page: PDFPage) {
+  const annots = page.node.Annots()
+  if (!annots || annots.size() === 0) return
+  const document = page.doc
+  const kept = []
+  for (const entry of annots.asArray()) {
+    const annot = entry instanceof PDFRef ? document.context.lookupMaybe(entry, PDFDict) : entry instanceof PDFDict ? entry : undefined
+    const subtype = annot?.lookupMaybe(PDFName.of('Subtype'), PDFName)
+    const flags = annot?.lookupMaybe(PDFName.of('F'), PDFNumber)?.asNumber() ?? 0
+    const appearance = annot && subtype !== PDFName.of('Link') && subtype !== PDFName.of('Popup') && (flags & 35) === 0 ? normalAppearance(annot) : undefined
+    const rectangle = annot?.lookupMaybe(PDFName.of('Rect'), PDFArray)
+    const bounds = appearance?.dict.lookupMaybe(PDFName.of('BBox'), PDFArray)
+    const rect = rectangle ? numericArray(document, rectangle) : []
+    const bbox = bounds ? numericArray(document, bounds) : []
+    const matrixArray = appearance?.dict.lookupMaybe(PDFName.of('Matrix'), PDFArray)
+    const matrix = matrixArray ? numericArray(document, matrixArray) : [1, 0, 0, 1, 0, 0]
+    if (!annot || !appearance || rect.length !== 4 || bbox.length !== 4 || matrix.length !== 6 || rect.concat(bbox, matrix).some((value) => !Number.isFinite(value))) {
+      kept.push(entry)
+      continue
+    }
+    const [minX, minY, maxX, maxY] = transformedBounds(bbox, matrix)
+    const left = Math.min(rect[0], rect[2]), bottom = Math.min(rect[1], rect[3]), right = Math.max(rect[0], rect[2]), top = Math.max(rect[1], rect[3])
+    if (maxX === minX || maxY === minY || right === left || top === bottom) { kept.push(entry); continue }
+    const xRatio = (right - left) / (maxX - minX), yRatio = (top - bottom) / (maxY - minY)
+    const ref = document.context.getObjectRef(appearance) ?? document.context.register(appearance)
+    const name = page.node.newXObject('Form', ref)
+    page.pushOperators(pushGraphicsState(), concatTransformationMatrix(xRatio, 0, 0, yRatio, left - minX * xRatio, bottom - minY * yRatio), drawObject(name), popGraphicsState())
+  }
+  if (kept.length === annots.size()) return
+  if (kept.length === 0) page.node.delete(PDFName.of('Annots'))
+  else page.node.set(PDFName.of('Annots'), document.context.obj(kept))
+}
+
 /** Coordinates are relative to the displayed crop box, including page rotation. */
 export async function exportEditedPdf(bytes: Uint8Array, preview: PDFDocumentProxy, items: PdfOverlay[]) {
   const output = await PDFDocument.load(bytes)
   const images = new Map<string, Awaited<ReturnType<typeof output.embedPng>>>()
   const fonts = new Map<StandardFonts, Awaited<ReturnType<typeof output.embedFont>>>()
   let decodedPixels = 0
+  const bakedPages = new Set<number>()
   for (const item of items) {
+    if (!bakedPages.has(item.page)) {
+      bakeAnnotationsUnderOverlays(output.getPage(item.page - 1))
+      bakedPages.add(item.page)
+    }
     const page = output.getPage(item.page - 1)
     const source = await preview.getPage(item.page)
     const viewport = source.getViewport({ scale: 1 })

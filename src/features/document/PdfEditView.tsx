@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { PDFDocument } from 'pdf-lib'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -9,7 +9,7 @@ import { createPdfLoadingTask } from '../../lib/fileCompatibility/pdfRuntime'
 import { validatePdfOutput } from '../../lib/fileCompatibility/pdf'
 import { downloadFromUrl } from '../../lib/download'
 import { assertPdfEditorResources, cropImage, exportEditedPdf, imageToPng, PDF_EDITOR_LOADING_LIMITS, PdfExportLimitError, PdfInputLimitError, textLayout, type PdfOverlay } from './lib/pdfEditor'
-import { appendHistory, fitOverlay, imageBudget, resizeOverlay, resizeOverlayByFactor, sameElements, snapOverlay, type AlignmentGuides, type ResizeCorner } from './lib/pdfEditorState'
+import { appendHistory, fitOverlay, imageBudget, overlayRevision, resizeOverlay, resizeOverlayByFactor, snapOverlay, type AlignmentGuides, type ResizeCorner } from './lib/pdfEditorState'
 import { availablePdfFonts, canQueryPdfFonts, pdfFontFamily, queryPdfFonts } from './lib/pdfFonts'
 import { PdfEditorIcon } from './PdfEditorIcon'
 import { PdfPageThumbnails } from './PdfPageThumbnails'
@@ -59,7 +59,7 @@ export function PdfEditView() {
   const [guides, setGuides] = useState<AlignmentGuides>({})
   const [crop, setCrop] = useState<Crop | null>(null)
   const cropGesture = useRef<{ x: number; y: number } | null>(null)
-  const [savedItems, setSavedItems] = useState<PdfOverlay[]>([])
+  const [savedRevision, setSavedRevision] = useState('')
   const [downloaded, setDownloaded] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [history, setHistory] = useState<History>({ entries: [[]], index: 0 })
@@ -90,7 +90,8 @@ export function PdfEditView() {
   const current = items.find((item) => item.id === selected)
   const activeText = inline ?? (current?.text !== undefined ? current : textStyle)
   const pendingText = !!inline && (inline.isNew ? !!inline.value.trim() : inline.value !== inline.text || inline.textColor !== current?.textColor || inline.textFont !== current?.textFont || inline.textBold !== current?.textBold || inline.textItalic !== current?.textItalic || inline.textAlign !== current?.textAlign)
-  const dirty = !!session && (!sameElements(items, savedItems) || pendingText || !!crop || pendingImages > 0)
+  const revision = useMemo(() => overlayRevision(items), [items])
+  const dirty = !!session && (revision !== savedRevision || pendingText || !!crop || pendingImages > 0)
   const blocker = useBlocker(dirty || saving)
   useEffect(() => {
     if (blocker.state !== 'blocked') return
@@ -188,7 +189,7 @@ export function PdfEditView() {
     if (dirty && !window.confirm(t('pdfEditReplace'))) return
     sessionRef.current = null
     setSession(null); setFile(next); setPage(1); setRatio(0); setSelected(null)
-    setHistory({ entries: [[]], index: 0 }); setSavedItems([]); setDownloaded(false); setDraft(null); draftRef.current = null; setCrop(null); setInline(null); inlineRef.current = null; setMenu(null); setTextTool(false); setError(''); setLoading(true)
+    setHistory({ entries: [[]], index: 0 }); setSavedRevision(''); setDownloaded(false); setDraft(null); draftRef.current = null; setCrop(null); setInline(null); inlineRef.current = null; setMenu(null); setTextTool(false); setError(''); setLoading(true)
   }
   const finishText = (cancel = false, restoreFocus = false) => {
     const value = inlineRef.current
@@ -401,7 +402,7 @@ export function PdfEditView() {
       if (sessionRef.current !== session) return
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }))
       downloadFromUrl(url, session.name.replace(/\.pdf$/i, '') + '-edited.pdf')
-      setSavedItems(exportItems); setDownloaded(true)
+      setSavedRevision(overlayRevision(exportItems)); setDownloaded(true)
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
     } catch (error) { if (sessionRef.current === session) setError(error instanceof PdfExportLimitError ? 'pdfEditExportLimit' : 'pdfEditSaveError') }
     finally { if (sessionRef.current === session) setSaving(false) }
