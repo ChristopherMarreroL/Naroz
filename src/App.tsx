@@ -24,6 +24,7 @@ const ImageBackgroundRemoveView = lazy(() => import('./features/image/ImageBackg
 const ImageCropView = lazy(() => import('./features/image/ImageCropView').then((module) => ({ default: module.ImageCropView })))
 const ImageTransformView = lazy(() => import('./features/image/ImageTransformView').then((module) => ({ default: module.ImageTransformView })))
 const PdfMergeView = lazy(() => import('./features/document/PdfMergeView').then((module) => ({ default: module.PdfMergeView })))
+const PdfEditView = lazy(() => import('./features/document/PdfEditView').then((module) => ({ default: module.PdfEditView })))
 const PdfDeletePagesView = lazy(() => import('./features/document/PdfDeletePagesView').then((module) => ({ default: module.PdfDeletePagesView })))
 const DocxMergeView = lazy(() => import('./features/document/DocxMergeView').then((module) => ({ default: module.DocxMergeView })))
 const MsgToPdfView = lazy(() => import('./features/document/MsgToPdfView').then((module) => ({ default: module.MsgToPdfView })))
@@ -137,6 +138,13 @@ function App() {
         id: 'document-merge-pdf',
         label: t('mergePdf'),
         description: t('combinePdfDesc'),
+        section: 'document',
+        status: 'stable',
+      },
+      {
+        id: 'document-edit-pdf',
+        label: t('pdfEditTitle'),
+        description: t('pdfEditShort'),
         section: 'document',
         status: 'stable',
       },
@@ -282,6 +290,7 @@ function App() {
         {activeTool === 'image-transform' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageTransformView /></Suspense></div> : null}
         {activeTool === 'image-remove-background' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><ImageBackgroundRemoveView /></Suspense></div> : null}
         {activeTool === 'document-merge-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfMergeView /></Suspense></div> : null}
+        {activeTool === 'document-edit-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfEditView /></Suspense></div> : null}
         {activeTool === 'document-delete-pages' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><PdfDeletePagesView /></Suspense></div> : null}
         {activeTool === 'document-merge-docx' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><DocxMergeView /></Suspense></div> : null}
         {activeTool === 'document-msg-to-pdf' ? <div className={getToolViewClassName(true)}><Suspense fallback={<ToolLoadingFallback />}><MsgToPdfView /></Suspense></div> : null}

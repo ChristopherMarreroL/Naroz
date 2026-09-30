@@ -114,6 +114,7 @@ export function ToolIcon({ toolId, className = 'h-5 w-5' }: ToolIconProps) {
     )
   }
 
+  if (toolId === 'document-edit-pdf') return <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9"><path d="M13 3H5v18h14v-9M12 13l-1 4 4-1 7-7-3-3-7 7Z" /></svg>
   if (toolId === 'document-delete-pages') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={`${className} stroke-current`} fill="none" strokeWidth="1.9">

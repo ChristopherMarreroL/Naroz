@@ -18,6 +18,7 @@ export const seoPages = [
   { id: 'image-crop', path: '/image-crop', title: 'Recortar imágenes online - Naroz', description: 'Recorta imágenes de forma visual, privada y directamente en tu navegador.' },
   { id: 'image-transform', path: '/image-transform', title: 'Rotar y voltear imágenes - Naroz', description: 'Rota y voltea imágenes online con vista previa y procesamiento local.' },
   { id: 'document-merge-pdf', path: '/document-merge-pdf', title: 'Unir archivos PDF online - Naroz', description: 'Combina varios archivos PDF en un único documento directamente en tu navegador.' },
+  { id: 'document-edit-pdf', path: '/edit-pdf', title: 'Editar PDF - Naroz', description: 'Agrega imágenes de firmas y texto a tus PDF de forma privada en el navegador.' },
   { id: 'document-delete-pages', path: '/document-delete-pages', title: 'Eliminar páginas de un PDF - Naroz', description: 'Selecciona y elimina páginas específicas de un PDF de forma local y privada.' },
   { id: 'document-merge-docx', path: '/document-merge-docx', title: 'Unir documentos Word online - Naroz', description: 'Combina varios documentos DOCX en un único archivo desde el navegador.' },
   { id: 'document-msg-to-pdf', path: '/msg-to-pdf', title: 'Convertir MSG o EML a PDF - Naroz', description: 'Abre correos MSG o EML y guárdalos como PDF protegiendo tu privacidad.' },

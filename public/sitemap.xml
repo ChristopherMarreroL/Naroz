@@ -66,6 +66,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.naroz.app/edit-pdf/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://www.naroz.app/document-delete-pages/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

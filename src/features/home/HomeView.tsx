@@ -67,6 +67,11 @@ const availableTools = [
     status: 'stable',
   },
   {
+    id: 'document-edit-pdf' as const,
+    category: 'document',
+    status: 'stable',
+  },
+  {
     id: 'document-delete-pages' as const,
     category: 'document',
     status: 'beta',
@@ -130,6 +135,7 @@ function getToolTitle(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'image-transform') return locale === 'es' ? 'Rotar / voltear imagen' : 'Rotate / flip image'
   if (id === 'image-remove-background') return locale === 'es' ? 'Remover fondo' : 'Remove background'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Unir PDF' : 'Merge PDF'
+  if (id === 'document-edit-pdf') return locale === 'es' ? 'Editar PDF' : 'Edit PDF'
   if (id === 'document-delete-pages') return locale === 'es' ? 'Eliminar paginas' : 'Delete pages'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Unir Word' : 'Merge Word'
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Convertir correo a PDF' : 'Convert email to PDF'
@@ -154,6 +160,7 @@ function getToolDescription(id: AppToolId, locale: 'es' | 'en') {
   if (id === 'image-transform') return locale === 'es' ? 'Rota una imagen o volteala horizontal y verticalmente antes de descargarla.' : 'Rotate an image or flip it horizontally and vertically before downloading it.'
   if (id === 'image-remove-background') return locale === 'es' ? 'Intenta quitar fondos lisos o uniformes y exporta la imagen en PNG con transparencia.' : 'Attempts to remove plain or uniform backgrounds and exports the image as a transparent PNG.'
   if (id === 'document-merge-pdf') return locale === 'es' ? 'Combina varios PDF en un unico documento final y decide el orden antes de exportar.' : 'Combine multiple PDFs into one final document and choose the order before exporting.'
+  if (id === 'document-edit-pdf') return locale === 'es' ? 'Agrega firmas, imágenes y texto a un PDF con vista previa y descarga local.' : 'Add signatures, images and text to a PDF with preview and local download.'
   if (id === 'document-delete-pages') return locale === 'es' ? 'Selecciona un PDF y elimina paginas especificas antes de descargar una nueva version.' : 'Pick a PDF and remove specific pages before downloading a new version.'
   if (id === 'document-merge-docx') return locale === 'es' ? 'Combina varios archivos DOCX en un solo documento Word desde el navegador.' : 'Combine multiple DOCX files into one Word document in the browser.'
   if (id === 'document-msg-to-pdf') return locale === 'es' ? 'Lee correos .MSG o .EML y genera una version PDF con sus datos principales.' : 'Read .MSG or .EML emails and generate a PDF version with their main details.'
