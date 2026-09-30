@@ -15,6 +15,7 @@ import { PdfEditorIcon } from './PdfEditorIcon'
 import { PdfPageThumbnails } from './PdfPageThumbnails'
 import { PdfTextPreview } from './PdfTextPreview'
 import { beginPdfPreview } from './lib/pdfPreview'
+import { preflightPdfEditorImages } from './lib/pdfImagePreflight'
 import './pdfEditor.css'
 
 type Session = { pdf: PDFDocumentProxy; bytes: Uint8Array; name: string }
@@ -155,6 +156,7 @@ export function PdfEditView() {
   useEffect(() => {
     let active = true
     let task: ReturnType<typeof createPdfLoadingTask> | undefined
+    const controller = new AbortController()
     sessionRef.current = null
     if (!file) return
     void (async () => {
@@ -166,6 +168,8 @@ export function PdfEditView() {
         const parsed = await PDFDocument.load(bytes)
         if (!active) return
         assertPdfEditorResources(parsed)
+        await preflightPdfEditorImages(bytes, controller.signal)
+        if (!active) return
         task = createPdfLoadingTask(bytes.slice(), PDF_EDITOR_LOADING_LIMITS)
         const pdf = await task.promise
         if (!active) return
@@ -176,7 +180,7 @@ export function PdfEditView() {
       } catch (error) { await task?.destroy().catch(() => undefined); if (active) setError(error instanceof PdfInputLimitError ? 'pdfEditInputLimit' : 'pdfEditLoadError') }
       finally { if (active) setLoading(false) }
     })()
-    return () => { active = false; sessionRef.current = null; void task?.destroy().catch(() => undefined) }
+    return () => { active = false; controller.abort(); sessionRef.current = null; void task?.destroy().catch(() => undefined) }
   }, [file])
 
   const chooseFile = (next: File | undefined) => {
@@ -192,7 +196,7 @@ export function PdfEditView() {
     const close = () => { inlineRef.current = null; setInline(null); if (restoreFocus) requestAnimationFrame(() => { if (inlineRef.current || menuRef.current) return; const element = workspace.current?.querySelector<HTMLElement>(`[data-element-id="${value.id}"]`); (element ?? workspace.current)?.focus({ preventScroll: true }) }) }
     if (cancel || !value.value.trim()) { close(); clearError('pdfEditTextLimit'); return null }
     let layout: ReturnType<typeof textLayout>
-    try { layout = textLayout(value.value.trim(), value.textFont ?? font, value) } catch { setError('pdfEditTextLimit'); return null }
+    try { layout = textLayout(value.value, value.textFont ?? font, value) } catch { setError('pdfEditTextLimit'); return null }
     if (value.isNew && items.length >= 100) { setError('pdfEditResourceLimit'); return null }
     const previousLines = Math.max(1, (value.text ?? '').split('\n').length)
     let height = value.height * layout.height / (previousLines * 120 + 16)
@@ -201,7 +205,7 @@ export function PdfEditView() {
     width *= factor; height *= factor
     const { value: text, isNew: _isNew, ...original } = value
     void _isNew
-    const item: PdfOverlay = fitOverlay({ ...original, src: '', width, height, text: text.trim(), textColor: value.textColor ?? color, textFont: value.textFont ?? font }, ratio)
+    const item: PdfOverlay = fitOverlay({ ...original, src: '', width, height, text, textColor: value.textColor ?? color, textFont: value.textFont ?? font }, ratio)
     const next = value.isNew ? [...items, item] : items.map((entry) => entry.id === item.id ? item : entry)
     close(); commit(next); setSelected(item.id); clearError('pdfEditTextLimit')
     return next
@@ -403,7 +407,7 @@ export function PdfEditView() {
     finally { if (sessionRef.current === session) setSaving(false) }
   }
   // Stable callbacks keep rendering independent of toolbar and overlay updates.
-  const onReady = useRef((value: number) => { setRatio(value); setError((error) => error === 'pdfEditRenderError' ? '' : error); workspace.current?.focus({ preventScroll: true }) }).current
+  const onReady = useRef((value: number) => { setRatio(value); setError((error) => error === 'pdfEditRenderError' ? '' : error) }).current
   const onRenderError = useRef(() => setError('pdfEditRenderError')).current
   const changePage = (value: number) => { if (value === page || crop) return; finishText(); if (inlineRef.current) return; setMenu(null); setTextTool(false); setPage(value); setRatio(0); setSelected(null); setGuides({}) }
   useEffect(() => {

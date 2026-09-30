@@ -63,10 +63,11 @@ test('editor: images, paste, movement, resizing, history, page persistence and v
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
   expect(await overlay.getAttribute('style')).toBe(before)
   await page.getByRole('button', { name: 'Redo', exact: true }).click()
+  await page.getByLabel('Page', { exact: true }).focus()
   await page.getByLabel('Page', { exact: true }).selectOption('2')
   await expect(overlay).toHaveCount(0)
   await expect(page.locator('.pdf-editor-page-loading')).toHaveCount(0)
-  expect(await page.evaluate(() => document.activeElement?.classList.contains('pdf-editor'))).toBe(true)
+  await expect(page.getByLabel('Page', { exact: true })).toBeFocused()
   await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 120; canvas.height = 40
     const context = canvas.getContext('2d')!; context.fillStyle = '#006600'; context.fillRect(0, 0, 120, 40)
