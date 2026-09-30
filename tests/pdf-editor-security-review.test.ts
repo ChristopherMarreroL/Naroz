@@ -99,6 +99,14 @@ function registerImage(document: PDFDocument, width: number, height: number, ind
   }))
 }
 
+test('security: empty PDFs fail the editor preflight before page rendering', async () => {
+  const document = await PDFDocument.create()
+  const bytes = await document.save({ addDefaultPage: false })
+  const empty = await PDFDocument.load(bytes)
+  expect(empty.getPageCount()).toBe(0)
+  expect(() => assertPdfEditorResources(empty)).toThrow('empty PDF')
+})
+
 test('security: declared PDF image bombs and invalid dimensions fail without decoding', async () => {
   for (const [width, height] of [[4001, 4000], [16385, 1], [0, 100], [-1, 100], [1.5, 100]]) {
     const document = await PDFDocument.create()

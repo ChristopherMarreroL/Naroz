@@ -28,6 +28,7 @@ export const PDF_EDITOR_LOADING_LIMITS = { maxImageSize: 16_000_000, canvasMaxAr
 
 /** Inspect declared image sizes without decoding compressed image payloads. */
 export function assertPdfEditorResources(document: PDFDocument) {
+  if (document.getPageCount() < 1) throw new Error('empty PDF')
   if (document.getPageCount() > 500) throw new PdfInputLimitError('page budget')
   let pixels = 0
   for (const [, object] of document.context.enumerateIndirectObjects()) {

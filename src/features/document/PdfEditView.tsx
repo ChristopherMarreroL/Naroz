@@ -103,7 +103,7 @@ export function PdfEditView() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, saving])
   useEffect(() => {
-    const changed = () => setFullscreen(document.fullscreenElement === workspace.current)
+    const changed = () => { setFullscreen(document.fullscreenElement === workspace.current); setError((error) => error === 'pdfEditFullscreenError' ? '' : error) }
     document.addEventListener('fullscreenchange', changed)
     return () => document.removeEventListener('fullscreenchange', changed)
   }, [])
@@ -129,6 +129,16 @@ export function PdfEditView() {
     return true
   }
   const clearError = (...keys: string[]) => setError((error) => keys.includes(error) ? '' : error)
+  const toggleFullscreen = async () => {
+    const target = workspace.current
+    if (!target) return
+    try {
+      if (!target.requestFullscreen || !document.exitFullscreen) throw new Error('fullscreen unavailable')
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await target.requestFullscreen()
+      if (workspace.current === target) clearError('pdfEditFullscreenError')
+    } catch { if (workspace.current === target) setError('pdfEditFullscreenError') }
+  }
   const restoreElementFocus = (id: string) => requestAnimationFrame(() => {
     const element = workspace.current?.querySelector<HTMLElement>(`[data-element-id="${id}"]`)
     const target = element ?? workspace.current
@@ -159,7 +169,7 @@ export function PdfEditView() {
         task = createPdfLoadingTask(bytes.slice(), PDF_EDITOR_LOADING_LIMITS)
         const pdf = await task.promise
         if (!active) return
-        if (pdf.numPages > 500) throw new Error('limit')
+        if (pdf.numPages < 1 || pdf.numPages > 500) throw new Error('limit')
         const next = { bytes, pdf, name: file.name }
         sessionRef.current = next
         setSession(next)
@@ -453,7 +463,7 @@ export function PdfEditView() {
             <button className="pdf-editor-tool" title={t('pdfEditRedo')} aria-label={t('pdfEditRedo')} disabled={history.index === history.entries.length - 1 || busy || !!inline || !!crop} onClick={() => { if (gesture.current || inlineRef.current) return; setHistory((state) => ({ ...state, index: Math.min(state.entries.length - 1, state.index + 1) })); setSelected(null); setMenu(null) }}><PdfEditorIcon name="redo" /></button>
           </div>
           <div className="pdf-editor-tool-group pdf-editor-export">
-            <button className="pdf-editor-tool" title={t(fullscreen ? 'pdfEditExitFullscreen' : 'pdfEditFullscreen')} aria-label={t(fullscreen ? 'pdfEditExitFullscreen' : 'pdfEditFullscreen')} aria-pressed={fullscreen} onClick={() => { if (!workspace.current?.requestFullscreen || !document.exitFullscreen) { setError('pdfEditFullscreenError'); return } if (document.fullscreenElement) void document.exitFullscreen().catch(() => setError('pdfEditFullscreenError')); else void workspace.current?.requestFullscreen().catch(() => setError('pdfEditFullscreenError')) }}><PdfEditorIcon name={fullscreen ? 'exitFullscreen' : 'fullscreen'} /></button>
+            <button className="pdf-editor-tool" title={t(fullscreen ? 'pdfEditExitFullscreen' : 'pdfEditFullscreen')} aria-label={t(fullscreen ? 'pdfEditExitFullscreen' : 'pdfEditFullscreen')} aria-pressed={fullscreen} onClick={() => void toggleFullscreen()}><PdfEditorIcon name={fullscreen ? 'exitFullscreen' : 'fullscreen'} /></button>
             <button className="btn-download pdf-editor-download" disabled={busy || !ratio || !!crop} onClick={() => void save()}><PdfEditorIcon name="download" /><span>{t(saving ? 'pdfEditSaving' : 'pdfEditDownload')}</span></button>
           </div>
         </div>
