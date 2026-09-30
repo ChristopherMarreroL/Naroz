@@ -71,6 +71,14 @@ export function resizeOverlay(item: PdfOverlay, corner: ResizeCorner, dx: number
   return at(low)
 }
 
+/** Apply the same local-corner gesture for keyboard and pointer resizing, including rotation. */
+export function resizeOverlayByFactor(item: PdfOverlay, corner: ResizeCorner, factor: number, ratio: number) {
+  const sx = corner.endsWith('e') ? 1 : -1, sy = corner.startsWith('s') ? 1 : -1
+  const angle = (item.rotation ?? 0) * Math.PI / 180
+  const x = sx * item.width * (factor - 1), y = sy * item.height / ratio * (factor - 1)
+  return resizeOverlay(item, corner, Math.cos(angle) * x - Math.sin(angle) * y, (Math.sin(angle) * x + Math.cos(angle) * y) * ratio, ratio)
+}
+
 export function snapOverlay(item: PdfOverlay, others: PdfOverlay[], ratio: number, thresholdX: number, thresholdY: number) {
   let next = fitOverlay(item, ratio)
   const bounds = overlayBounds(next, ratio)

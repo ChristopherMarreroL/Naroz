@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { useLocale } from '../../i18n/LocaleProvider'
+import { beginPdfPreview } from './lib/pdfPreview'
 
 function Thumbnail({ pdf, page }: { pdf: PDFDocumentProxy; page: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -13,19 +14,9 @@ function Thumbnail({ pdf, page }: { pdf: PDFDocumentProxy; page: number }) {
   useEffect(() => {
     const canvas = canvasRef.current!
     if (!visible) { canvas.width = canvas.height = 0; return }
-    let active = true
-    let render: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined
-    let sourcePage: Awaited<ReturnType<PDFDocumentProxy['getPage']>> | undefined
-    void pdf.getPage(page).then(async (source) => {
-      sourcePage = source
-      if (!active) { source.cleanup(); return }
-      const base = source.getViewport({ scale: 1 })
-      const viewport = source.getViewport({ scale: 160 / Math.max(base.width, base.height) })
-      canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height)
-      render = source.render({ canvas, viewport })
-      await render.promise
-    }).catch(() => undefined)
-    return () => { active = false; render?.cancel(); if (render) void render.promise.catch(() => undefined).finally(() => sourcePage?.cleanup()); else sourcePage?.cleanup(); canvas.width = canvas.height = 0 }
+    const preview = beginPdfPreview(pdf, page, canvas, 160)
+    void preview.promise.catch(() => undefined)
+    return () => preview.cancel()
   }, [pdf, page, visible])
   return <canvas ref={canvasRef} aria-hidden="true" />
 }

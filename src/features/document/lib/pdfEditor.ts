@@ -132,9 +132,17 @@ export async function imageToPng(file: Blob) {
 
 export async function cropImage(src: string, crop: { x: number; y: number; width: number; height: number }) {
   if (![crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) || crop.x < 0 || crop.y < 0 || crop.width <= 0 || crop.height <= 0 || crop.x + crop.width > 1 + 1e-8 || crop.y + crop.height > 1 + 1e-8) throw new Error('crop bounds')
-  const bitmap = await createImageBitmap(await (await fetch(src)).blob())
+  // Imported overlays are PNG data URLs. Decode locally without a CSP-blocked network request.
+  const prefix = 'data:image/png;base64,'
+  if (!src.startsWith(prefix) || src.length > 32_000_000) throw new Error('crop source')
+  const bytes = Uint8Array.from(atob(src.slice(prefix.length)), (character) => character.charCodeAt(0))
+  const image = new File([bytes], 'image.png', { type: 'image/png' })
+  const header = await preflightImage(image)
+  if (header.detectedType !== 'png' || header.width * header.height > 16_000_000) throw new Error('image limit')
+  const bitmap = await createImageBitmap(image)
   const canvas = document.createElement('canvas')
   try {
+    if (bitmap.width !== header.width || bitmap.height !== header.height) throw new Error('image dimensions')
     const x = Math.min(bitmap.width - 1, Math.floor(crop.x * bitmap.width)), y = Math.min(bitmap.height - 1, Math.floor(crop.y * bitmap.height))
     const width = Math.max(1, Math.min(bitmap.width - x, Math.round(crop.width * bitmap.width)))
     const height = Math.max(1, Math.min(bitmap.height - y, Math.round(crop.height * bitmap.height)))
@@ -163,9 +171,9 @@ export function textToPng(text: string, color: string, font = 'sans-serif', styl
     const context = canvas.getContext('2d')!
     const layout = textLayout(text, font, style)
     const fontStyle = `${style.textItalic ? 'italic ' : ''}${style.textBold ? 'bold ' : ''}96px ${pdfFontFamily(font)}`
-    const scale = outputSize ? Math.min(1, outputSize.width / layout.width, outputSize.height / layout.height, 2048 / layout.width, 2048 / layout.height, Math.sqrt(1_000_000 / (layout.width * layout.height))) : 1
-    canvas.width = Math.max(1, Math.ceil(layout.width * scale))
-    canvas.height = Math.max(1, Math.ceil(layout.height * scale))
+    const scale = outputSize ? Math.min(outputSize.width / layout.width, outputSize.height / layout.height, 2048 / layout.width, 2048 / layout.height, Math.sqrt(1_000_000 / (layout.width * layout.height))) : 1
+    canvas.width = Math.max(1, Math.floor(layout.width * scale))
+    canvas.height = Math.max(1, Math.floor(layout.height * scale))
     context.scale(canvas.width / layout.width, canvas.height / layout.height)
     context.font = fontStyle
     context.fillStyle = color

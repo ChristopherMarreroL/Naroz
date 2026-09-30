@@ -9,11 +9,12 @@ import { createPdfLoadingTask } from '../../lib/fileCompatibility/pdfRuntime'
 import { validatePdfOutput } from '../../lib/fileCompatibility/pdf'
 import { downloadFromUrl } from '../../lib/download'
 import { assertPdfEditorResources, cropImage, exportEditedPdf, imageToPng, PDF_EDITOR_LOADING_LIMITS, PdfExportLimitError, PdfInputLimitError, textLayout, type PdfOverlay } from './lib/pdfEditor'
-import { appendHistory, fitOverlay, imageBudget, resizeOverlay, sameElements, snapOverlay, type AlignmentGuides, type ResizeCorner } from './lib/pdfEditorState'
+import { appendHistory, fitOverlay, imageBudget, resizeOverlay, resizeOverlayByFactor, sameElements, snapOverlay, type AlignmentGuides, type ResizeCorner } from './lib/pdfEditorState'
 import { availablePdfFonts, canQueryPdfFonts, pdfFontFamily, queryPdfFonts } from './lib/pdfFonts'
 import { PdfEditorIcon } from './PdfEditorIcon'
 import { PdfPageThumbnails } from './PdfPageThumbnails'
 import { PdfTextPreview } from './PdfTextPreview'
+import { beginPdfPreview } from './lib/pdfPreview'
 import './pdfEditor.css'
 
 type Session = { pdf: PDFDocumentProxy; bytes: Uint8Array; name: string }
@@ -27,22 +28,12 @@ function PageCanvas({ pdf, page, onReady, onError }: { pdf: PDFDocumentProxy; pa
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     let active = true
-    let render: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined
     const canvas = ref.current!
-    let sourcePage: Awaited<ReturnType<PDFDocumentProxy['getPage']>> | undefined
-    void pdf.getPage(page).then(async (source) => {
-      sourcePage = source
-      if (!active) { source.cleanup(); return }
-      const base = source.getViewport({ scale: 1 })
-      const scale = Math.min(3, 3000 / Math.max(base.width, base.height))
-      const viewport = source.getViewport({ scale })
-      canvas.width = Math.ceil(viewport.width)
-      canvas.height = Math.ceil(viewport.height)
-      render = source.render({ canvas, viewport })
-      await render.promise
-      if (active) onReady(base.width / base.height)
+    const preview = beginPdfPreview(pdf, page, canvas, 3000, 3)
+    void preview.promise.then((ratio) => {
+      if (active && ratio !== null) onReady(ratio)
     }).catch(() => { if (active) onError() })
-    return () => { active = false; render?.cancel(); if (render) void render.promise.catch(() => undefined).finally(() => sourcePage?.cleanup()); else sourcePage?.cleanup(); canvas.width = canvas.height = 0 }
+    return () => { active = false; preview.cancel() }
   }, [pdf, page, onReady, onError])
   return <canvas ref={ref} className="pdf-editor-canvas" />
 }
@@ -397,7 +388,7 @@ export function PdfEditView() {
     finally { if (sessionRef.current === session) setSaving(false) }
   }
   // Stable callbacks keep rendering independent of toolbar and overlay updates.
-  const onReady = useRef((value: number) => { setRatio(value); workspace.current?.focus({ preventScroll: true }) }).current
+  const onReady = useRef((value: number) => { setRatio(value); setError((error) => error === 'pdfEditRenderError' ? '' : error); workspace.current?.focus({ preventScroll: true }) }).current
   const onRenderError = useRef(() => setError('pdfEditRenderError')).current
   const changePage = (value: number) => { if (value === page || crop) return; finishText(); if (inlineRef.current) return; setMenu(null); setTextTool(false); setPage(value); setRatio(0); setSelected(null); setGuides({}) }
   useEffect(() => {
@@ -526,7 +517,7 @@ export function PdfEditView() {
                 <button className="pdf-editor-object-menu" disabled={busy} aria-label={t('pdfEditOptions')} title={t('pdfEditOptions')} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); openMenu(item, bounds.left, bounds.bottom) }}><PdfEditorIcon name="more" /></button>
               </div>}
               {selected === item.id && !crop && <>
-                {(['nw', 'ne', 'sw', 'se'] as const).map((corner) => <button key={corner} disabled={busy} className={`pdf-editor-resize is-${corner}`} aria-label={`${t('pdfEditResize')} · ${t(corner === 'nw' ? 'pdfEditCornerNW' : corner === 'ne' ? 'pdfEditCornerNE' : corner === 'sw' ? 'pdfEditCornerSW' : 'pdfEditCornerSE')}`} onPointerDown={(event) => start(event, item, corner)} onKeyDown={(event) => { if (busy) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); const factor = event.shiftKey ? .9 : 1.1; commit(items.map((entry) => entry.id === item.id ? fitOverlay({ ...item, width: item.width * factor, height: item.height * factor }, ratio) : entry)) } }} />)}
+                {(['nw', 'ne', 'sw', 'se'] as const).map((corner) => <button key={corner} disabled={busy} className={`pdf-editor-resize is-${corner}`} aria-label={`${t('pdfEditResize')} · ${t(corner === 'nw' ? 'pdfEditCornerNW' : corner === 'ne' ? 'pdfEditCornerNE' : corner === 'sw' ? 'pdfEditCornerSW' : 'pdfEditCornerSE')}`} onPointerDown={(event) => start(event, item, corner)} onKeyDown={(event) => { if (busy) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); const next = resizeOverlayByFactor(item, corner, event.shiftKey ? .9 : 1.1, ratio); commit(items.map((entry) => entry.id === item.id ? next : entry)) } }} />)}
                 <button disabled={busy} className="pdf-editor-rotate-handle" title={t('pdfEditRotateDrag')} aria-label={t('pdfEditRotateDrag')} onPointerDown={(event) => start(event, item, 'rotate')} onKeyDown={(event) => { if (busy) return; if (['ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); changeImageStyle({ rotation: (item.rotation ?? 0) + (event.key === 'ArrowLeft' ? -15 : 15) }) } }}><PdfEditorIcon name="rotate" /></button>
               </>}
               {crop?.id === item.id && <div className="pdf-editor-crop-surface" aria-label={t('pdfEditCropHint')} role="group" tabIndex={0} onKeyDown={(event) => { if (busy || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); const dx = event.key === 'ArrowLeft' ? -.02 : event.key === 'ArrowRight' ? .02 : 0, dy = event.key === 'ArrowUp' ? -.02 : event.key === 'ArrowDown' ? .02 : 0; setCrop(event.shiftKey ? { ...crop, width: Math.max(.02, Math.min(1 - crop.x, crop.width + dx)), height: Math.max(.02, Math.min(1 - crop.y, crop.height + dy)) } : { ...crop, x: Math.max(0, Math.min(1 - crop.width, crop.x + dx)), y: Math.max(0, Math.min(1 - crop.height, crop.y + dy)) }) }} onPointerDown={(event) => { if (busy) return; event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); cropGesture.current = cropPoint(event, item) }} onPointerMove={(event) => { if (!cropGesture.current) return; event.stopPropagation(); const end = cropPoint(event, item), begin = cropGesture.current; const x = Math.min(.98, begin.x, end.x), y = Math.min(.98, begin.y, end.y); setCrop({ id: item.id, x, y, width: Math.min(1 - x, Math.max(.02, Math.abs(end.x - begin.x))), height: Math.min(1 - y, Math.max(.02, Math.abs(end.y - begin.y))) }) }} onPointerUp={(event) => { event.stopPropagation(); cropGesture.current = null }} onPointerCancel={() => { cropGesture.current = null }} onLostPointerCapture={() => { cropGesture.current = null }}>
