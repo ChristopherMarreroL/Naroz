@@ -47,6 +47,7 @@ const englishSeoByTool: Record<AppToolId, { title: string; description: string }
   'image-crop': { title: 'Crop image - Naroz', description: 'Crop an image directly in the browser.' },
   'image-transform': { title: 'Rotate or flip image - Naroz', description: 'Rotate and flip images with instant preview.' },
   'document-merge-pdf': { title: 'Merge PDF - Naroz', description: 'Combine multiple PDF files into one final document.' },
+  'document-edit-pdf': { title: 'Edit PDF - Naroz', description: 'Add signature images and text to PDFs privately in your browser.' },
   'document-delete-pages': { title: 'Delete PDF pages - Naroz', description: 'Select and remove specific pages from a PDF file.' },
   'document-merge-docx': { title: 'Merge Word - Naroz', description: 'Combine multiple DOCX files in the browser.' },
   'document-msg-to-pdf': { title: 'Convert email to PDF - Naroz', description: 'Convert MSG or EML emails to PDF directly in the browser.' },

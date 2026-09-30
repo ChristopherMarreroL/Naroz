@@ -61,6 +61,7 @@
   },
   "patchedDependencies": {
     "@imgly/background-removal@1.7.0": "patches/@imgly%2Fbackground-removal@1.7.0.patch",
+    "pdfjs-dist@6.2.108": "patches/pdfjs-dist@6.2.108.patch",
   },
   "overrides": {
     "@protobufjs/utf8": "1.1.2",

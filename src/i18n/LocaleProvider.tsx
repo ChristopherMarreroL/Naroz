@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import esMessages from './messages.es'
 
@@ -77,37 +77,44 @@ interface LocaleContextValue {
 const LocaleContext = createContext<LocaleContextValue | null>(null)
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(detectLocale)
+  const requestVersion = useRef(0)
+  const [requestedLocale, setRequestedLocale] = useState(() => ({ locale: detectLocale(), persist: false, version: 0 }))
   const [loadedMessages, setLoadedMessages] = useState<{ locale: Locale; messages: Messages } | null>(() => {
-    const messages = messageCache[locale]
-    return messages ? { locale, messages } : null
+    const messages = messageCache[requestedLocale.locale]
+    return messages ? { locale: requestedLocale.locale, messages } : null
   })
-  const activeMessages = loadedMessages?.locale === locale ? loadedMessages.messages : messageCache[locale] ?? null
 
   const setLocale = useCallback((nextLocale: Locale) => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, nextLocale)
-    } catch {
-      // The selected locale remains active for the current session.
-    }
-
-    setLocaleState(nextLocale)
+    // A fresh request also allows retrying the same choice after a failed chunk load.
+    requestVersion.current += 1
+    setRequestedLocale({ locale: nextLocale, persist: true, version: requestVersion.current })
   }, [])
 
   useEffect(() => {
     let isCurrent = true
 
-    document.documentElement.lang = locale
-
-    loadMessages(locale).then((messages) => {
-      if (isCurrent) {
-        setLoadedMessages({ locale, messages })
+    loadMessages(requestedLocale.locale).then((messages) => {
+      if (!isCurrent || requestedLocale.version !== requestVersion.current) return
+      setLoadedMessages({ locale: requestedLocale.locale, messages })
+      try {
+        if (requestedLocale.persist) window.localStorage.setItem(STORAGE_KEY, requestedLocale.locale)
+      } catch {
+        // The selected locale remains active for the current session.
       }
+    }).catch(() => {
+      // Keep the current language and mounted tools intact. Selecting again retries.
     })
 
     return () => {
       isCurrent = false
     }
+  }, [requestedLocale])
+
+  const locale = loadedMessages?.locale ?? requestedLocale.locale
+  const activeMessages = loadedMessages?.messages
+
+  useEffect(() => {
+    document.documentElement.lang = locale
   }, [locale])
 
   const value = useMemo<LocaleContextValue>(

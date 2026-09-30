@@ -75,6 +75,7 @@
     "vite": "^8.2.1"
   },
   "patchedDependencies": {
-    "@imgly/background-removal@1.7.0": "patches/@imgly%2Fbackground-removal@1.7.0.patch"
+    "@imgly/background-removal@1.7.0": "patches/@imgly%2Fbackground-removal@1.7.0.patch",
+    "pdfjs-dist@6.2.108": "patches/pdfjs-dist@6.2.108.patch"
   }
 }

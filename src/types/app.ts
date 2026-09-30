@@ -15,6 +15,7 @@ export type AppToolId =
   | 'image-crop'
   | 'image-transform'
   | 'document-merge-pdf'
+  | 'document-edit-pdf'
   | 'document-delete-pages'
   | 'document-merge-docx'
   | 'document-msg-to-pdf'

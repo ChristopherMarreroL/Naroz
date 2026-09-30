@@ -14,6 +14,7 @@ export const TOOL_PATHS: Record<AppToolId, string> = {
   'image-crop': '/image-crop',
   'image-transform': '/image-transform',
   'document-merge-pdf': '/document-merge-pdf',
+  'document-edit-pdf': '/edit-pdf',
   'document-delete-pages': '/document-delete-pages',
   'document-merge-docx': '/document-merge-docx',
   'document-msg-to-pdf': '/msg-to-pdf',

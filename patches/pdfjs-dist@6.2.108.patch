@@ -1,0 +1,274 @@
+diff --git a/build/pdf.mjs b/build/pdf.mjs
+index 184f0cfc3275aff6d68b8abce5c6344d39887399..5a92b1551548f59e15942d1dcf806226820fbe51 100644
+--- a/build/pdf.mjs
++++ b/build/pdf.mjs
+@@ -15222,6 +15222,8 @@ function getDocument(src = {}) {
+   const wasmUrl = getFactoryUrlProp(src.wasmUrl);
+   const ignoreErrors = src.stopAtErrors !== true;
+   const maxImageSize = Number.isInteger(src.maxImageSize) && src.maxImageSize > -1 ? src.maxImageSize : -1;
++  const imageResourcePreflight = src.imageResourcePreflight === true;
++  const maxTotalImagePixels = Number.isSafeInteger(src.maxTotalImagePixels) && src.maxTotalImagePixels > 0 ? src.maxTotalImagePixels : -1;
+   const isOffscreenCanvasSupported = typeof src.isOffscreenCanvasSupported === "boolean" ? src.isOffscreenCanvasSupported : !isNodeJS;
+   const isImageDecoderSupported = typeof src.isImageDecoderSupported === "boolean" ? src.isImageDecoderSupported : !isNodeJS;
+   const canvasMaxAreaInBytes = Number.isInteger(src.canvasMaxAreaInBytes) ? src.canvasMaxAreaInBytes : -1;
+@@ -15278,6 +15280,8 @@ function getDocument(src = {}) {
+     enableXfa,
+     evaluatorOptions: {
+       maxImageSize,
++      imageResourcePreflight,
++      maxTotalImagePixels,
+       disableFontFace,
+       ignoreErrors,
+       isOffscreenCanvasSupported,
+@@ -15939,6 +15943,9 @@ class PDFPageProxy {
+         if (this._transport.destroyed) {
+           return;
+         }
++        // Reject metadata-only operator-list requests before marking their last
++        // chunk; operatorListChanged would otherwise resolve with a partial list.
++        intentState.opListReadCapability?.reject(reason);
+         if (intentState.operatorList) {
+           intentState.operatorList.lastChunk = true;
+           for (const internalRenderTask of intentState.renderTasks) {
+diff --git a/build/pdf.worker.mjs b/build/pdf.worker.mjs
+index 66ae0d0b2282d6763eaa00b53983964e07b295dd..e4ec12d 100644
+--- a/build/pdf.worker.mjs
++++ b/build/pdf.worker.mjs
+@@ -3804,7 +3804,9 @@ class DecodeStream extends BaseStream {
+       if (this.eof) {
+         return -1;
+       }
++      const decodedBefore = this.bufferLength;
+       this.readBlock();
++      chargePreflightDecoded(this, decodedBefore);
+     }
+     return this.buffer[this.pos++];
+   }
+@@ -3815,7 +3817,9 @@ class DecodeStream extends BaseStream {
+       this.ensureBuffer(pos + length);
+       end = pos + length;
+       while (!this.eof && this.bufferLength < end) {
++        const decodedBefore = this.bufferLength;
+         this.readBlock(decoderOptions);
++        chargePreflightDecoded(this, decodedBefore);
+       }
+       const bufEnd = this.bufferLength;
+       if (end > bufEnd) {
+@@ -3823,7 +3827,9 @@ class DecodeStream extends BaseStream {
+       }
+     } else {
+       while (!this.eof) {
++        const decodedBefore = this.bufferLength;
+         this.readBlock(decoderOptions);
++        chargePreflightDecoded(this, decodedBefore);
+       }
+       end = this.bufferLength;
+     }
+@@ -34113,6 +34119,42 @@ class TimeSlotManager {
+     this.checked = 0;
+   }
+ }
++// Naroz: document-scoped declared image accounting, before any image decoding.
++// Weak references release the budget alongside PDF.js document cleanup.
++const imageResourceBudgets = new WeakMap();
++// Preflight walks content to discover inline images. These caps stop a small,
++// highly compressed stream from expanding into millions of operators or a huge
++// decoded buffer before that walk can be discarded.
++const PREFLIGHT_MAX_OPERATORS = 500000;
++const PREFLIGHT_MAX_CONTENT_BYTES = 128 * 1024 * 1024;
++let contentBudgetDepth = 0;
++let contentByteBudget = null;
++let chargeContentBytes = false;
++function chargePreflightDecoded(stream, decodedBefore) {
++  if (!chargeContentBytes || !contentByteBudget) return;
++  const delta = stream.bufferLength - decodedBefore;
++  if (delta <= 0) return;
++  contentByteBudget.bytes += delta;
++  if (contentByteBudget.bytes > PREFLIGHT_MAX_CONTENT_BYTES) {
++    contentByteBudget.exceeded = true;
++    throw new FormatError("Content resource budget exceeded.");
++  }
++}
++function pushContentBudget(evaluator) {
++  let budget = imageResourceBudgets.get(evaluator.xref);
++  if (!budget) {
++    budget = { pixels: 0, images: new WeakSet(), refs: new Set(), exceeded: false, operators: 0, bytes: 0 };
++    imageResourceBudgets.set(evaluator.xref, budget);
++  }
++  budget.operators ||= 0;
++  budget.bytes ||= 0;
++  if (contentBudgetDepth === 0) contentByteBudget = budget;
++  contentBudgetDepth++;
++}
++function popContentBudget() {
++  contentBudgetDepth = Math.max(0, contentBudgetDepth - 1);
++  if (contentBudgetDepth === 0) contentByteBudget = null;
++}
+ class PartialEvaluator {
+   constructor({
+     xref,
+@@ -34394,6 +34436,8 @@ class PartialEvaluator {
+   }) {
+     const {
+       maxImageSize,
++      imageResourcePreflight,
++      maxTotalImagePixels,
+       ignoreErrors,
+       isOffscreenCanvasSupported
+     } = this.options;
+@@ -34403,6 +34447,49 @@ class PartialEvaluator {
+     const imageRef = dict.objId;
+     const w = dict.get("W", "Width");
+     const h = dict.get("H", "Height");
++    if (imageResourcePreflight || maxTotalImagePixels > 0) {
++      let budget = imageResourceBudgets.get(this.xref);
++      if (!budget) {
++        budget = { pixels: 0, images: new WeakSet(), refs: new Set(), exceeded: false };
++        imageResourceBudgets.set(this.xref, budget);
++      }
++      if (budget.exceeded) {
++        throw new FormatError("Image resource budget exceeded.");
++      }
++      const pendingImages = [image];
++      while (pendingImages.length) {
++        const resource = pendingImages.pop();
++        const resourceDict = resource.dict;
++        if (budget.images.has(resourceDict) || resourceDict.objId && budget.refs.has(resourceDict.objId)) {
++          continue;
++        }
++        budget.images.add(resourceDict);
++        if (resourceDict.objId) {
++          budget.refs.add(resourceDict.objId);
++        }
++        const width = resourceDict.get("W", "Width");
++        const height = resourceDict.get("H", "Height");
++        if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || width > 16384 || height > 16384 || !Number.isSafeInteger(width * height) || maxImageSize !== -1 && width * height > maxImageSize) {
++          budget.exceeded = true;
++          throw new FormatError("Image resource budget exceeded.");
++        }
++        budget.pixels += width * height;
++        if (maxTotalImagePixels > 0 && budget.pixels > maxTotalImagePixels) {
++          budget.exceeded = true;
++          throw new FormatError("Image resource budget exceeded.");
++        }
++        // Native lookup resolves indirect masks without decoding their pixels.
++        for (const name of ["SMask", "Mask"]) {
++          const mask = resourceDict.get(name);
++          if (mask instanceof BaseStream) {
++            pendingImages.push(mask);
++          }
++        }
++      }
++      if (imageResourcePreflight) {
++        return;
++      }
++    }
+     if (!(w && typeof w === "number") || !(h && typeof h === "number")) {
+       warn("Image dimensions are missing, or not numbers.");
+       return;
+@@ -35118,7 +35205,9 @@ class PartialEvaluator {
+     fallbackFontDict = null,
+     prevRefs = null
+   }) {
+-    if (stream.isAsync) {
++    // Metadata preflight must inflate content incrementally so a compressed
++    // operator bomb cannot be materialized before the budget check.
++    if (stream.isAsync && !this.options.imageResourcePreflight) {
+       const bytes = await stream.asyncGetBytes();
+       if (bytes) {
+         stream = new Stream(bytes, 0, bytes.length, stream.dict);
+@@ -35139,6 +35228,9 @@ class PartialEvaluator {
+     }
+     const self = this;
+     const xref = this.xref;
++    const preflight = this.options.imageResourcePreflight === true;
++    if (preflight) pushContentBudget(this);
++    try {
+     const localImageCache = new LocalImageCache();
+     const localColorSpaceCache = new LocalColorSpaceCache();
+     const localGStateCache = new LocalGStateCache();
+@@ -35154,7 +35246,7 @@ class PartialEvaluator {
+         operatorList.addOp(OPS.restore, []);
+       }
+     }
+-    return new Promise(function promiseBody(resolve, reject) {
++    return await new Promise(function promiseBody(resolve, reject) {
+       const next = function (promise) {
+         Promise.all([promise, operatorList.ready]).then(function () {
+           try {
+@@ -35170,9 +35262,31 @@ class PartialEvaluator {
+       let stop, i, ii, cs, name, isValidName;
+       while (!(stop = timeSlotManager.check())) {
+         operation.args = null;
+-        if (!preprocessor.read(operation)) {
++        chargeContentBytes = preflight;
++        let readOperator = false;
++        try {
++          readOperator = preprocessor.read(operation);
++        } finally {
++          chargeContentBytes = false;
++        }
++        if (!readOperator) {
+           break;
+         }
++        if (preflight) {
++          const budget = contentByteBudget;
++          if (budget) {
++            if (budget.exceeded) {
++              throw new FormatError("Image resource budget exceeded.");
++            }
++            budget.operators += 1;
++            if (budget.operators > PREFLIGHT_MAX_OPERATORS) {
++              budget.exceeded = true;
++              throw new FormatError("Content resource budget exceeded.");
++            }
++          }
++          const walksImages = operation.fn === OPS.paintXObject || operation.fn === OPS.endInlineImage || operation.fn === OPS.setFont || operation.fn === OPS.setFillColorN || operation.fn === OPS.setStrokeColorN || operation.fn === OPS.setGState;
++          if (!walksImages) continue;
++        }
+         let args = operation.args;
+         let fn = operation.fn;
+         switch (fn | 0) {
+@@ -35664,6 +35778,9 @@ class PartialEvaluator {
+       }
+       throw reason;
+     });
++    } finally {
++      if (preflight) popContentBudget();
++    }
+   }
+   async getTextContent({
+     stream,
+@@ -59334,6 +59451,9 @@ class Page {
+       annotations = annotations.concat(newAnnotations);
+     }
+     if (annotations.length === 0 || intent & RenderingIntentFlag.ANNOTATIONS_DISABLE) {
++      if (imageResourceBudgets.get(this.xref)?.exceeded) {
++        throw new FormatError("Image resource budget exceeded.");
++      }
+       pageOpList.flush(true);
+       return {
+         length: pageOpList.totalLength
+@@ -59369,6 +59489,9 @@ class Page {
+       form ||= separateForm;
+       canvas ||= separateCanvas;
+     }
++    if (imageResourceBudgets.get(this.xref)?.exceeded) {
++      throw new FormatError("Image resource budget exceeded.");
++    }
+     pageOpList.flush(true, {
+       form,
+       canvas
+@@ -64754,6 +64877,12 @@ class WorkerMessageHandler {
+           modifiedIds,
+           pageIndex
+         }).then(opListInfo => {
++          // Font/annotation recovery can swallow nested image errors. Fail the
++          // entire resource preflight even if a nested parser recovered.
++          if (imageResourceBudgets.get(pdfManager.pdfDocument.xref)?.exceeded) {
++            sink.error(new FormatError("Image resource budget exceeded."));
++            return;
++          }
+           if (start) {
+             info(`${task.name}; time=${Date.now() - start}ms, len=${opListInfo.length}`);
+           }

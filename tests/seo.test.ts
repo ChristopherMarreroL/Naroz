@@ -103,7 +103,7 @@ describe('SEO identity', () => {
   })
 
   test('generates unique static metadata for every public route', async () => {
-    expect(seoPages).toHaveLength(22)
+    expect(seoPages).toHaveLength(23)
     expect(new Set(seoPages.map((page) => page.path)).size).toBe(seoPages.length)
 
     const sourceHtml = await Bun.file('index.html').text()
