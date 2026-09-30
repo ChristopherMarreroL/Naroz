@@ -87,7 +87,7 @@ for (const rotation of [0, 45]) {
     for (let index = 0; index < 8; index++) await overlay.press('Shift+ArrowDown')
     if (rotation) {
       await overlay.locator('.pdf-editor-rotate-handle').focus()
-      for (let index = 0; index < 3; index++) await page.keyboard.press('Enter')
+      for (let index = 0; index < 3; index++) await page.keyboard.press('ArrowRight')
     }
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
       const opposite = ({ nw: 'se', ne: 'sw', sw: 'ne', se: 'nw' } as Record<string, string>)[corner]

@@ -15,7 +15,7 @@ const messages: Messages = {
     pdfEditAlignRight: "Alinear a la derecha",
     pdfEditImageOptions: "Opciones de imagen",
     pdfEditRotate: "Rotar 90°",
-    pdfEditRotateDrag: "Arrastra para rotar (Mayús ajusta a 15°)",
+    pdfEditRotateDrag: "Clic para rotar 90° · arrastra para girar (Mayús ajusta a 15°)",
     pdfEditCrop: "Recortar imagen",
     pdfEditCropHint: "Arrastra sobre la imagen para elegir el recorte. Mayús + flechas ajusta sus bordes.",
     pdfEditApplyCrop: "Aplicar recorte",

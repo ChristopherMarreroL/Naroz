@@ -80,6 +80,7 @@ export function PdfEditView() {
   const workspace = useRef<HTMLDivElement>(null)
   const paper = useRef<HTMLDivElement>(null)
   const gesture = useRef<{ startX: number; startY: number; item: PdfOverlay; resize: ResizeCorner | 'rotate' | false; before: PdfOverlay[] } | null>(null)
+  const rotationDragged = useRef(false)
   const [draft, setDraft] = useState<PdfOverlay[] | null>(null)
   const draftRef = useRef<PdfOverlay[] | null>(null)
   historyRef.current = history
@@ -311,6 +312,7 @@ export function PdfEditView() {
     event.currentTarget.setPointerCapture(event.pointerId)
     setSelected(item.id)
     gesture.current = { startX: event.clientX, startY: event.clientY, item, resize, before: items }
+    if (resize === 'rotate') rotationDragged.current = false
     draftRef.current = null
   }
   const move = (event: PointerEvent) => {
@@ -321,8 +323,11 @@ export function PdfEditView() {
     const dy = (event.clientY - state.startY) / bounds.height
     let next = { ...state.item }
     if (state.resize === 'rotate') {
+      if (!rotationDragged.current && Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4) return
+      rotationDragged.current = true
       const cx = bounds.left + (next.x + next.width / 2) * bounds.width, cy = bounds.top + (next.y + next.height / 2) * bounds.height
-      const angle = Math.atan2(event.clientY - cy, event.clientX - cx) * 180 / Math.PI + 90
+      const startAngle = Math.atan2(state.startY - cy, state.startX - cx)
+      const angle = (state.item.rotation ?? 0) + (Math.atan2(event.clientY - cy, event.clientX - cx) - startAngle) * 180 / Math.PI
       next = fitOverlay({ ...next, rotation: event.shiftKey ? Math.round(angle / 15) * 15 : angle }, ratio)
     } else if (state.resize) next = resizeOverlay(next, state.resize, dx, dy, ratio)
     else {
@@ -514,11 +519,11 @@ export function PdfEditView() {
             }}>
               <div className="pdf-editor-object-content" style={{ opacity: item.opacity ?? 1 }}>{item.text !== undefined ? <PdfTextPreview item={item} /> : <img src={item.src} alt="" draggable={false} />}</div>
               {selected === item.id && !crop && <div className="pdf-editor-object-tools" onPointerDown={(event) => event.stopPropagation()}>
+                <button disabled={busy} className="pdf-editor-rotate-handle" title={t('pdfEditRotateDrag')} aria-label={t('pdfEditRotateDrag')} onPointerDown={(event) => start(event, item, 'rotate')} onClick={(event) => { event.stopPropagation(); if (event.detail > 0 && rotationDragged.current) return; actOnElement('rotate', item) }} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (busy) return; if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); event.stopPropagation(); changeImageStyle({ rotation: (item.rotation ?? 0) + (event.key === 'ArrowLeft' ? -15 : 15) }) } }}><PdfEditorIcon name="rotate" /></button>
                 <button className="pdf-editor-object-menu" disabled={busy} aria-label={t('pdfEditOptions')} title={t('pdfEditOptions')} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); openMenu(item, bounds.left, bounds.bottom) }}><PdfEditorIcon name="more" /></button>
               </div>}
               {selected === item.id && !crop && <>
                 {(['nw', 'ne', 'sw', 'se'] as const).map((corner) => <button key={corner} disabled={busy} className={`pdf-editor-resize is-${corner}`} aria-label={`${t('pdfEditResize')} · ${t(corner === 'nw' ? 'pdfEditCornerNW' : corner === 'ne' ? 'pdfEditCornerNE' : corner === 'sw' ? 'pdfEditCornerSW' : 'pdfEditCornerSE')}`} onPointerDown={(event) => start(event, item, corner)} onKeyDown={(event) => { if (busy) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); const next = resizeOverlayByFactor(item, corner, event.shiftKey ? .9 : 1.1, ratio); commit(items.map((entry) => entry.id === item.id ? next : entry)) } }} />)}
-                <button disabled={busy} className="pdf-editor-rotate-handle" title={t('pdfEditRotateDrag')} aria-label={t('pdfEditRotateDrag')} onPointerDown={(event) => start(event, item, 'rotate')} onKeyDown={(event) => { if (busy) return; if (['ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); changeImageStyle({ rotation: (item.rotation ?? 0) + (event.key === 'ArrowLeft' ? -15 : 15) }) } }}><PdfEditorIcon name="rotate" /></button>
               </>}
               {crop?.id === item.id && <div className="pdf-editor-crop-surface" aria-label={t('pdfEditCropHint')} role="group" tabIndex={0} onKeyDown={(event) => { if (busy || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); const dx = event.key === 'ArrowLeft' ? -.02 : event.key === 'ArrowRight' ? .02 : 0, dy = event.key === 'ArrowUp' ? -.02 : event.key === 'ArrowDown' ? .02 : 0; setCrop(event.shiftKey ? { ...crop, width: Math.max(.02, Math.min(1 - crop.x, crop.width + dx)), height: Math.max(.02, Math.min(1 - crop.y, crop.height + dy)) } : { ...crop, x: Math.max(0, Math.min(1 - crop.width, crop.x + dx)), y: Math.max(0, Math.min(1 - crop.height, crop.y + dy)) }) }} onPointerDown={(event) => { if (busy) return; event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); cropGesture.current = cropPoint(event, item) }} onPointerMove={(event) => { if (!cropGesture.current) return; event.stopPropagation(); const end = cropPoint(event, item), begin = cropGesture.current; const x = Math.min(.98, begin.x, end.x), y = Math.min(.98, begin.y, end.y); setCrop({ id: item.id, x, y, width: Math.min(1 - x, Math.max(.02, Math.abs(end.x - begin.x))), height: Math.min(1 - y, Math.max(.02, Math.abs(end.y - begin.y))) }) }} onPointerUp={(event) => { event.stopPropagation(); cropGesture.current = null }} onPointerCancel={() => { cropGesture.current = null }} onLostPointerCapture={() => { cropGesture.current = null }}>
                 <div className="pdf-editor-crop-box" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.width * 100}%`, height: `${crop.height * 100}%` }} />

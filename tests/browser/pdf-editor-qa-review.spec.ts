@@ -164,9 +164,10 @@ test('QA: dragging rotation snaps to 15 degrees and cropped rotated image retain
   await handle.scrollIntoViewIfNeeded()
   const initial = (await overlay.boundingBox())!, grip = (await handle.boundingBox())!
   const center = { x: initial.x + initial.width / 2, y: initial.y + initial.height / 2 }
+  const startAngle = Math.atan2(grip.y + grip.height / 2 - center.y, grip.x + grip.width / 2 - center.x)
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down()
   await page.keyboard.down('Shift')
-  await page.mouse.move(center.x + Math.sin(61 * Math.PI / 180) * 90, center.y - Math.cos(61 * Math.PI / 180) * 90, { steps: 5 })
+  await page.mouse.move(center.x + Math.cos(startAngle + 61 * Math.PI / 180) * 90, center.y + Math.sin(startAngle + 61 * Math.PI / 180) * 90, { steps: 5 })
   await page.mouse.up(); await page.keyboard.up('Shift')
   expect(await overlay.evaluate((element) => {
     const matrix = new DOMMatrix(getComputedStyle(element).transform)

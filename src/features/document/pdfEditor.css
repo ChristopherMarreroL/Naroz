@@ -38,10 +38,14 @@
 .pdf-editor-resize.is-nw { left: -12px; top: -12px; right: auto; bottom: auto; }
 .pdf-editor-resize.is-ne { right: -12px; top: -12px; bottom: auto; cursor: nesw-resize; }
 .pdf-editor-resize.is-sw { left: -12px; bottom: -12px; right: auto; cursor: nesw-resize; }
-.pdf-editor-rotate-handle { position: absolute; left: calc(50% - 14px); top: -46px; width: 28px; height: 28px; display: grid; place-items: center; background: white; color: #4f46e5; border: 1px solid #c7d2fe; border-radius: 50%; cursor: grab; touch-action: none; }
-.pdf-editor-rotate-handle svg { width: 16px; height: 16px; }
-.pdf-editor-object-tools { position: absolute; right: 0; top: -38px; }
-.pdf-editor-object-menu { display: grid; place-items: center; width: 34px; height: 30px; color: #4f46e5; background: white; border: 1px solid #c7d2fe; border-radius: 9px; box-shadow: 0 3px 10px #0f172a15; cursor: pointer; }
+.pdf-editor-rotate-handle { cursor: grab; touch-action: none; }
+.pdf-editor-rotate-handle:active { cursor: grabbing; }
+.pdf-editor-object-tools svg { width: 18px; height: 18px; }
+.pdf-editor-object-tools { position: absolute; left: 50%; top: -54px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; width: max-content; }
+.pdf-editor-object-tools button { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; padding: 0; color: #4f46e5; background: white; border: 1px solid #c7d2fe; border-radius: 10px; box-shadow: 0 3px 10px #0f172a15; }
+.pdf-editor-object-tools button:hover { background: #eef2ff; border-color: #a5b4fc; }
+.pdf-editor-object-tools button:disabled { opacity: .35; cursor: default; }
+.pdf-editor-object-menu { cursor: pointer; }
 .pdf-editor-inline-text { position: absolute; z-index: 5; min-height: 28px; padding: 2px 4px; font-family: sans-serif; line-height: 1.25; background: #ffffffdd; outline: 2px solid var(--editor-accent); border: 0; border-radius: 1px; resize: none; max-width: 100%; }
 .pdf-editor-menu { position: fixed; z-index: 100; width: 216px; padding: 6px; background: white; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 14px 44px #0f172a25; }
 .pdf-editor-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 8px; color: #334155; font-size: 13px; text-align: left; cursor: pointer; }

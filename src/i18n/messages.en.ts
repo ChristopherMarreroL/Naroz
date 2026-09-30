@@ -15,7 +15,7 @@ const messages: Messages = {
     pdfEditAlignRight: "Align right",
     pdfEditImageOptions: "Image options",
     pdfEditRotate: "Rotate 90°",
-    pdfEditRotateDrag: "Drag to rotate (Shift snaps to 15°)",
+    pdfEditRotateDrag: "Click to rotate 90° · drag to rotate freely (Shift snaps to 15°)",
     pdfEditCrop: "Crop image",
     pdfEditCropHint: "Drag on the image to choose a crop. Shift + arrow keys adjusts its edges.",
     pdfEditApplyCrop: "Apply crop",
