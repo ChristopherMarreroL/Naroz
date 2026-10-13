@@ -132,7 +132,7 @@ function App() {
         label: t('removeImageBackground'),
         description: t('removeImageBackgroundShortDesc'),
         section: 'image',
-        status: 'beta',
+        status: 'stable',
       },
       {
         id: 'document-merge-pdf',
@@ -167,7 +167,7 @@ function App() {
         label: t('mailToPdf'),
         description: t('mailToPdfShortDesc'),
         section: 'document',
-        status: 'beta',
+        status: 'stable',
       },
       {
         id: 'document-markdown-converter',
@@ -257,9 +257,7 @@ function App() {
 
     const message = (() => {
       if (activeTool === 'video-trim') return t('betaTrimMessage')
-      if (activeTool === 'image-remove-background') return t('removeBackgroundBetaMessage')
       if (activeTool === 'document-merge-docx') return t('betaWordMessage')
-      if (activeTool === 'document-msg-to-pdf') return t('mailToPdfBetaMessage')
       if (activeTool === 'document-pdf-to-office') return t('pdfOfficeBetaMessage')
       if (activeTool === 'document-office-to-pdf') return t('officePdfBetaMessage')
       return t('betaDefaultMessage')

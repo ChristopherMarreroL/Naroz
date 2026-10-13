@@ -49,7 +49,7 @@ const availableTools = [
   {
     id: 'image-remove-background' as const,
     category: 'image',
-    status: 'beta',
+    status: 'stable',
   },
   {
     id: 'image-crop' as const,
@@ -84,7 +84,7 @@ const availableTools = [
   {
     id: 'document-msg-to-pdf' as const,
     category: 'document',
-    status: 'beta',
+    status: 'stable',
   },
   {
     id: 'document-markdown-converter' as const,
