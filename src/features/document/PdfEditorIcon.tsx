@@ -1,6 +1,8 @@
-type IconName = 'image' | 'text' | 'undo' | 'redo' | 'fullscreen' | 'exitFullscreen' | 'download' | 'more' | 'delete' | 'copy' | 'front' | 'back' | 'grow' | 'shrink' | 'edit' | 'select' | 'pages' | 'rotate' | 'crop' | 'bold' | 'italic' | 'left' | 'center' | 'right'
+type IconName = 'eraser' | 'draw' | 'image' | 'text' | 'undo' | 'redo' | 'fullscreen' | 'exitFullscreen' | 'download' | 'more' | 'delete' | 'copy' | 'front' | 'back' | 'grow' | 'shrink' | 'edit' | 'select' | 'pages' | 'rotate' | 'crop' | 'bold' | 'italic' | 'left' | 'center' | 'right'
 
 const paths: Record<IconName, string> = {
+  eraser: 'm14 3 7 7-11 11H5l-4-4L14 3ZM8 9l7 7M10 21h12',
+  draw: 'm4 16-1 5 5-1L21 7l-4-4L4 16Zm10-10 4 4M3 21h8',
   image: 'M4 4h16v16H4V4Zm0 12 5-5 5 5 3-3 3 3M15 8h.01',
   text: 'M5 5h14M12 5v14M8 19h8',
   undo: 'm8 4-5 5 5 5M3 9h10a7 7 0 0 1 7 7v3',

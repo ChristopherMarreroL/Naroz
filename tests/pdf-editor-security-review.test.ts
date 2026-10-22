@@ -80,13 +80,15 @@ test('security: local font names remain a quoted CSS string', () => {
   expect(pdfFontFamily('A";background:url(https://example.invalid/private);\\B')).toBe('"A\\";background:url(https://example.invalid/private);\\\\B", sans-serif')
 })
 
-test('security: retained images obey byte limits while duplicate references share their budget', () => {
-  const item = { id: 'synthetic', page: 1, src: 'x'.repeat(16_000_001), x: .1, y: .1, width: .2, height: .1 }
+test('security: retained images obey byte limits while duplicates share their budget and undo stays available', async () => {
+  const header = `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(await pngHeader(32, 32).arrayBuffer())))}`
+  const item = { id: 'synthetic', page: 1, src: header + 'x'.repeat(16_000_001), x: .1, y: .1, width: .2, height: .1 }
   expect(imageBudget([item, { ...item, id: 'duplicate' }])).toBe(true)
-  expect(imageBudget([item, { ...item, id: 'distinct', src: 'y'.repeat(16_000_001) }])).toBe(false)
+  expect(imageBudget([item, { ...item, id: 'distinct', src: header + 'y'.repeat(16_000_001) }])).toBe(false)
   const original = { entries: [[item]], index: 0 }
-  const pruned = appendHistory(original, [{ ...item, src: 'y'.repeat(16_000_001) }])
-  expect(pruned.entries).toHaveLength(1)
+  const pruned = appendHistory(original, [{ ...item, src: header + 'y'.repeat(16_000_001) }])
+  expect(pruned.entries).toHaveLength(2)
+  expect(pruned.entries[pruned.index - 1][0]).toBe(item)
   expect(original.entries[0][0].src).toBe(item.src)
 })
 

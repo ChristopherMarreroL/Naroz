@@ -2,6 +2,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFRe
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { preflightImage } from '../../image/lib/imageLimits'
 import { pdfFontFamily } from './pdfFonts'
+import { PDF_EDITOR_IMAGE_PIXELS, pngPixelCount } from './pdfEditorBudget'
 
 export interface PdfOverlay {
   id: string
@@ -19,6 +20,7 @@ export interface PdfOverlay {
   textAlign?: 'left' | 'center' | 'right'
   rotation?: number
   opacity?: number
+  kind?: 'drawing'
 }
 
 export class PdfExportLimitError extends Error {}
@@ -166,11 +168,8 @@ export async function exportEditedPdf(bytes: Uint8Array, preview: PDFDocumentPro
     const src = item.text !== undefined ? textToPng(item.text, item.textColor ?? '#111827', item.textFont, item, { width: Math.max(128, width * 2), height: Math.max(128, height * 2) }).src : item.src
     let image = images.get(src)
     if (!image) {
-      const header = atob(src.slice(src.indexOf(',') + 1, src.indexOf(',') + 45))
-      const bytes = Uint8Array.from(header, (character) => character.charCodeAt(0))
-      const view = new DataView(bytes.buffer)
-      decodedPixels += view.getUint32(16) * view.getUint32(20)
-      if (decodedPixels > 32_000_000) throw new PdfExportLimitError('export budget')
+      decodedPixels += pngPixelCount(src)
+      if (decodedPixels > PDF_EDITOR_IMAGE_PIXELS) throw new PdfExportLimitError('export budget')
       image = await output.embedPng(src)
       images.set(src, image)
     }
