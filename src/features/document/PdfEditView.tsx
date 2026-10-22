@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { PDFDocument } from 'pdf-lib'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -14,6 +14,9 @@ import { availablePdfFonts, canQueryPdfFonts, pdfFontFamily, queryPdfFonts } fro
 import { PdfEditorIcon } from './PdfEditorIcon'
 import { PdfPageThumbnails } from './PdfPageThumbnails'
 import { PdfTextPreview } from './PdfTextPreview'
+import { PdfDrawingSurface } from './PdfDrawingSurface'
+import { PdfDrawingPreview } from './PdfDrawingPreview'
+import { erasePdfStrokes, type PdfBrush, type PdfStroke } from './lib/pdfDrawing'
 import { beginPdfPreview } from './lib/pdfPreview'
 import { preflightPdfEditorImages } from './lib/pdfImagePreflight'
 import './pdfEditor.css'
@@ -64,6 +67,14 @@ export function PdfEditView() {
   const [selected, setSelected] = useState<string | null>(null)
   const [history, setHistory] = useState<History>({ entries: [[]], index: 0 })
   const [textTool, setTextTool] = useState(false)
+  const [drawTool, setDrawTool] = useState(false)
+  const [drawingActive, setDrawingActive] = useState(false)
+  const [erasing, setErasing] = useState(false)
+  const [brushColor, setBrushColor] = useState('#2563eb')
+  const [brushSize, setBrushSize] = useState(6)
+  const [brush, setBrush] = useState<Exclude<PdfBrush, 'eraser'>>('round')
+  const [eraserTool, setEraserTool] = useState(false)
+  const eraserPathId = useId()
   const [inline, setInline] = useState<InlineText | null>(null)
   const inlineRef = useRef<InlineText | null>(null)
   const inlineInput = useRef<HTMLTextAreaElement>(null)
@@ -85,13 +96,13 @@ export function PdfEditView() {
   const [draft, setDraft] = useState<PdfOverlay[] | null>(null)
   const draftRef = useRef<PdfOverlay[] | null>(null)
   historyRef.current = history
-  const busy = saving || pendingImages > 0
+  const busy = saving || pendingImages > 0 || drawingActive || erasing
   const items = draft ?? history.entries[history.index]
   const current = items.find((item) => item.id === selected)
   const activeText = inline ?? (current?.text !== undefined ? current : textStyle)
   const pendingText = !!inline && (inline.isNew ? !!inline.value.trim() : inline.value !== inline.text || inline.textColor !== current?.textColor || inline.textFont !== current?.textFont || inline.textBold !== current?.textBold || inline.textItalic !== current?.textItalic || inline.textAlign !== current?.textAlign)
   const revision = useMemo(() => overlayRevision(items), [items])
-  const dirty = !!session && (revision !== savedRevision || pendingText || !!crop || pendingImages > 0)
+  const dirty = !!session && (revision !== savedRevision || pendingText || !!crop || pendingImages > 0 || drawingActive || erasing)
   const blocker = useBlocker(dirty || saving)
   useEffect(() => {
     if (blocker.state !== 'blocked') return
@@ -189,6 +200,7 @@ export function PdfEditView() {
     if (dirty && !window.confirm(t('pdfEditReplace'))) return
     sessionRef.current = null
     setSession(null); setFile(next); setPage(1); setRatio(0); setSelected(null)
+    setDrawTool(false); setDrawingActive(false)
     setHistory({ entries: [[]], index: 0 }); setSavedRevision(''); setDownloaded(false); setDraft(null); draftRef.current = null; setCrop(null); setInline(null); inlineRef.current = null; setMenu(null); setTextTool(false); setError(''); setLoading(true)
   }
   const finishText = (cancel = false, restoreFocus = false) => {
@@ -246,6 +258,7 @@ export function PdfEditView() {
     if (busy || !ratio) return
     finishText()
     if (inlineRef.current) return
+    setDrawTool(false)
     const next: InlineText = original ? { ...original, textFont: original.textFont ?? 'sans-serif', value: original.text ?? '', isNew: false } : { ...textStyle, id: crypto.randomUUID(), page, src: '', x: Math.min(.85, Math.max(0, x)), y: Math.min(.9, Math.max(0, y)), width: .3, height: .035, value: '', textColor: color, textFont: font, isNew: true }
     inlineRef.current = next; setInline(next); setSelected(original?.id ?? null); setTextTool(false); setCrop(null); setMenu(null)
   }
@@ -294,9 +307,10 @@ export function PdfEditView() {
     const source = sessionRef.current
     const targetPage = page
     const pageRatio = ratio
-    if (!source || !pageRatio || saving || gesture.current || pendingRef.current > 0) return
+    if (!source || !pageRatio || saving || drawingActive || gesture.current || pendingRef.current > 0) return
     finishText()
     if (inlineRef.current) return
+    setDrawTool(false)
     if (items.length >= 100) { setError('pdfEditResourceLimit'); return }
     pendingRef.current++; setPendingImages(pendingRef.current)
     try {
@@ -392,7 +406,7 @@ export function PdfEditView() {
     finally { pendingRef.current--; if (sessionRef.current === source) setPendingImages(pendingRef.current) }
   }
   const save = async () => {
-    if (!session || saving || pendingRef.current > 0 || gesture.current || crop) return
+    if (!session || saving || drawingActive || pendingRef.current > 0 || gesture.current || crop) return
     setSaving(true); setError('')
     try {
       const exportItems = finishText() ?? items
@@ -407,14 +421,29 @@ export function PdfEditView() {
     } catch (error) { if (sessionRef.current === session) setError(error instanceof PdfExportLimitError ? 'pdfEditExportLimit' : 'pdfEditSaveError') }
     finally { if (sessionRef.current === session) setSaving(false) }
   }
+  const eraseDrawing = async (mask: PdfStroke) => {
+    const source = sessionRef.current
+    if (!source || pendingRef.current > 0 || saving) return
+    const targetPage = page, pageRatio = ratio
+    const before = historyRef.current.entries[historyRef.current.index]
+    pendingRef.current++; setErasing(true)
+    try {
+      const next = await erasePdfStrokes(before, targetPage, pageRatio, mask, () => sessionRef.current !== source)
+      if (sessionRef.current === source) {
+        if (next !== before && commit(next)) setSelected(null)
+        clearError('pdfEditEraseError')
+      }
+    } catch { if (sessionRef.current === source) setError('pdfEditEraseError') }
+    finally { pendingRef.current--; if (sessionRef.current === source) setErasing(false) }
+  }
   // Stable callbacks keep rendering independent of toolbar and overlay updates.
   const onReady = useRef((value: number) => { setRatio(value); setError((error) => error === 'pdfEditRenderError' ? '' : error) }).current
   const onRenderError = useRef(() => setError('pdfEditRenderError')).current
-  const changePage = (value: number) => { if (value === page || crop) return; finishText(); if (inlineRef.current) return; setMenu(null); setTextTool(false); setPage(value); setRatio(0); setSelected(null); setGuides({}) }
+  const changePage = (value: number) => { if (value === page || crop || busy) return; finishText(); if (inlineRef.current) return; setMenu(null); setTextTool(false); setPage(value); setRatio(0); setSelected(null); setGuides({}) }
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented || busy || inlineRef.current || gesture.current || cropGesture.current || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return
-      if (event.key === 'Escape') { setTextTool(false); setMenu(null); if (crop) restoreElementFocus(crop.id); setCrop(null); return }
+      if (event.key === 'Escape') { setTextTool(false); setDrawTool(false); setMenu(null); if (crop) restoreElementFocus(crop.id); setCrop(null); return }
       if (crop) return
       if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) {
         event.preventDefault()
@@ -455,13 +484,15 @@ export function PdfEditView() {
       {error && <p role="alert" className="pdf-editor-error">{t(error)}</p>}
       {loading && <p role="status" className="p-6">{t('pdfEditLoading')}</p>}
       {pendingImages > 0 && <p role="status" className="p-3">{t('pdfEditImageLoading')}</p>}
+      {erasing && <p role="status" className="p-3">{t('pdfEditErasing')}</p>}
       {session && <><div className="pdf-editor-controls">
         <div className="pdf-editor-toolbar" role="group" aria-label={t('pdfEditTools')}>
           <div className="pdf-editor-tool-group">
-            <button className={`pdf-editor-tool ${!textTool ? 'is-active' : ''}`} title={t('pdfEditSelect')} aria-label={t('pdfEditSelect')} aria-pressed={!textTool} onClick={() => { finishText(); if (!inlineRef.current) setTextTool(false) }}><PdfEditorIcon name="select" /></button>
+            <button className={`pdf-editor-tool ${!textTool && !drawTool ? 'is-active' : ''}`} disabled={busy} title={t('pdfEditSelect')} aria-label={t('pdfEditSelect')} aria-pressed={!textTool && !drawTool} onClick={() => { finishText(); if (!inlineRef.current) { setTextTool(false); setDrawTool(false) } }}><PdfEditorIcon name="select" /></button>
             <button className="pdf-editor-tool pdf-editor-tool-label" disabled={!ratio || busy || !!crop} title={t('pdfEditImage')} onClick={() => imageInput.current?.click()}><PdfEditorIcon name="image" /><span>{t('pdfEditImages')}</span></button>
             <input ref={imageInput} className="sr-only" aria-label={t('pdfEditImage')} type="file" accept="image/png,image/jpeg,image/webp" disabled={!ratio || busy} onChange={(event) => { const image = event.target.files?.[0]; if (image) void addImage(image); event.target.value = '' }} />
-            <button className={`pdf-editor-tool pdf-editor-tool-label ${textTool ? 'is-active' : ''}`} disabled={!ratio || busy || !!crop} title={t('pdfEditAddText')} aria-label={t('pdfEditAddText')} aria-pressed={textTool} onClick={(event) => { finishText(); if (inlineRef.current) return; if (event.detail === 0) { beginText(.15, .15); return } setTextTool(!textTool); setSelected(null); setMenu(null) }}><PdfEditorIcon name="text" /><span>{t('pdfEditTextTool')}</span></button>
+            <button className={`pdf-editor-tool pdf-editor-tool-label ${textTool ? 'is-active' : ''}`} disabled={!ratio || busy || !!crop} title={t('pdfEditAddText')} aria-label={t('pdfEditAddText')} aria-pressed={textTool} onClick={(event) => { finishText(); if (inlineRef.current) return; setDrawTool(false); if (event.detail === 0) { beginText(.15, .15); return } setTextTool(!textTool); setSelected(null); setMenu(null) }}><PdfEditorIcon name="text" /><span>{t('pdfEditTextTool')}</span></button>
+            <button className={`pdf-editor-tool pdf-editor-tool-label ${drawTool ? 'is-active' : ''}`} disabled={!ratio || busy || !!crop} title={t('pdfEditDraw')} aria-label={t('pdfEditDraw')} aria-pressed={drawTool} onClick={() => { finishText(); if (inlineRef.current) return; setDrawTool(!drawTool); setTextTool(false); setSelected(null); setMenu(null) }}><PdfEditorIcon name="draw" /><span>{t('pdfEditDraw')}</span></button>
           </div>
           <div className="pdf-editor-tool-group pdf-editor-history">
             <button className="pdf-editor-tool" title={t('pdfEditUndo')} aria-label={t('pdfEditUndo')} disabled={history.index === 0 || busy || !!inline || !!crop} onClick={() => { if (gesture.current || inlineRef.current) return; setHistory((state) => ({ ...state, index: Math.max(0, state.index - 1) })); setSelected(null); setMenu(null) }}><PdfEditorIcon name="undo" /></button>
@@ -480,11 +511,20 @@ export function PdfEditView() {
             <button className="pdf-editor-tool" disabled={page === session.pdf.numPages || busy} aria-label={t('pdfEditNext')} title={t('pdfEditNext')} onClick={() => changePage(page + 1)}>›</button>
           </div>
           <span className="pdf-editor-filename" title={session.name}>{session.name}</span>
-          <label className="pdf-editor-zoom">{t('pdfEditZoom')} <select aria-label={t('pdfEditZoom')} value={zoom} onChange={(event) => setZoom(event.target.value)}><option value="width">{t('pdfEditFitWidth')}</option><option value="page">{t('pdfEditFitPage')}</option>{[75, 100, 125, 150, 200].map((value) => <option key={value} value={value}>{value}%</option>)}</select></label>
+          <label className="pdf-editor-zoom">{t('pdfEditZoom')} <select aria-label={t('pdfEditZoom')} disabled={drawingActive} value={zoom} onChange={(event) => setZoom(event.target.value)}><option value="width">{t('pdfEditFitWidth')}</option><option value="page">{t('pdfEditFitPage')}</option>{[75, 100, 125, 150, 200].map((value) => <option key={value} value={value}>{value}%</option>)}</select></label>
         </div>
-        <div className="pdf-editor-guidance"><span className="pdf-editor-mode">{t(textTool || inline ? 'pdfEditTextTool' : 'pdfEditReady')}</span><span id="pdf-editor-writing-hint">{t(textTool || inline ? 'pdfEditPlaceText' : 'pdfEditCanvasHint')}</span>
+        <div className="pdf-editor-guidance"><span className="pdf-editor-mode">{t(drawTool ? 'pdfEditDraw' : textTool || inline ? 'pdfEditTextTool' : 'pdfEditReady')}</span><span id="pdf-editor-writing-hint">{t(drawTool ? 'pdfEditDrawHint' : textTool || inline ? 'pdfEditPlaceText' : 'pdfEditCanvasHint')}</span>
         </div>
-        <div className="pdf-editor-format-slot"><div hidden={!!current && current.text === undefined} className="pdf-editor-text-format" role="group" aria-label={t('pdfEditTextStyle')}>
+        <div className="pdf-editor-format-slot">
+        {drawTool && <div className="pdf-editor-drawing-format" role="group" aria-label={t('pdfEditBrushOptions')}>
+          <label>{t('pdfEditBrush')}<select aria-label={t('pdfEditBrush')} disabled={busy} value={brush} onChange={(event) => { setBrush(event.target.value as Exclude<PdfBrush, 'eraser'>); setEraserTool(false) }}><option value="round">● {t('pdfEditBrushRound')}</option><option value="square">■ {t('pdfEditBrushSquare')}</option><option value="marker">▰ {t('pdfEditBrushMarker')}</option></select></label>
+          <button type="button" className={`pdf-editor-tool ${eraserTool ? 'is-active' : ''}`} title={t('pdfEditEraser')} aria-label={t('pdfEditEraser')} aria-pressed={eraserTool} disabled={busy} onClick={() => setEraserTool(!eraserTool)}><PdfEditorIcon name="eraser" /></button>
+          <label>{t('pdfEditDrawColor')}<input aria-label={t('pdfEditDrawColor')} type="color" disabled={busy || eraserTool} value={brushColor} onChange={(event) => setBrushColor(event.target.value)} /></label>
+          <label className="pdf-editor-brush-size">{t('pdfEditBrushSize')}<input aria-label={t('pdfEditBrushSize')} type="range" min="1" max="40" step="1" disabled={busy} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} /><output>{brushSize}</output></label>
+          <svg className="pdf-editor-brush-preview" viewBox="0 0 80 44" role="img" aria-label={t('pdfEditBrushPreview')}>{eraserTool ? <circle cx="40" cy="22" r={Math.max(3, brushSize / 4)} fill="#f1f5f9" stroke="#64748b" /> : <path d="M12 30 Q28 5 40 24 T68 14" fill="none" stroke={brushColor} strokeWidth={brushSize / 2} strokeLinecap={brush === 'round' ? 'round' : 'square'} opacity={brush === 'marker' ? .3 : 1} />}</svg>
+          {eraserTool && <span>{t('pdfEditEraserHint')}</span>}
+        </div>}
+        <div hidden={drawTool || (!!current && current.text === undefined)} className="pdf-editor-text-format" role="group" aria-label={t('pdfEditTextStyle')}>
           <label className="pdf-editor-font-label">{t('pdfEditFont')}
             <select data-pdf-text-format aria-label={t('pdfEditFont')} disabled={busy} value={inline?.textFont ?? current?.textFont ?? font} style={{ fontFamily: pdfFontFamily(inline?.textFont ?? current?.textFont ?? font) }} onChange={(event) => changeTextStyle({ textFont: event.target.value })}>
               {[...new Set([...fonts, inline?.textFont ?? current?.textFont ?? font])].map((name) => <option key={name} value={name} style={{ fontFamily: pdfFontFamily(name) }}>{name === 'sans-serif' ? t('pdfEditSansSerif') : name === 'serif' ? t('pdfEditSerif') : name === 'monospace' ? t('pdfEditMonospace') : name}</option>)}
@@ -499,7 +539,7 @@ export function PdfEditView() {
           {canQueryPdfFonts() && <button className="pdf-editor-tool pdf-editor-device-fonts" title={t('pdfEditDeviceFonts')} aria-label={t('pdfEditDeviceFonts')} disabled={fontLoading || busy} onClick={() => void loadDeviceFonts()}><span aria-hidden="true">Aa+</span></button>}
           {fontNotice && <span role="status" className="pdf-editor-font-notice">{t(fontNotice)}</span>}
         </div>
-        {current && current.text === undefined && <div className="pdf-editor-image-format" role="group" aria-label={t('pdfEditImageOptions')}>
+        {!drawTool && current && current.text === undefined && <div className="pdf-editor-image-format" role="group" aria-label={t('pdfEditImageOptions')}>
           <button className="pdf-editor-tool" disabled={busy || !!crop} title={t('pdfEditRotate')} aria-label={t('pdfEditRotate')} onClick={() => actOnElement('rotate', current)}><PdfEditorIcon name="rotate" /></button>
           <button className="pdf-editor-tool" disabled={busy || !!crop} title={t('pdfEditCrop')} aria-label={t('pdfEditCrop')} onClick={() => actOnElement('crop', current)}><PdfEditorIcon name="crop" /></button>
           <label>{t('pdfEditOpacity')}<input type="range" min="0.05" max="1" step="0.05" disabled={busy || !!crop} aria-label={t('pdfEditOpacity')} value={current.opacity ?? 1} onChange={(event) => changeImageStyle({ opacity: Number(event.target.value) }, true)} onPointerUp={() => { if (draftRef.current) commit(draftRef.current) }} onPointerCancel={() => { draftRef.current = null; setDraft(null) }} onBlur={() => { if (draftRef.current) commit(draftRef.current) }} onKeyUp={() => { if (draftRef.current) commit(draftRef.current) }} /></label>
@@ -518,7 +558,7 @@ export function PdfEditView() {
           }}>
             <PageCanvas key={page} pdf={session.pdf} page={page} onReady={onReady} onError={onRenderError} />
             {!ratio && <div className="pdf-editor-page-loading" role="status">{t('pdfEditLoading')}</div>}
-            {ratio > 0 && items.filter((item) => item.page === page && item.id !== inline?.id).map((item, index) => <div key={item.id} data-element-id={item.id} role="button" tabIndex={0} aria-label={[t('pdfEditElement'), index + 1, item.text === undefined ? t('pdfEditImageElement') : `${t('pdfEditTextTool')}: ${item.text.slice(0, 80)}`].join(' · ')} aria-pressed={selected === item.id} className={`pdf-editor-overlay ${selected === item.id ? 'is-selected' : ''}`} style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%`, width: `${item.width * 100}%`, height: `${item.height * 100}%`, transform: `rotate(${item.rotation ?? 0}deg)` }} onFocus={() => { if (!crop) setSelected(item.id) }} onDoubleClick={() => { if (!crop && item.text !== undefined) beginText(item.x, item.y, item) }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (!crop) openMenu(item, event.clientX, event.clientY) }} onPointerDown={(event) => start(event, item, false)} onPointerMove={move} onPointerUp={() => finish()} onPointerCancel={() => finish(true)} onLostPointerCapture={() => finish(true)} onKeyDown={(event) => {
+            {ratio > 0 && items.filter((item) => item.page === page && item.id !== inline?.id).map((item, index) => <div key={item.id} data-element-id={item.id} role="button" tabIndex={0} aria-label={[t('pdfEditElement'), index + 1, item.text === undefined ? t(item.kind === 'drawing' ? 'pdfEditDrawingElement' : 'pdfEditImageElement') : `${t('pdfEditTextTool')}: ${item.text.slice(0, 80)}`].join(' · ')} aria-pressed={selected === item.id} className={`pdf-editor-overlay ${selected === item.id ? 'is-selected' : ''}`} style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%`, width: `${item.width * 100}%`, height: `${item.height * 100}%`, transform: `rotate(${item.rotation ?? 0}deg)` }} onFocus={() => { if (!crop) setSelected(item.id) }} onDoubleClick={() => { if (!crop && item.text !== undefined) beginText(item.x, item.y, item) }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (!crop) openMenu(item, event.clientX, event.clientY) }} onPointerDown={(event) => start(event, item, false)} onPointerMove={move} onPointerUp={() => finish()} onPointerCancel={() => finish(true)} onLostPointerCapture={() => finish(true)} onKeyDown={(event) => {
               if (busy || crop) return
               if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); openMenu(item, bounds.left, bounds.top); return }
               if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
@@ -532,7 +572,7 @@ export function PdfEditView() {
               const offsets: Record<string, [number, number]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }
               if (offsets[event.key]) { event.preventDefault(); const [x, y] = offsets[event.key]; commit(items.map((entry) => entry.id === item.id ? fitOverlay({ ...item, x: item.x + x, y: item.y + y }, ratio) : entry)) }
             }}>
-              <div className="pdf-editor-object-content" style={{ opacity: item.opacity ?? 1 }}>{item.text !== undefined ? <PdfTextPreview item={item} /> : <img src={item.src} alt="" draggable={false} />}</div>
+              <div className="pdf-editor-object-content" style={{ opacity: item.opacity ?? 1 }}>{item.text !== undefined ? <PdfTextPreview item={item} /> : item.kind === 'drawing' ? <PdfDrawingPreview item={item} ratio={ratio} eraserPathId={drawTool && eraserTool ? eraserPathId : undefined} /> : <img src={item.src} alt="" draggable={false} />}</div>
               {selected === item.id && !crop && <div className="pdf-editor-object-tools" onPointerDown={(event) => event.stopPropagation()}>
                 <button disabled={busy} className="pdf-editor-rotate-handle" title={t('pdfEditRotateDrag')} aria-label={t('pdfEditRotateDrag')} onPointerDown={(event) => start(event, item, 'rotate')} onClick={(event) => { event.stopPropagation(); if (event.detail > 0 && rotationDragged.current) return; actOnElement('rotate', item) }} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (busy) return; if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); event.stopPropagation(); changeImageStyle({ rotation: (item.rotation ?? 0) + (event.key === 'ArrowLeft' ? -15 : 15) }) } }}><PdfEditorIcon name="rotate" /></button>
                 <button className="pdf-editor-object-menu" disabled={busy} aria-label={t('pdfEditOptions')} title={t('pdfEditOptions')} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); openMenu(item, bounds.left, bounds.bottom) }}><PdfEditorIcon name="more" /></button>
@@ -545,6 +585,11 @@ export function PdfEditView() {
               </div>}
             </div>)}
             {guides.x !== undefined && <div className="pdf-editor-guide is-vertical" style={{ left: `${guides.x * 100}%` }} />}
+            {drawTool && ratio > 0 && !crop && <PdfDrawingSurface key={"drawing-" + page} ratio={ratio} color={brushColor} size={brushSize} brush={eraserTool ? 'eraser' : brush} eraserPathId={eraserPathId} disabled={saving || pendingImages > 0 || erasing} label={t(eraserTool ? 'pdfEditErasingSurface' : 'pdfEditDrawingSurface')} onActive={setDrawingActive} onError={() => setError('pdfEditDrawingError')} onCommit={(drawing) => {
+              if (eraserTool) return eraseDrawing(drawing)
+              const latest = historyRef.current.entries[historyRef.current.index]
+              if (commit([...latest, { ...drawing, id: crypto.randomUUID(), page, kind: 'drawing' }])) { setSelected(null); clearError('pdfEditDrawingError') }
+            }} />}
             {guides.y !== undefined && <div className="pdf-editor-guide is-horizontal" style={{ top: `${guides.y * 100}%` }} />}
             {inline && inline.page === page && <textarea wrap="off" ref={inlineInput} className="pdf-editor-inline-text" aria-label={t('pdfEditText')} aria-describedby="pdf-editor-writing-hint" placeholder={t('pdfEditWriteHere')} maxLength={2000} rows={Math.min(12, Math.max(2, inline.value.split('\n').length))} style={{ left: `${inline.x * 100}%`, top: `${inline.y * 100}%`, width: `${Math.min(1 - inline.x, Math.max(.3, inline.width)) * 100}%`, minHeight: `${Math.max(.07, inline.height) * paperWidth / (ratio || 1)}px`, color: inline.textColor ?? color, fontFamily: pdfFontFamily(inline.textFont ?? font), fontWeight: inline.textBold ? 700 : 400, fontStyle: inline.textItalic ? 'italic' : 'normal', textAlign: inline.textAlign ?? 'left', transform: `rotate(${inline.rotation ?? 0}deg)`, transformOrigin: `${inline.width * paperWidth / 2}px ${inline.height * paperWidth / (ratio || 1) / 2}px`, fontSize: Math.max(12, paperWidth / (ratio || 1) * inline.height * 96 / (Math.max(1, (inline.text ?? '').split('\n').length) * 120 + 16)) }} value={inline.value} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => { const next = { ...inline, value: event.target.value }; inlineRef.current = next; setInline(next) }} onBlur={(event) => { if ((event.relatedTarget instanceof HTMLInputElement && event.relatedTarget.type === 'color') || (event.relatedTarget instanceof HTMLElement && event.relatedTarget.hasAttribute('data-pdf-text-format'))) return; finishText() }} onKeyDown={(event) => { event.stopPropagation(); if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return; if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); finishText(false, true) } if (event.key === 'Escape') { event.preventDefault(); finishText(true, true) } }} />}
           </div>

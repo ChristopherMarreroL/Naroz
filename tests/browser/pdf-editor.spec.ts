@@ -359,7 +359,7 @@ test('multiline styles, unsaved navigation, browser back and clean download stat
   await expect.poll(() => prompts).toBe(3)
   await page.getByRole('button', { name: 'Redo', exact: true }).click()
   await page.locator('.topbar-brand-button').click()
-  await expect(page).toHaveURL('http://127.0.0.1:5173/')
+  await expect(page).toHaveURL(new URL('/', test.info().project.use.baseURL!).href)
   expect(prompts).toBe(3)
 })
 
@@ -534,5 +534,5 @@ test('closing thumbnails releases canvases and cancelled navigation preserves an
   await input.press('Control+Enter')
   page.once('dialog', (dialog) => dialog.accept())
   await page.locator('.topbar-brand-button').click()
-  await expect(page).toHaveURL('http://127.0.0.1:5173/')
+  await expect(page).toHaveURL(new URL('/', test.info().project.use.baseURL!).href)
 })

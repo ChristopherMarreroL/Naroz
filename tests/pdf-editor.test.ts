@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
 import { bakeAnnotationsUnderOverlays, constrainOverlay } from '../src/features/document/lib/pdfEditor'
-import { appendHistory, fitOverlay, overlayBounds, overlayRevision, resizeOverlay, sameElements, snapOverlay, type ResizeCorner } from '../src/features/document/lib/pdfEditorState'
+import { appendHistory, fitOverlay, imageBudget, overlayBounds, overlayRevision, resizeOverlay, sameElements, snapOverlay, type ResizeCorner } from '../src/features/document/lib/pdfEditorState'
 
 test('overlay remains inside page when moved beyond any edge', () => {
   const item = { id: '1', page: 1, src: '', x: -2, y: 2, width: .4, height: .2 }
@@ -47,6 +47,18 @@ test('downloaded revisions identify images without retaining their payloads', ()
   expect(overlayRevision([{ ...item }])).toBe(saved)
   expect(overlayRevision([{ ...item, src: 'y'.repeat(100_000) }])).not.toBe(saved)
   expect(overlayRevision([])).toBe('')
+})
+
+test('drawing history permits small strokes without bypassing image, payload or element limits', () => {
+  const drawings = Array.from({ length: 100 }, (_, index) => ({ id: String(index), page: 1, kind: 'drawing' as const, src: `synthetic-stroke-${index}`, x: .1, y: .1, width: .1, height: .1 }))
+  expect(imageBudget(drawings)).toBe(true)
+  expect(imageBudget([...drawings, { ...drawings[0], id: 'extra' }])).toBe(false)
+  expect(imageBudget(drawings.slice(0, 31).map(({ kind: _kind, ...item }) => { void _kind; return item }))).toBe(false)
+  expect(imageBudget([{ ...drawings[0], src: 'x'.repeat(32_000_001) }])).toBe(false)
+  const prior = { entries: [drawings.slice(0, 1)], index: 0 }
+  const state = appendHistory(prior, drawings)
+  expect(state.entries[state.index]).toEqual(drawings)
+  expect(overlayRevision(drawings)).not.toBe(overlayRevision(drawings.slice(0, 99)))
 })
 
 test('visible stamp appearances move into page content while links stay annotations', async () => {

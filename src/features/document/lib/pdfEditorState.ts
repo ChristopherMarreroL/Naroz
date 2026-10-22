@@ -45,7 +45,8 @@ export function sameElements(a: PdfOverlay[], b: PdfOverlay[]) {
 
 function retainedImagesFit(items: PdfOverlay[]) {
   const sources = new Set(items.filter((item) => item.text === undefined).map((item) => item.src))
-  return sources.size <= 30 && [...sources].reduce((total, src) => total + src.length, 0) <= 32_000_000
+  const imported = new Set(items.filter((item) => item.text === undefined && item.kind !== 'drawing').map((item) => item.src))
+  return imported.size <= 30 && sources.size <= 130 && [...sources].reduce((total, src) => total + src.length, 0) <= 32_000_000
 }
 
 export function imageBudget(items: PdfOverlay[]) {

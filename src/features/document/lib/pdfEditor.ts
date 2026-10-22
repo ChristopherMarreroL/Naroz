@@ -19,6 +19,7 @@ export interface PdfOverlay {
   textAlign?: 'left' | 'center' | 'right'
   rotation?: number
   opacity?: number
+  kind?: 'drawing'
 }
 
 export class PdfExportLimitError extends Error {}
