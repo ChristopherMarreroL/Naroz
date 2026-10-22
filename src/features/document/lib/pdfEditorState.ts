@@ -1,4 +1,5 @@
 import type { PdfOverlay } from './pdfEditor'
+import { PDF_EDITOR_IMAGE_PIXELS, pngPixelCount } from './pdfEditorBudget'
 
 export type EditorHistory = { entries: PdfOverlay[][]; index: number }
 export type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se'
@@ -43,22 +44,32 @@ export function sameElements(a: PdfOverlay[], b: PdfOverlay[]) {
   })
 }
 
-function retainedImagesFit(items: PdfOverlay[]) {
+function retainedImagesFit(items: PdfOverlay[], snapshots = 1) {
   const sources = new Set(items.filter((item) => item.text === undefined).map((item) => item.src))
   const imported = new Set(items.filter((item) => item.text === undefined && item.kind !== 'drawing').map((item) => item.src))
-  return imported.size <= 30 && sources.size <= 130 && [...sources].reduce((total, src) => total + src.length, 0) <= 32_000_000
+  if (imported.size > 30 * snapshots || sources.size > 100 * snapshots) return false
+  let length = 0, pixels = 0
+  try {
+    for (const src of sources) {
+      length += src.length
+      if (length > 32_000_000 * snapshots) return false
+      pixels += pngPixelCount(src)
+      if (pixels > PDF_EDITOR_IMAGE_PIXELS * snapshots) return false
+    }
+  } catch { return false }
+  return true
 }
 
 export function imageBudget(items: PdfOverlay[]) {
   return items.length <= 100 && retainedImagesFit(items)
 }
 
-/** Evict oldest undo snapshots when their images exceed the retained-memory budget. */
+/** Reserve two bounded snapshots so every accepted gesture keeps its immediate undo point. */
 export function appendHistory(state: EditorHistory, next: PdfOverlay[]): EditorHistory {
   if (!imageBudget(next)) throw new Error('resource budget')
   if (sameElements(state.entries[state.index], next)) return state
   const entries = [...state.entries.slice(0, state.index + 1), next].slice(-51)
-  while (entries.length > 1 && !retainedImagesFit(entries.flat())) {
+  while (entries.length > 2 && !retainedImagesFit(entries.flat(), 2)) {
     entries.shift()
   }
   return { entries, index: entries.length - 1 }

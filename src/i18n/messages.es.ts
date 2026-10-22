@@ -25,7 +25,7 @@ const messages: Messages = {
     pdfEditCornerNE: "superior derecha",
     pdfEditCornerSW: "inferior izquierda",
     pdfEditCornerSE: "inferior derecha",
-    pdfEditResourceLimit: "Límite alcanzado: hasta 100 elementos y 30 imágenes (24 MB). Elimina alguna imagen para continuar.",
+    pdfEditResourceLimit: "Límite de recursos alcanzado: hasta 100 elementos, 30 imágenes importadas y 32 megapíxeles en imágenes y trazos. Elimina algún elemento para continuar.",
     pdfEditTextLimit: "Este texto es demasiado largo para un solo cuadro. Divídelo en varias líneas o cuadros más pequeños.",
     pdfEditExportLimit: "Las imágenes ocupan demasiada memoria para descargar este PDF. Tus cambios siguen disponibles; elimina algunas imágenes y vuelve a intentarlo.",
     pdfEditInputLimit: "Este PDF supera los límites de páginas o de resolución de imágenes del editor. Reduce la cantidad de páginas o la resolución de sus imágenes e inténtalo de nuevo.",

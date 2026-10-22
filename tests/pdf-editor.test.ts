@@ -2,6 +2,14 @@ import { test, expect } from 'bun:test'
 import { bakeAnnotationsUnderOverlays, constrainOverlay } from '../src/features/document/lib/pdfEditor'
 import { appendHistory, fitOverlay, imageBudget, overlayBounds, overlayRevision, resizeOverlay, sameElements, snapOverlay, type ResizeCorner } from '../src/features/document/lib/pdfEditorState'
 
+function syntheticPng(id: number) {
+  const bytes = new Uint8Array(28)
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]); bytes.set([73, 72, 68, 82], 12)
+  const view = new DataView(bytes.buffer)
+  view.setUint32(16, 32); view.setUint32(20, 32); view.setUint32(24, id)
+  return `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`
+}
+
 test('overlay remains inside page when moved beyond any edge', () => {
   const item = { id: '1', page: 1, src: '', x: -2, y: 2, width: .4, height: .2 }
   expect(constrainOverlay(item)).toEqual({ ...item, x: 0, y: .8 })
@@ -50,7 +58,7 @@ test('downloaded revisions identify images without retaining their payloads', ()
 })
 
 test('drawing history permits small strokes without bypassing image, payload or element limits', () => {
-  const drawings = Array.from({ length: 100 }, (_, index) => ({ id: String(index), page: 1, kind: 'drawing' as const, src: `synthetic-stroke-${index}`, x: .1, y: .1, width: .1, height: .1 }))
+  const drawings = Array.from({ length: 100 }, (_, index) => ({ id: String(index), page: 1, kind: 'drawing' as const, src: syntheticPng(index), x: .1, y: .1, width: .1, height: .1 }))
   expect(imageBudget(drawings)).toBe(true)
   expect(imageBudget([...drawings, { ...drawings[0], id: 'extra' }])).toBe(false)
   expect(imageBudget(drawings.slice(0, 31).map(({ kind: _kind, ...item }) => { void _kind; return item }))).toBe(false)
@@ -84,10 +92,10 @@ test('text revisions do not consume image budget; oversized retained history is 
   expect(state.entries).toHaveLength(51); expect(state.entries[state.index][0].text).toBe('60')
   expect(appendHistory(state, [{ ...item, text: '60' }])).toBe(state)
   let images = { entries: [[]], index: 0 } as Parameters<typeof appendHistory>[0]
-  for (let index = 0; index < 40; index++) images = appendHistory(images, [{ ...item, text: undefined, src: 'synthetic-' + index }])
-  expect(images.entries).toHaveLength(30); expect(images.index).toBe(29)
-  expect(sameElements(images.entries[29], [{ ...images.entries[29][0], opacity: .5 }])).toBe(false)
-  expect(() => appendHistory(images, Array.from({ length: 31 }, (_, index) => ({ ...item, text: undefined, id: String(index), src: String(index) })))).toThrow()
+  for (let index = 0; index < 8; index++) images = appendHistory(images, Array.from({ length: 10 }, (_, offset) => ({ ...item, text: undefined, id: String(offset), src: syntheticPng(index * 10 + offset) })))
+  expect(images.entries).toHaveLength(6); expect(images.index).toBe(5)
+  expect(sameElements(images.entries[5], images.entries[5].map((entry) => ({ ...entry, opacity: .5 })))).toBe(false)
+  expect(() => appendHistory(images, Array.from({ length: 31 }, (_, index) => ({ ...item, text: undefined, id: String(index), src: syntheticPng(index) })))).toThrow()
 })
 
 test('invalid crops fail before decoding or accessing image data', async () => {

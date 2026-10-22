@@ -289,7 +289,7 @@ test('eraser reveals original PDF pixels after transformed strokes and leaves im
         const item = { ...stroke.finish(), id: String(index), page: index, kind: 'drawing', rotation: [0, 35, 90, -40][index - 1] }
         const center = { x: item.x + item.width / 2, y: item.y + item.height / 2 }
         const erase = beginPdfStroke(canvas, ratio, '#000000', 40, 'eraser', center).finish()
-        const imported = { ...item, id: 'image', kind: undefined, src: 'should not be decoded' }
+        const imported = { ...item, id: 'image', kind: undefined, src: item.src.slice(0, 'data:image/png;base64,'.length + 32) }
         const text = { ...item, id: 'text', kind: undefined, text: 'Keep text', src: '' }
         const stack = [item, imported, text]
         cancelled = (await erasePdfStrokes(stack, index, ratio, erase, () => true)) === stack
@@ -322,4 +322,76 @@ test('eraser reveals original PDF pixels after transformed strokes and leaves im
     expect(sample.retained).toEqual([224, 32, 48, 255])
   }
   expect(result.textPresent).toEqual([true, true, true, true])
+})
+
+test('review: admitted large drawings still export after an over-budget gesture is rejected', async ({ page }) => {
+  await page.goto('/tests/browser/harness.html')
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true')
+  const result = await page.evaluate(async () => {
+    const drawingPath = '/src/features/document/lib/pdfDrawing.ts', statePath = '/src/features/document/lib/pdfEditorState.ts'
+    const editorPath = '/src/features/document/lib/pdfEditor.ts', runtimePath = '/src/lib/fileCompatibility/pdfRuntime.ts'
+    const pdfPath = '/node_modules/.vite/deps/pdf-lib.js'
+    const { beginPdfStroke } = await import(drawingPath)
+    const { appendHistory, imageBudget } = await import(statePath)
+    const { exportEditedPdf } = await import(editorPath)
+    const { createPdfLoadingTask } = await import(runtimePath)
+    const { PDFDocument } = await import(pdfPath)
+    const document = await PDFDocument.create(); document.addPage([600, 800]).drawText('Synthetic export budget fixture')
+    const bytes = await document.save(), task = createPdfLoadingTask(bytes.slice())
+    const canvas = window.document.createElement('canvas')
+    try {
+      let history = { entries: [[]], index: 0 }, rejected = 0
+      for (let index = 0; index < 11; index++) {
+        const stroke = beginPdfStroke(canvas, .75, `#${(0x100000 + index * 0x100).toString(16)}`, 6, 'round', { x: 0, y: 0 })
+        stroke.move({ x: 1, y: 1 })
+        const item = { ...stroke.finish(), id: String(index), page: 1, kind: 'drawing' }
+        const next = [...history.entries[history.index], item]
+        if (imageBudget(next)) history = appendHistory(history, next)
+        else rejected++
+      }
+      const preview = await task.promise
+      const output = await exportEditedPdf(bytes, preview, history.entries[history.index])
+      const loaded = await PDFDocument.load(output)
+      return { accepted: history.entries[history.index].length, rejected, pages: loaded.getPageCount(), bytes: output.length }
+    } finally { canvas.width = canvas.height = 0; await task.destroy() }
+  })
+  expect(result.accepted).toBe(10)
+  expect(result.rejected).toBe(1)
+  expect(result.pages).toBe(1)
+  expect(result.bytes).toBeGreaterThan(1000)
+})
+
+test('review: erasing over 30 of 100 real PNG strokes preserves undo and redo', async ({ page }) => {
+  await page.goto('/tests/browser/harness.html')
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true')
+  const result = await page.evaluate(async () => {
+    const drawingPath = '/src/features/document/lib/pdfDrawing.ts', statePath = '/src/features/document/lib/pdfEditorState.ts'
+    const { beginPdfStroke, erasePdfStrokes } = await import(drawingPath)
+    const { appendHistory, imageBudget } = await import(statePath)
+    const canvas = document.createElement('canvas')
+    try {
+      const before = Array.from({ length: 100 }, (_, index) => ({
+        ...beginPdfStroke(canvas, .75, `#${(0x100000 + index * 0x100).toString(16)}`, 10, 'round', { x: .1 + (index % 10) * .08, y: .1 + Math.floor(index / 10) * .08 }).finish(),
+        id: String(index), page: 1, kind: 'drawing',
+      }))
+      const gesture = beginPdfStroke(canvas, .75, '#000000', 1, 'eraser', { x: .1, y: .1 })
+      for (let column = 0; column < 4; column++) {
+        const x = .1 + column * .08
+        gesture.move({ x, y: column % 2 ? .82 : .1 })
+        gesture.move({ x, y: column % 2 ? .1 : .82 })
+      }
+      const after = await erasePdfStrokes(before, 1, .75, gesture.finish())
+      const changed = after.filter((item: { src: string }, index: number) => item.src !== before[index].src).length
+      const history = appendHistory({ entries: [[], before.slice(0, 50), before], index: 2 }, after)
+      return {
+        changed, accepted: imageBudget(before) && imageBudget(after), count: after.length,
+        undo: history.entries[history.index - 1] === before,
+        redo: history.entries[history.index] === after,
+      }
+    } finally { canvas.width = canvas.height = 0 }
+  })
+  expect(result.accepted).toBe(true)
+  expect(result.changed).toBeGreaterThanOrEqual(31)
+  expect(result.count).toBe(100)
+  expect(result.undo && result.redo).toBe(true)
 })
