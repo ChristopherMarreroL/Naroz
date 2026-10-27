@@ -7,7 +7,7 @@ export function Footer() {
     <footer className="app-footer">
       <div><p className="app-footer-brand">Naroz</p><p>{locale === 'es' ? '© 2026 - Todos los derechos reservados.' : '© 2026 - All rights reserved.'}</p></div>
       <a
-        href="https://github.com/ChristopherMarreroL"
+        href="https://github.com/ChristopherMarreroL/Naroz"
         target="_blank"
         rel="noreferrer"
         className="app-footer-link">
